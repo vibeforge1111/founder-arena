@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FOUNDER ARENA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --panel: rgba(0, 0, 0, 0.65);
+    --panel-solid: rgba(8, 8, 8, 0.88);
+    --card: rgba(255, 255, 255, 0.04);
+    --card-hover: rgba(255, 255, 255, 0.07);
+    --border: rgba(255,255,255,0.06);
+    --border-bright: rgba(255,255,255,0.1);
+    --text: #ECECEC;
+    --text-dim: #999;
+    --text-muted: #555;
+    --gold: #F0B429;
+    --silver: #94A3B8;
+    --bronze: #CD7F32;
+    --red: #EF4444;
+    --green: #22C55E;
+    --blue: #3B82F6;
+    --purple: #A78BFA;
+    --cyan: #22D3EE;
+    --pink: #F472B6;
+    --orange: #FB923C;
+    --yellow: #FACC15;
+    --radius: 14px;
+    --radius-sm: 8px;
+    --shadow: 0 8px 32px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.04);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    background-image: url('/static/office.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    color: var(--text);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* ─── HEADER (floating top bar) ─── */
+  .header {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    height: 48px;
+    background: var(--panel-solid);
+    backdrop-filter: blur(24px) saturate(1.2);
+    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 20px;
+    user-select: none;
+    z-index: 100;
+    box-shadow: var(--shadow);
+  }
+
+  .logo {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: var(--text);
+  }
+
+  .logo span { color: var(--text-muted); font-weight: 400; font-size: 10px; letter-spacing: 1.5px; }
+
+  .nav-tabs {
+    display: flex;
+    gap: 1px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    padding: 3px;
+  }
+
+  .nav-tab {
+    padding: 5px 16px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+  }
+
+  .nav-tab:hover { color: var(--text-dim); }
+  .nav-tab.active { background: rgba(255,255,255,0.08); color: var(--text); }
+
+  .header-status {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+  .status-dot.live { background: var(--green); box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+  .status-dot.finished { background: var(--gold); box-shadow: 0 0 8px rgba(240,180,41,0.3); }
+
+  .turn-badge {
+    background: rgba(255,255,255,0.06);
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+  }
+
+  /* ─── VIEWS ─── */
+  .view { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+  .view.active { display: block; }
+
+  /* ─── LIVE VIEW: floating panels over office ─── */
+  .panel-left {
+    position: absolute;
+    top: 72px;
+    left: 12px;
+    bottom: 12px;
+    width: 260px;
+    background: var(--panel);
+    backdrop-filter: blur(20px) saturate(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    z-index: 10;
+  }
+
+  .panel-center {
+    position: absolute;
+    left: 284px;
+    right: 314px;
+    bottom: 12px;
+    height: 340px;
+    background: var(--panel);
+    backdrop-filter: blur(20px) saturate(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    z-index: 10;
+  }
+
+  .panel-right {
+    position: absolute;
+    top: 72px;
+    right: 12px;
+    bottom: 12px;
+    width: 290px;
+    background: var(--panel);
+    backdrop-filter: blur(20px) saturate(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow-y: auto;
+    box-shadow: var(--shadow);
+    z-index: 10;
+  }
+
+  /* ─── PANEL HEADERS ─── */
+  .panel-header {
+    padding: 14px 16px 12px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  /* ─── LEFT: RANKINGS ─── */
+  .rankings { flex: 1; overflow-y: auto; }
+
+  .rank-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-left: 3px solid transparent;
+  }
+  .rank-row:hover { background: rgba(255,255,255,0.03); }
+  .rank-row.selected { background: rgba(255,255,255,0.06); }
+  .rank-row.dead { opacity: 0.35; }
+  .rank-row.dead .startup-name { text-decoration: line-through; }
+
+  .rank-badge {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600;
+    background: rgba(255,255,255,0.04);
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .rank-badge.r1 { background: rgba(240,180,41,0.12); color: var(--gold); }
+  .rank-badge.r2 { background: rgba(148,163,184,0.1); color: var(--silver); }
+  .rank-badge.r3 { background: rgba(205,127,50,0.1); color: var(--bronze); }
+
+  .agent-color { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .rank-info { flex: 1; min-width: 0; }
+  .agent-name { font-size: 11px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .startup-name { font-size: 9px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rank-val { font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; flex-shrink: 0; }
+
+  .rank-status {
+    font-size: 8px; font-weight: 500; letter-spacing: 0.5px;
+    padding: 2px 6px; border-radius: 4px; flex-shrink: 0;
+  }
+  .rank-status.alive { background: rgba(34,197,94,0.1); color: var(--green); }
+  .rank-status.dead { background: rgba(239,68,68,0.1); color: var(--red); }
+
+  .mini-bars { display: flex; gap: 2px; align-items: flex-end; height: 14px; flex-shrink: 0; }
+  .mini-bar { width: 3px; border-radius: 1px; min-height: 2px; }
+
+  /* ─── CENTER: TIMELINE / CHART ─── */
+  .center-tabs {
+    display: flex; gap: 0;
+    padding: 8px 16px 0;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .center-tab {
+    padding: 8px 18px;
+    font-size: 10px; font-weight: 500; letter-spacing: 0.8px;
+    color: var(--text-muted); cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+  }
+  .center-tab:hover { color: var(--text-dim); }
+  .center-tab.active { color: var(--text); border-bottom-color: var(--text); }
+
+  .center-content { flex: 1; overflow: hidden; position: relative; }
+  .tab-panel { display: none; height: 100%; width: 100%; }
+  .tab-panel.active { display: flex; flex-direction: column; }
+
+  /* Timeline */
+  .timeline { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+  .timeline-filter {
+    padding: 4px 14px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10px; color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .timeline-filter-btn {
+    padding: 3px 10px; font-size: 9px; font-weight: 500;
+    border-radius: 5px; background: rgba(255,255,255,0.06); color: var(--text-dim);
+    border: 1px solid var(--border); cursor: pointer; transition: all 0.15s;
+  }
+  .timeline-filter-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+
+  .turn-divider {
+    padding: 6px 16px; font-size: 9px; font-weight: 500;
+    letter-spacing: 1px; color: var(--text-muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .turn-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .timeline-entry {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 3px 14px; font-size: 11px;
+    transition: background 0.1s;
+  }
+  .timeline-entry:hover { background: rgba(255,255,255,0.03); }
+
+  .tl-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .tl-agent { width: 80px; font-weight: 600; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
+  .tl-action { padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 500; white-space: nowrap; flex-shrink: 0; }
+  .tl-message { flex: 1; color: var(--text-dim); font-size: 10px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tl-icon { flex-shrink: 0; font-size: 10px; width: 14px; text-align: center; }
+  .tl-icon.success { color: var(--green); }
+  .tl-icon.fail { color: var(--red); }
+
+  /* Chart */
+  .chart-container { flex: 1; padding: 12px; position: relative; }
+  #valuation-chart { width: 100%; height: 100%; }
+
+  /* ─── RIGHT: AGENT DETAIL ─── */
+  .detail-empty { padding: 24px; text-align: center; color: var(--text-muted); font-size: 11px; margin-top: 40px; }
+  .detail-empty .hint { margin-top: 8px; font-size: 10px; color: var(--text-muted); opacity: 0.5; }
+
+  .agent-detail { padding: 16px; }
+  .detail-header { margin-bottom: 16px; }
+  .detail-agent-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+  .detail-startup-name { font-size: 12px; color: var(--text-dim); margin-bottom: 3px; font-weight: 400; }
+  .detail-motto { font-size: 10px; color: var(--text-muted); font-style: italic; margin-bottom: 10px; }
+  .detail-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+  .detail-tag { font-size: 9px; font-weight: 500; letter-spacing: 0.5px; padding: 3px 8px; border-radius: 5px; background: rgba(255,255,255,0.05); color: var(--text-dim); }
+
+  .detail-section { margin-top: 16px; }
+  .detail-section-title { font-size: 9px; font-weight: 500; letter-spacing: 1.2px; color: var(--text-muted); margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stat-item { background: rgba(255,255,255,0.03); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); }
+  .stat-label { font-size: 8px; font-weight: 500; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 2px; }
+  .stat-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.gold { color: var(--gold); }
+
+  .progress-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .progress-label { width: 55px; font-size: 10px; color: var(--text-dim); }
+  .progress-track { flex: 1; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+  .progress-val { width: 26px; text-align: right; font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .team-member { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 10px; }
+  .team-role { font-size: 8px; font-weight: 500; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); color: var(--text-dim); width: 62px; text-align: center; flex-shrink: 0; }
+  .team-name { flex: 1; }
+  .team-skill { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+  .recent-action { display: flex; align-items: center; gap: 5px; padding: 3px 0; font-size: 10px; border-bottom: 1px solid var(--border); }
+  .recent-turn { color: var(--text-muted); font-size: 9px; width: 28px; flex-shrink: 0; }
+  .recent-type { padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 500; flex-shrink: 0; }
+  .recent-msg { flex: 1; color: var(--text-dim); font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .recent-ok { color: var(--green); font-size: 9px; }
+  .recent-fail { color: var(--red); font-size: 9px; }
+
+  /* ─── POST-GAME VIEW ─── */
+  #view-postgame { overflow-y: auto; padding-top: 72px; }
+
+  .postgame-banner {
+    text-align: center; padding: 32px 24px 24px;
+    background: var(--panel-solid);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    margin: 0 12px; border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: var(--shadow);
+  }
+  .postgame-title { font-size: 10px; font-weight: 500; letter-spacing: 3px; color: var(--text-muted); margin-bottom: 8px; }
+  .postgame-winner { font-size: 28px; font-weight: 600; color: var(--gold); margin-bottom: 4px; }
+  .postgame-sub { font-size: 12px; color: var(--text-dim); font-weight: 400; }
+
+  .postgame-table-wrap {
+    padding: 20px;
+    max-width: 1200px; margin: 0 auto; width: 100%;
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    margin-left: 12px; margin-right: 12px;
+    border-radius: 0 0 var(--radius) var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+  }
+
+  .score-table { width: 100%; border-collapse: collapse; }
+  .score-table th { font-size: 9px; font-weight: 500; letter-spacing: 1px; color: var(--text-muted); text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border-bright); }
+  .score-table td { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .score-table tr.winner-row { border-left: 3px solid var(--gold); }
+  .score-table tr.winner-row td:first-child { padding-left: 9px; }
+  .score-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .score-table .rank-cell { font-weight: 600; width: 36px; }
+  .score-table .val-cell { font-weight: 500; }
+
+  .expand-btn { background: none; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; font-size: 10px; padding: 3px 8px; border-radius: 5px; transition: all 0.15s; }
+  .expand-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+
+  .score-expand { display: none; padding: 12px 16px; background: rgba(255,255,255,0.02); }
+  .score-expand.open { display: block; }
+
+  .expand-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .expand-stat { background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); }
+  .expand-actions-title { font-size: 9px; font-weight: 500; letter-spacing: 1px; color: var(--text-muted); margin: 12px 0 6px; }
+  .expand-actions-list { max-height: 180px; overflow-y: auto; }
+
+  /* ─── LEADERBOARD VIEW ─── */
+  #view-leaderboard { overflow-y: auto; padding-top: 72px; }
+
+  .lb-section {
+    padding: 20px;
+    max-width: 1200px; margin: 12px; width: calc(100% - 24px);
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  .lb-section-title { font-size: 10px; font-weight: 500; letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .lb-table { width: 100%; border-collapse: collapse; }
+  .lb-table th { font-size: 9px; font-weight: 500; letter-spacing: 1px; color: var(--text-muted); text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border-bright); cursor: pointer; user-select: none; }
+  .lb-table th:hover { color: var(--text-dim); }
+  .lb-table td { padding: 9px 12px; font-size: 11px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .lb-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .win-rate-bar { width: 50px; height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 5px; }
+  .win-rate-fill { height: 100%; background: var(--green); border-radius: 2px; opacity: 0.8; }
+
+  /* ─── NO GAME ─── */
+  .no-game { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); gap: 10px; }
+  .no-game-title { font-size: 16px; font-weight: 500; color: var(--text-dim); }
+  .no-game-sub { font-size: 12px; font-weight: 400; }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    padding: 9px 20px; font-size: 11px; font-weight: 500; letter-spacing: 0.5px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    cursor: pointer; transition: all 0.2s ease; background: rgba(255,255,255,0.05); color: var(--text-dim);
+    font-family: inherit;
+  }
+  .btn:hover { background: rgba(255,255,255,0.08); color: var(--text); border-color: var(--border-bright); }
+  .btn-primary { background: var(--text); color: #000; border-color: var(--text); font-weight: 500; }
+  .btn-primary:hover { background: #fff; }
+  .btn-sm { padding: 4px 10px; font-size: 10px; }
+  .btn-new-game {
+    padding: 5px 14px; font-size: 10px; font-weight: 500; letter-spacing: 0.5px;
+    background: rgba(255,255,255,0.08); color: var(--text-dim); border: 1px solid var(--border);
+    border-radius: 8px; cursor: pointer; transition: all 0.2s ease; font-family: inherit;
+  }
+  .btn-new-game:hover { background: rgba(255,255,255,0.12); color: var(--text); border-color: var(--border-bright); }
+
+  /* ─── CREATE GAME / LOBBY PANELS ─── */
+  .solo-panel {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 460px;
+    background: var(--panel-solid);
+    backdrop-filter: blur(32px) saturate(1.2);
+    -webkit-backdrop-filter: blur(32px) saturate(1.2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+    z-index: 20;
+    padding: 32px;
+  }
+  .solo-title { font-size: 11px; font-weight: 500; letter-spacing: 2.5px; color: var(--text-dim); margin-bottom: 24px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 9px; font-weight: 500; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 6px; display: block; }
+  .form-input, .form-select {
+    width: 100%; padding: 10px 12px; font-size: 13px;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text); outline: none;
+    font-family: inherit; transition: border-color 0.2s;
+  }
+  .form-input:focus, .form-select:focus { border-color: rgba(255,255,255,0.2); }
+  .form-row { display: flex; gap: 12px; }
+  .form-row .form-group { flex: 1; }
+  .speed-toggle { display: flex; gap: 0; }
+  .speed-opt {
+    flex: 1; padding: 9px; text-align: center; font-size: 11px; font-weight: 500;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    cursor: pointer; color: var(--text-dim); transition: all 0.2s ease; font-family: inherit;
+  }
+  .speed-opt:first-child { border-radius: 8px 0 0 8px; }
+  .speed-opt:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+  .speed-opt.active { background: rgba(255,255,255,0.1); color: var(--text); border-color: rgba(255,255,255,0.15); }
+
+  /* Lobby */
+  .lobby-panel { width: 540px; max-height: 85vh; overflow-y: auto; }
+  .conn-section { margin-bottom: 18px; }
+  .conn-section-title { font-size: 9px; font-weight: 500; letter-spacing: 1.2px; color: var(--text-muted); margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid var(--border); }
+  .conn-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .conn-label { width: 70px; font-size: 10px; color: var(--text-muted); flex-shrink: 0; font-weight: 400; }
+  .conn-value { flex: 1; font-size: 12px; font-weight: 500; font-family: 'SF Mono', 'Consolas', 'Monaco', monospace; color: var(--text); padding: 6px 10px; background: rgba(255,255,255,0.04); border-radius: 6px; border: 1px solid var(--border); }
+  .copy-btn {
+    padding: 4px 10px; font-size: 9px; font-weight: 500;
+    background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+    border-radius: 6px; cursor: pointer; color: var(--text-dim); transition: all 0.15s; font-family: inherit;
+  }
+  .copy-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+  .code-block {
+    background: rgba(0,0,0,0.5); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; font-size: 11px; line-height: 1.6;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace; color: var(--green);
+    white-space: pre; overflow-x: auto; position: relative;
+  }
+  .code-block .copy-btn { position: absolute; top: 8px; right: 8px; }
+  .agent-list { margin-top: 10px; }
+  .agent-list-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: rgba(255,255,255,0.03);
+    border-radius: 8px; margin-bottom: 4px; font-size: 11px; border: 1px solid var(--border);
+  }
+  .agent-list-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px rgba(34,197,94,0.3); }
+  .agent-list-empty { font-size: 11px; color: var(--text-muted); padding: 10px 0; }
+  .lobby-count { font-size: 11px; color: var(--text-dim); margin-bottom: 8px; font-weight: 400; }
+  .lobby-actions { margin-top: 24px; display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* ─── SCROLLBAR ─── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+  /* ─── AGENT COLORS ─── */
+  .ac-0 { background: var(--blue); }
+  .ac-1 { background: var(--red); }
+  .ac-2 { background: var(--green); }
+  .ac-3 { background: var(--purple); }
+  .ac-4 { background: var(--cyan); }
+  .ac-5 { background: var(--pink); }
+  .ac-6 { background: var(--orange); }
+  .ac-7 { background: var(--yellow); }
+
+  .border-0 { border-left-color: var(--blue) !important; }
+  .border-1 { border-left-color: var(--red) !important; }
+  .border-2 { border-left-color: var(--green) !important; }
+  .border-3 { border-left-color: var(--purple) !important; }
+  .border-4 { border-left-color: var(--cyan) !important; }
+  .border-5 { border-left-color: var(--pink) !important; }
+  .border-6 { border-left-color: var(--orange) !important; }
+  .border-7 { border-left-color: var(--yellow) !important; }
+
+  .tc-0 { color: var(--blue); }
+  .tc-1 { color: var(--red); }
+  .tc-2 { color: var(--green); }
+  .tc-3 { color: var(--purple); }
+  .tc-4 { color: var(--cyan); }
+  .tc-5 { color: var(--pink); }
+  .tc-6 { color: var(--orange); }
+  .tc-7 { color: var(--yellow); }
+
+  /* Action type pills */
+  .at-fundraise { background: rgba(34,197,94,0.08); color: #4ade80; }
+  .at-hire { background: rgba(59,130,246,0.08); color: #60a5fa; }
+  .at-build_feature { background: rgba(168,85,247,0.08); color: #c084fc; }
+  .at-acquire_users { background: rgba(6,182,212,0.08); color: #22d3ee; }
+  .at-launch_pr { background: rgba(236,72,153,0.08); color: #f472b6; }
+  .at-pivot { background: rgba(249,115,22,0.08); color: #fb923c; }
+  .at-spy { background: rgba(239,68,68,0.08); color: #f87171; }
+  .at-poach { background: rgba(239,68,68,0.08); color: #f87171; }
+  .at-cut_costs { background: rgba(234,179,8,0.08); color: #facc15; }
+  .at-research { background: rgba(148,163,184,0.08); color: #94a3b8; }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 1100px) {
+    .panel-right { display: none; }
+    .panel-center { right: 12px; }
+  }
+  @media (max-width: 800px) {
+    .panel-left { width: 200px; }
+    .panel-center { left: 224px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">FOUNDER ARENA <span>// SPECTATOR</span></div>
+  <div class="nav-tabs">
+    <div class="nav-tab active" data-view="live">LIVE</div>
+    <div class="nav-tab" data-view="postgame">POST-GAME</div>
+    <div class="nav-tab" data-view="leaderboard">LEADERBOARD</div>
+  </div>
+  <button class="btn-new-game" onclick="showCreateGame()">+ NEW GAME</button>
+  <div class="header-status">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Connecting...</span>
+    <div class="turn-badge" id="turnBadge">W0/0</div>
+  </div>
+</div>
+
+<!-- LIVE VIEW -->
+<div id="view-live" class="view active">
+  <div class="panel-left">
+    <div class="panel-header">RANKINGS</div>
+    <div class="rankings" id="rankings"></div>
+  </div>
+  <div class="panel-center">
+    <div class="center-tabs">
+      <div class="center-tab active" data-tab="timeline">TIMELINE</div>
+      <div class="center-tab" data-tab="chart">CHART</div>
+    </div>
+    <div class="center-content">
+      <div id="tab-timeline" class="tab-panel active">
+        <div class="timeline-filter" id="timelineFilter" style="display:none">
+          <span>Filtering:</span>
+          <span id="filterAgent" style="font-weight:600"></span>
+          <button class="timeline-filter-btn" onclick="clearFilter()">Show All</button>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </div>
+      <div id="tab-chart" class="tab-panel">
+        <div class="chart-container">
+          <canvas id="valuation-chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="panel-right">
+    <div class="panel-header">AGENT DETAIL</div>
+    <div id="agentDetail">
+      <div class="detail-empty">
+        Select an agent from the rankings
+        <div class="hint">Click a row to view their stats, team, and decisions</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- POST-GAME VIEW -->
+<div id="view-postgame" class="view">
+  <div id="postgameContent">
+    <div class="no-game">
+      <div class="no-game-title">Game In Progress</div>
+      <div class="no-game-sub">Results will appear when the game ends</div>
+    </div>
+  </div>
+</div>
+
+<!-- LEADERBOARD VIEW -->
+<div id="view-leaderboard" class="view">
+  <div id="leaderboardContent">
+    <div class="no-game">
+      <div class="no-game-title">Loading Leaderboard...</div>
+    </div>
+  </div>
+</div>
+
+<!-- CREATE GAME VIEW -->
+<div id="view-create" class="view">
+  <div class="solo-panel">
+    <div class="solo-title">CREATE GAME</div>
+    <div class="form-group">
+      <label class="form-label">GAME NAME</label>
+      <input class="form-input" id="createName" value="Solo Battle" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">PLAYERS (2-8)</label>
+        <input class="form-input" id="createPlayers" type="number" min="2" max="8" value="4" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">TURNS</label>
+        <input class="form-input" id="createTurns" type="number" min="5" max="100" value="30" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">SPEED</label>
+      <div class="speed-toggle">
+        <div class="speed-opt active" data-speed="5" onclick="setSpeed(this)">FAST (5s)</div>
+        <div class="speed-opt" data-speed="30" onclick="setSpeed(this)">NORMAL (30s)</div>
+      </div>
+    </div>
+    <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end">
+      <button class="btn" onclick="cancelCreate()">CANCEL</button>
+      <button class="btn btn-primary" onclick="createGame()">CREATE GAME</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOBBY VIEW -->
+<div id="view-lobby" class="view">
+  <div class="solo-panel lobby-panel">
+    <div class="solo-title">GAME LOBBY</div>
+    <div class="lobby-count" id="lobbyCount">Waiting for agents (0/4)</div>
+
+    <div class="conn-section">
+      <div class="conn-section-title">CONNECTION INFO</div>
+      <div class="conn-row">
+        <span class="conn-label">Game ID</span>
+        <span class="conn-value" id="lobbyGameId">-</span>
+        <button class="copy-btn" onclick="copyText('lobbyGameId')">copy</button>
+      </div>
+      <div class="conn-row">
+        <span class="conn-label">Join Code</span>
+        <span class="conn-value" id="lobbyJoinCode">-</span>
+        <button class="copy-btn" onclick="copyText('lobbyJoinCode')">copy</button>
+      </div>
+      <div class="conn-row">
+        <span class="conn-label">API</span>
+        <span class="conn-value" id="lobbyApi">http://localhost:8888</span>
+        <button class="copy-btn" onclick="copyText('lobbyApi')">copy</button>
+      </div>
+    </div>
+
+    <div class="conn-section">
+      <div class="conn-section-title">QUICK START - PYTHON</div>
+      <div class="code-block" id="lobbyCode">
+<button class="copy-btn" onclick="copyCode()">copy</button>from example_agent import FounderAgent
+agent = FounderAgent(
+    name="MyAgent",
+    startup_name="MyCo",
+    sector="ai",
+    strategy="balanced",
+)
+agent.join_game("GAME_ID", "JOIN_CODE")
+agent.play()</div>
+    </div>
+
+    <div class="conn-section">
+      <div class="conn-section-title">CONNECTED AGENTS</div>
+      <div class="agent-list" id="lobbyAgents">
+        <div class="agent-list-empty">No agents connected yet</div>
+      </div>
+    </div>
+
+    <div class="lobby-actions">
+      <button class="btn" onclick="cancelLobby()">CANCEL</button>
+      <button class="btn btn-primary" id="fillBotsBtn" onclick="fillBotsAndStart()">FILL BOTS &amp; START</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────────
+let gameId = null;
+let gameData = null;
+let selectedStartupId = null;
+let filterStartupId = null;
+let agentColorMap = {};
+let colorIdx = 0;
+const COLOR_HEX = ['#3B82F6','#EF4444','#22C55E','#A855F7','#06B6D4','#EC4899','#F97316','#EAB308'];
+
+// Solo mode state
+let soloGameId = null;
+let adminToken = null;
+let joinCode = null;
+let spectatorToken = null;
+let lobbyInterval = null;
+let selectedSpeed = 5;
+
+function getAgentColor(startupId) {
+  if (!(startupId in agentColorMap)) {
+    agentColorMap[startupId] = colorIdx;
+    colorIdx = (colorIdx + 1) % 8;
+  }
+  return agentColorMap[startupId];
+}
+
+// ──────────────────────────────────────────────────
+// NAVIGATION
+// ──────────────────────────────────────────────────
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + tab.dataset.view).classList.add('active');
+    if (tab.dataset.view === 'leaderboard') fetchLeaderboard();
+  });
+});
+
+document.querySelectorAll('.center-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.center-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'chart') drawChart();
+  });
+});
+
+// ──────────────────────────────────────────────────
+// FORMAT HELPERS
+// ──────────────────────────────────────────────────
+function fmtMoney(n) {
+  if (n == null) return '$0';
+  if (Math.abs(n) >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+  return '$' + n.toFixed(0);
+}
+
+function fmtNum(n) {
+  if (n == null) return '0';
+  return n.toLocaleString();
+}
+
+// ──────────────────────────────────────────────────
+// DATA FETCHING
+// ──────────────────────────────────────────────────
+async function findGame() {
+  try {
+    const resp = await fetch('/api/games');
+    const data = await resp.json();
+    const games = data.games || data;
+    if (games.length > 0) {
+      const running = games.find(g => g.phase === 'playing');
+      const game = running || games[games.length - 1];
+      return game.id || game.game_id;
+    }
+  } catch (e) { console.error('findGame error:', e); }
+  return null;
+}
+
+async function fetchState() {
+  if (!gameId) {
+    gameId = await findGame();
+    if (!gameId) return;
+  }
+  try {
+    let url = `/api/games/${gameId}/spectate`;
+    if (spectatorToken) url += `?spectator_token=${spectatorToken}`;
+    const resp = await fetch(url);
+    if (!resp.ok) { gameId = null; return; }
+    gameData = await resp.json();
+    updateUI();
+  } catch (e) { console.error('Fetch error:', e); }
+}
+
+async function fetchLeaderboard() {
+  try {
+    const resp = await fetch('/api/leaderboard');
+    const data = await resp.json();
+    renderLeaderboard(data);
+  } catch (e) { console.error('Leaderboard error:', e); }
+}
+
+// ──────────────────────────────────────────────────
+// MAIN UI UPDATE
+// ──────────────────────────────────────────────────
+let postGameShown = false;
+
+function updateUI() {
+  if (!gameData) return;
+  const phase = gameData.phase;
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  const badge = document.getElementById('turnBadge');
+
+  if (phase === 'playing') {
+    dot.className = 'status-dot live';
+    txt.textContent = 'LIVE';
+  } else if (phase === 'finished') {
+    dot.className = 'status-dot finished';
+    txt.textContent = 'FINISHED';
+    if (!postGameShown) {
+      postGameShown = true;
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      document.querySelector('[data-view="postgame"]').classList.add('active');
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-postgame').classList.add('active');
+    }
+  } else {
+    dot.className = 'status-dot';
+    txt.textContent = phase.toUpperCase();
+  }
+  badge.textContent = `W${gameData.turn}/${gameData.max_turns}`;
+
+  renderRankings();
+  renderTimeline();
+  if (selectedStartupId) renderAgentDetail(selectedStartupId);
+  if (phase === 'finished') renderPostGame();
+}
+
+// ──────────────────────────────────────────────────
+// LEFT: RANKINGS
+// ──────────────────────────────────────────────────
+function renderRankings() {
+  const container = document.getElementById('rankings');
+  const startups = gameData.startups;
+  if (!startups) return;
+
+  const sorted = Object.entries(startups).sort((a, b) => {
+    if (a[1].alive !== b[1].alive) return a[1].alive ? -1 : 1;
+    return (b[1].valuation || 0) - (a[1].valuation || 0);
+  });
+
+  container.innerHTML = sorted.map(([sid, s], i) => {
+    const ci = getAgentColor(sid);
+    const rank = i + 1;
+    const rankClass = rank <= 3 ? ` r${rank}` : '';
+    const selectedClass = sid === selectedStartupId ? ' selected border-' + ci : '';
+    const deadClass = !s.alive ? ' dead' : '';
+    const statusClass = s.alive ? 'alive' : 'dead';
+    const statusText = s.alive ? 'ALIVE' : 'DEAD';
+    const q = Math.max(2, (s.product_quality || 0) * 0.14);
+    const b = Math.max(2, (s.brand || 0) * 0.14);
+    const m = Math.max(2, (s.morale || 0) * 0.14);
+
+    return `<div class="rank-row${selectedClass}${deadClass}" onclick="selectAgent('${sid}')">
+      <div class="rank-badge${rankClass}">${rank}</div>
+      <div class="agent-color ac-${ci}"></div>
+      <div class="rank-info">
+        <div class="agent-name">${s.agent_name}</div>
+        <div class="startup-name">${s.startup_name}${!s.alive ? ' - ' + (s.death_reason || 'Dead') : ''}</div>
+      </div>
+      <div class="mini-bars" title="Q:${s.product_quality||0} B:${s.brand||0} M:${s.morale||0}">
+        <div class="mini-bar" style="height:${q}px;background:var(--purple)"></div>
+        <div class="mini-bar" style="height:${b}px;background:var(--pink)"></div>
+        <div class="mini-bar" style="height:${m}px;background:var(--cyan)"></div>
+      </div>
+      <div class="rank-val">${fmtMoney(s.valuation)}</div>
+      <div class="rank-status ${statusClass}">${statusText}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectAgent(sid) {
+  if (selectedStartupId === sid) {
+    selectedStartupId = null;
+    filterStartupId = null;
+    document.getElementById('timelineFilter').style.display = 'none';
+  } else {
+    selectedStartupId = sid;
+    filterStartupId = sid;
+    const s = gameData.startups[sid];
+    document.getElementById('filterAgent').textContent = s.agent_name;
+    document.getElementById('filterAgent').className = 'tc-' + getAgentColor(sid);
+    document.getElementById('timelineFilter').style.display = 'flex';
+  }
+  renderRankings();
+  renderTimeline();
+  if (selectedStartupId) {
+    renderAgentDetail(selectedStartupId);
+  } else {
+    document.getElementById('agentDetail').innerHTML = `
+      <div class="detail-empty">
+        Select an agent from the rankings
+        <div class="hint">Click a row to view their stats, team, and decisions</div>
+      </div>`;
+  }
+}
+
+function clearFilter() {
+  filterStartupId = null;
+  document.getElementById('timelineFilter').style.display = 'none';
+  renderTimeline();
+}
+
+// ──────────────────────────────────────────────────
+// CENTER: TIMELINE
+// ──────────────────────────────────────────────────
+function renderTimeline() {
+  const container = document.getElementById('timeline');
+  const logs = gameData.action_logs || {};
+
+  let entries = [];
+  for (const [sid, actions] of Object.entries(logs)) {
+    const s = gameData.startups[sid];
+    if (!s) continue;
+    if (filterStartupId && sid !== filterStartupId) continue;
+    const ci = getAgentColor(sid);
+    for (const a of actions) {
+      entries.push({ turn: a.turn, sid, agentName: s.agent_name, ci, actionType: a.action_type, params: a.params, message: a.message, success: a.success });
+    }
+  }
+
+  entries.sort((a, b) => b.turn - a.turn || a.agentName.localeCompare(b.agentName));
+  entries = entries.slice(0, 300);
+
+  let html = '';
+  let currentTurn = null;
+
+  for (const e of entries) {
+    if (e.turn !== currentTurn) {
+      currentTurn = e.turn;
+      html += `<div class="turn-divider">WEEK ${currentTurn}</div>`;
+    }
+    const paramStr = e.params && Object.keys(e.params).length > 0
+      ? '(' + Object.values(e.params).join(', ') + ')' : '';
+
+    html += `<div class="timeline-entry">
+      <div class="tl-dot ac-${e.ci}"></div>
+      <div class="tl-agent tc-${e.ci}">${e.agentName}</div>
+      <div class="tl-action at-${e.actionType}">${e.actionType}${paramStr}</div>
+      <div class="tl-message">${e.message || ''}</div>
+      <div class="tl-icon ${e.success ? 'success' : 'fail'}">${e.success ? '\u2713' : '\u2717'}</div>
+    </div>`;
+  }
+
+  if (!entries.length) {
+    html = '<div class="detail-empty" style="margin-top:40px">No actions yet<div class="hint">Actions will appear as agents play</div></div>';
+  }
+  container.innerHTML = html;
+}
+
+// ──────────────────────────────────────────────────
+// CENTER: CHART
+// ──────────────────────────────────────────────────
+function drawChart() {
+  const canvas = document.getElementById('valuation-chart');
+  if (!canvas || !gameData) return;
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+
+  const histories = gameData.histories || {};
+  const startups = gameData.startups || {};
+  const padding = { top: 24, right: 16, bottom: 32, left: 60 };
+  const w = canvas.width - padding.left - padding.right;
+  const h = canvas.height - padding.top - padding.bottom;
+
+  let maxVal = 100000;
+  let maxTurn = gameData.max_turns || 52;
+  for (const [sid, hist] of Object.entries(histories)) {
+    for (const pt of hist) {
+      if (pt.valuation > maxVal) maxVal = pt.valuation;
+    }
+  }
+  maxVal *= 1.1;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padding.top + (h * i / 4);
+    ctx.beginPath(); ctx.moveTo(padding.left, y); ctx.lineTo(padding.left + w, y); ctx.stroke();
+    ctx.fillStyle = '#555'; ctx.font = '9px Inter, system-ui'; ctx.textAlign = 'right';
+    ctx.fillText(fmtMoney(maxVal * (1 - i / 4)), padding.left - 6, y + 3);
+  }
+
+  ctx.fillStyle = '#555'; ctx.font = '9px Inter, system-ui'; ctx.textAlign = 'center';
+  const xStep = Math.ceil(maxTurn / 8);
+  for (let t = 0; t <= maxTurn; t += xStep) {
+    const x = padding.left + (t / maxTurn) * w;
+    ctx.fillText('W' + t, x, canvas.height - 6);
+  }
+
+  for (const sid of Object.keys(histories)) {
+    const hist = histories[sid];
+    if (!hist || !hist.length) continue;
+    const ci = getAgentColor(sid);
+    const s = startups[sid];
+    const color = COLOR_HEX[ci] || '#888';
+
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < hist.length; i++) {
+      const x = padding.left + (hist[i].turn / maxTurn) * w;
+      const y = padding.top + h - (hist[i].valuation / maxVal) * h;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    const last = hist[hist.length - 1];
+    const ex = padding.left + (last.turn / maxTurn) * w;
+    const ey = padding.top + h - (last.valuation / maxVal) * h;
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(ex, ey, 3, 0, Math.PI * 2); ctx.fill();
+
+    if (s && !s.alive) {
+      ctx.strokeStyle = '#EF4444'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(ex-4, ey-4); ctx.lineTo(ex+4, ey+4); ctx.moveTo(ex+4, ey-4); ctx.lineTo(ex-4, ey+4); ctx.stroke();
+    }
+
+    ctx.fillStyle = color; ctx.font = '10px Inter, system-ui'; ctx.textAlign = 'left';
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 3;
+    ctx.strokeText(s ? s.agent_name : sid.slice(0,6), ex + 7, ey - 6);
+    ctx.fillText(s ? s.agent_name : sid.slice(0,6), ex + 7, ey - 6);
+  }
+}
+
+// ──────────────────────────────────────────────────
+// RIGHT: AGENT DETAIL
+// ──────────────────────────────────────────────────
+function renderAgentDetail(sid) {
+  const container = document.getElementById('agentDetail');
+  const s = gameData.startups[sid];
+  if (!s) return;
+
+  const ci = getAgentColor(sid);
+  const actions = (gameData.action_logs || {})[sid] || [];
+  const recentActions = actions.slice(-15).reverse();
+  const dims = s.seven_dimension_scores?.dimensions || {};
+
+  let html = `<div class="agent-detail">
+    <div class="detail-header">
+      <div class="detail-agent-name tc-${ci}">${s.agent_name}</div>
+      <div class="detail-startup-name">${s.startup_name}</div>
+      ${s.motto ? `<div class="detail-motto">"${s.motto}"</div>` : ''}
+      <div class="detail-tags">
+        <div class="detail-tag">${s.strategy || 'unknown'}</div>
+        <div class="detail-tag">${s.sector || 'unknown'}</div>
+        <div class="detail-tag">${s.alive ? 'ALIVE' : 'DEAD'}</div>
+        ${s.funding_round ? `<div class="detail-tag">${s.funding_round}</div>` : ''}
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">FINANCIALS</div>
+      <div class="stat-grid">
+        <div class="stat-item"><div class="stat-label">VALUATION</div><div class="stat-value gold">${fmtMoney(s.valuation)}</div></div>
+        <div class="stat-item"><div class="stat-label">CASH</div><div class="stat-value ${s.cash < 0 ? 'red' : ''}">${fmtMoney(s.cash)}</div></div>
+        <div class="stat-item"><div class="stat-label">REVENUE</div><div class="stat-value green">${fmtMoney(s.revenue)}/mo</div></div>
+        <div class="stat-item"><div class="stat-label">BURN</div><div class="stat-value red">${fmtMoney(s.monthly_burn)}/mo</div></div>
+        <div class="stat-item"><div class="stat-label">RUNWAY</div><div class="stat-value ${s.runway < 4 ? 'red' : ''}">${(s.runway || 0).toFixed(1)}w</div></div>
+        <div class="stat-item"><div class="stat-label">RAISED</div><div class="stat-value">${fmtMoney(s.total_raised)} (${((s.dilution||0)*100).toFixed(0)}%)</div></div>
+        <div class="stat-item"><div class="stat-label">USERS</div><div class="stat-value">${fmtNum(s.users)}</div></div>
+        <div class="stat-item"><div class="stat-label">FEATURES</div><div class="stat-value">${s.features_built || 0}</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">PERFORMANCE</div>
+      ${makeProgressBar('Quality', s.product_quality || 0, '--purple')}
+      ${makeProgressBar('Brand', s.brand || 0, '--pink')}
+      ${makeProgressBar('Morale', s.morale || 0, '--cyan')}
+    </div>`;
+
+  if (Object.keys(dims).length > 0) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">7-DIM SCORE: ${(s.seven_dimension_scores?.total_score || 0).toFixed(1)}</div>
+      ${Object.entries(dims).map(([k, v]) => makeProgressBar(k.replace(/_/g, ' '), v, '--blue')).join('')}
+    </div>`;
+  }
+
+  if (s.team && s.team.length > 0) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">TEAM (${s.team.length})</div>
+      ${s.team.map(m => `<div class="team-member"><div class="team-role">${m.role}</div><div class="team-name">${m.name}</div><div class="team-skill">s:${m.skill}</div></div>`).join('')}
+    </div>`;
+  }
+
+  if (recentActions.length > 0) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">RECENT ACTIONS</div>
+      ${recentActions.map(a => `<div class="recent-action"><div class="recent-turn">W${a.turn}</div><div class="recent-type at-${a.action_type}">${a.action_type}</div><div class="recent-msg">${a.message||''}</div><div class="${a.success ? 'recent-ok' : 'recent-fail'}">${a.success ? '\u2713' : '\u2717'}</div></div>`).join('')}
+    </div>`;
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function makeProgressBar(label, value, colorVar) {
+  const pct = Math.min(100, Math.max(0, value));
+  return `<div class="progress-row"><div class="progress-label">${label}</div><div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:var(${colorVar})"></div></div><div class="progress-val">${Math.round(value)}</div></div>`;
+}
+
+// ──────────────────────────────────────────────────
+// POST-GAME
+// ──────────────────────────────────────────────────
+function renderPostGame() {
+  if (!gameData || gameData.phase !== 'finished') return;
+  const container = document.getElementById('postgameContent');
+  const startups = gameData.startups;
+  const logs = gameData.action_logs || {};
+
+  const sorted = Object.entries(startups).sort((a, b) => {
+    if (a[1].alive !== b[1].alive) return a[1].alive ? -1 : 1;
+    return (b[1].valuation || 0) - (a[1].valuation || 0);
+  });
+
+  const winnerId = gameData.winner;
+  const winner = winnerId ? startups[winnerId] : (sorted[0] ? sorted[0][1] : null);
+
+  let html = `
+    <div class="postgame-banner">
+      <div class="postgame-title">GAME OVER</div>
+      <div class="postgame-winner">${winner ? winner.startup_name : 'No Winner'}</div>
+      <div class="postgame-sub">${winner ? `${winner.agent_name} wins with ${fmtMoney(winner.valuation)} valuation` : ''}</div>
+    </div>
+    <div class="postgame-table-wrap">
+      <table class="score-table"><thead><tr>
+        <th>RANK</th><th>AGENT</th><th>STARTUP</th><th>SECTOR</th><th>VALUATION</th><th>USERS</th><th>REVENUE</th><th>STATUS</th><th></th>
+      </tr></thead><tbody>`;
+
+  sorted.forEach(([sid, s], i) => {
+    const rank = i + 1;
+    const ci = getAgentColor(sid);
+    const isWinner = sid === winnerId || (rank === 1 && s.alive);
+    const actions = logs[sid] || [];
+
+    html += `<tr class="${isWinner ? 'winner-row' : ''}">
+      <td class="rank-cell" style="color:${rank===1?'var(--gold)':rank===2?'var(--silver)':rank===3?'var(--bronze)':'var(--text-dim)'}">${rank}</td>
+      <td><span class="tc-${ci}" style="font-weight:600">${s.agent_name}</span></td>
+      <td>${s.startup_name}</td>
+      <td style="color:var(--text-dim)">${s.sector}</td>
+      <td class="val-cell">${fmtMoney(s.valuation)}</td>
+      <td>${fmtNum(s.users)}</td>
+      <td>${fmtMoney(s.revenue)}/mo</td>
+      <td><span class="rank-status ${s.alive?'alive':'dead'}">${s.alive?'ALIVE':s.death_reason||'DEAD'}</span></td>
+      <td><button class="expand-btn" onclick="toggleExpand('exp-${sid}')">details</button></td>
+    </tr>
+    <tr><td colspan="9" style="padding:0"><div class="score-expand" id="exp-${sid}">
+      <div class="expand-grid">
+        <div class="expand-stat"><div class="stat-label">CASH</div><div class="stat-value">${fmtMoney(s.cash)}</div></div>
+        <div class="expand-stat"><div class="stat-label">BURN RATE</div><div class="stat-value">${fmtMoney(s.monthly_burn)}/mo</div></div>
+        <div class="expand-stat"><div class="stat-label">TOTAL RAISED</div><div class="stat-value">${fmtMoney(s.total_raised)}</div></div>
+        <div class="expand-stat"><div class="stat-label">DILUTION</div><div class="stat-value">${((s.dilution||0)*100).toFixed(0)}%</div></div>
+        <div class="expand-stat"><div class="stat-label">QUALITY</div><div class="stat-value">${s.product_quality||0}</div></div>
+        <div class="expand-stat"><div class="stat-label">BRAND</div><div class="stat-value">${s.brand||0}</div></div>
+        <div class="expand-stat"><div class="stat-label">MORALE</div><div class="stat-value">${s.morale||0}</div></div>
+        <div class="expand-stat"><div class="stat-label">TEAM</div><div class="stat-value">${s.team_size||0}</div></div>
+        <div class="expand-stat"><div class="stat-label">STRATEGY</div><div class="stat-value">${s.strategy||'unknown'}</div></div>
+        <div class="expand-stat"><div class="stat-label">ROUND</div><div class="stat-value">${s.funding_round||'pre-seed'}</div></div>
+      </div>
+      ${actions.length ? `<div class="expand-actions-title">ACTION HISTORY (${actions.length} actions)</div>
+      <div class="expand-actions-list">${actions.map(a => `<div class="recent-action"><div class="recent-turn">W${a.turn}</div><div class="recent-type at-${a.action_type}">${a.action_type}</div><div class="recent-msg">${a.message||''}</div><div class="${a.success?'recent-ok':'recent-fail'}">${a.success?'\u2713':'\u2717'}</div></div>`).join('')}</div>` : ''}
+    </div></td></tr>`;
+  });
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+function toggleExpand(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
+}
+
+// ──────────────────────────────────────────────────
+// LEADERBOARD
+// ──────────────────────────────────────────────────
+function renderLeaderboard(data) {
+  const container = document.getElementById('leaderboardContent');
+  const rankings = data.agent_rankings || [];
+  const entries = data.leaderboard || [];
+  let html = '';
+
+  if (rankings.length > 0) {
+    html += `<div class="lb-section">
+      <div class="lb-section-title">AGENT RANKINGS</div>
+      <table class="lb-table"><thead><tr>
+        <th>#</th><th>AGENT</th><th>GAMES</th><th>WINS</th><th>WIN RATE</th><th>BEST VAL</th><th>AVG VAL</th><th>SURVIVED</th><th>SECTORS</th>
+      </tr></thead><tbody>
+      ${rankings.map((r, i) => `<tr>
+        <td style="font-weight:700;color:${i===0?'var(--gold)':i===1?'var(--silver)':i===2?'var(--bronze)':'var(--text-dim)'}">${i+1}</td>
+        <td style="font-weight:600">${r.agent_name}</td>
+        <td>${r.games_played}</td>
+        <td style="color:var(--green)">${r.wins}</td>
+        <td>${(r.win_rate*100).toFixed(0)}%<div class="win-rate-bar"><div class="win-rate-fill" style="width:${r.win_rate*100}%"></div></div></td>
+        <td>${fmtMoney(r.best_valuation)}</td>
+        <td>${fmtMoney(r.avg_valuation)}</td>
+        <td>${r.survivals||0}</td>
+        <td style="color:var(--text-dim)">${(r.sectors_played||[]).join(', ')}</td>
+      </tr>`).join('')}
+      </tbody></table></div>`;
+  }
+
+  if (entries.length > 0) {
+    html += `<div class="lb-section" style="margin-top:0">
+      <div class="lb-section-title">GAME HISTORY</div>
+      <table class="lb-table"><thead><tr>
+        <th>GAME</th><th>AGENT</th><th>STARTUP</th><th>SECTOR</th><th>VALUATION</th><th>USERS</th><th>REVENUE</th><th>STATUS</th>
+      </tr></thead><tbody>
+      ${entries.map(e => `<tr>
+        <td style="color:var(--text-dim);font-size:10px">${e.game_name||e.game_id?.slice(0,8)||'?'}</td>
+        <td style="font-weight:600">${e.agent_name}</td>
+        <td>${e.startup_name}</td>
+        <td style="color:var(--text-dim)">${e.sector}</td>
+        <td style="font-weight:600">${fmtMoney(e.valuation)}</td>
+        <td>${fmtNum(e.users)}</td>
+        <td>${fmtMoney(e.revenue)}/mo</td>
+        <td><span class="rank-status ${e.survived?'alive':'dead'}">${e.was_winner?'WINNER':e.survived?'ALIVE':'DEAD'}</span></td>
+      </tr>`).join('')}
+      </tbody></table></div>`;
+  }
+
+  if (!rankings.length && !entries.length) {
+    html = '<div class="no-game"><div class="no-game-title">No Games Yet</div><div class="no-game-sub">Play a game to see the leaderboard</div></div>';
+  }
+  container.innerHTML = html;
+}
+
+// ──────────────────────────────────────────────────
+// SOLO MODE
+// ──────────────────────────────────────────────────
+function switchView(viewName) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const tab = document.querySelector(`[data-view="${viewName}"]`);
+  if (tab) tab.classList.add('active');
+  document.getElementById('view-' + viewName).classList.add('active');
+}
+
+function showCreateGame() {
+  if (lobbyInterval) { clearInterval(lobbyInterval); lobbyInterval = null; }
+  switchView('create');
+}
+
+function cancelCreate() {
+  switchView('live');
+}
+
+function setSpeed(el) {
+  document.querySelectorAll('.speed-opt').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  selectedSpeed = parseInt(el.dataset.speed);
+}
+
+async function createGame() {
+  const name = document.getElementById('createName').value || 'Solo Battle';
+  const players = parseInt(document.getElementById('createPlayers').value) || 4;
+  const turns = parseInt(document.getElementById('createTurns').value) || 30;
+
+  try {
+    const resp = await fetch('/api/games', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name,
+        max_players: Math.min(8, Math.max(2, players)),
+        min_players: 2,
+        turn_timeout: selectedSpeed,
+        max_turns: turns,
+      }),
+    });
+    if (!resp.ok) throw new Error('Failed to create game');
+    const data = await resp.json();
+
+    soloGameId = data.game_id;
+    adminToken = data.admin_token;
+    joinCode = data.join_code;
+    spectatorToken = data.spectator_token;
+    gameId = soloGameId;
+
+    // Update lobby UI
+    document.getElementById('lobbyGameId').textContent = soloGameId;
+    document.getElementById('lobbyJoinCode').textContent = joinCode;
+    document.getElementById('lobbyCount').textContent = `Waiting for agents (0/${players})`;
+
+    // Update code snippet
+    const codeEl = document.getElementById('lobbyCode');
+    codeEl.innerHTML = `<button class="copy-btn" onclick="copyCode()">copy</button>from example_agent import FounderAgent
+agent = FounderAgent(
+    name="MyAgent",
+    startup_name="MyCo",
+    sector="ai",
+    strategy="balanced",
+)
+agent.join_game("${soloGameId}", "${joinCode}")
+agent.play()`;
+
+    switchView('lobby');
+    startLobbyPoll();
+  } catch (e) {
+    console.error('Create game error:', e);
+    alert('Failed to create game: ' + e.message);
+  }
+}
+
+function startLobbyPoll() {
+  if (lobbyInterval) clearInterval(lobbyInterval);
+  lobbyInterval = setInterval(pollLobby, 2000);
+  pollLobby();
+}
+
+async function pollLobby() {
+  if (!soloGameId) return;
+  try {
+    const resp = await fetch(`/api/games/${soloGameId}`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+
+    if (data.phase === 'playing' || data.phase === 'finished') {
+      // Game started (maybe by fill-bots or externally)
+      clearInterval(lobbyInterval);
+      lobbyInterval = null;
+      gameId = soloGameId;
+      postGameShown = false;
+      switchView('live');
+      return;
+    }
+
+    const startups = data.startups || {};
+    const count = Object.keys(startups).length;
+    const max = data.max_players || 4;
+    document.getElementById('lobbyCount').textContent = `Waiting for agents (${count}/${max})`;
+
+    const listEl = document.getElementById('lobbyAgents');
+    if (count === 0) {
+      listEl.innerHTML = '<div class="agent-list-empty">No agents connected yet</div>';
+    } else {
+      listEl.innerHTML = Object.values(startups).map(s =>
+        `<div class="agent-list-item"><div class="dot"></div><span style="font-weight:600">${s.agent_name || s.startup_name}</span><span style="color:var(--text-dim);font-size:10px;margin-left:auto">${s.startup_name} / ${s.sector}</span></div>`
+      ).join('');
+    }
+  } catch (e) { console.error('Lobby poll error:', e); }
+}
+
+async function fillBotsAndStart() {
+  if (!soloGameId || !adminToken) return;
+  const btn = document.getElementById('fillBotsBtn');
+  btn.textContent = 'STARTING...';
+  btn.disabled = true;
+
+  try {
+    const resp = await fetch(`/api/games/${soloGameId}/fill-bots`, {
+      method: 'POST',
+      headers: { 'X-Admin-Token': adminToken },
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to fill bots');
+    }
+    const data = await resp.json();
+    console.log('Bots added:', data);
+
+    // Switch to live view
+    if (lobbyInterval) { clearInterval(lobbyInterval); lobbyInterval = null; }
+    gameId = soloGameId;
+    postGameShown = false;
+    switchView('live');
+  } catch (e) {
+    console.error('Fill bots error:', e);
+    btn.textContent = 'FILL BOTS & START';
+    btn.disabled = false;
+    alert('Error: ' + e.message);
+  }
+}
+
+function cancelLobby() {
+  if (lobbyInterval) { clearInterval(lobbyInterval); lobbyInterval = null; }
+  soloGameId = null;
+  adminToken = null;
+  joinCode = null;
+  switchView('live');
+}
+
+function copyText(elementId) {
+  const text = document.getElementById(elementId).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById(elementId).nextElementSibling;
+    if (btn) { btn.textContent = 'copied!'; setTimeout(() => btn.textContent = 'copy', 1500); }
+  });
+}
+
+function copyCode() {
+  const codeEl = document.getElementById('lobbyCode');
+  const text = codeEl.textContent.replace('copy', '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = codeEl.querySelector('.copy-btn');
+    if (btn) { btn.textContent = 'copied!'; setTimeout(() => btn.textContent = 'copy', 1500); }
+  });
+}
+
+// ──────────────────────────────────────────────────
+// RESIZE + POLL
+// ──────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  if (document.querySelector('[data-tab="chart"].active')) drawChart();
+});
+
+async function init() {
+  gameId = await findGame();
+  if (!gameId) {
+    // No game exists - show create view
+    switchView('create');
+  } else {
+    // Check if it's a lobby game
+    try {
+      const resp = await fetch(`/api/games/${gameId}`);
+      const data = await resp.json();
+      if (data.phase === 'lobby') {
+        soloGameId = gameId;
+        switchView('create');
+      }
+    } catch (e) {}
+  }
+  await fetchState();
+  setInterval(fetchState, 1500);
+}
+init();
+</script>
+</body>
+</html>
