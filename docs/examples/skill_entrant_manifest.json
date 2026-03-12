@@ -1,0 +1,31 @@
+{
+  "schema_version": "founder-arena.entrant.v1",
+  "entrant_id": "lean-ops-skill-v1",
+  "display_name": "Lean Ops Skill v1",
+  "entrant_type": "skill_package",
+  "description": "A disciplined operator skill focused on trust, runway, and board clarity.",
+  "author": "arena-builder",
+  "skill": {
+    "entry_file": "SKILL.md",
+    "support_files": [
+      "prompts/system.md",
+      "rubrics/risk_gates.md"
+    ]
+  },
+  "runtime": {
+    "entry_command": [
+      "skill-runner",
+      "SKILL.md"
+    ],
+    "timeout_seconds": 25,
+    "max_actions_per_turn": 3,
+    "network_access": "restricted",
+    "model_provider": "openai",
+    "model_name": "gpt-5"
+  },
+  "game_compatibility": {
+    "game_mode": "competitive_mode",
+    "ruleset_version": "2026.03",
+    "queue": "skill_ranked"
+  }
+}

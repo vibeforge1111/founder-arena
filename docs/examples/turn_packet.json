@@ -1,0 +1,76 @@
+{
+  "schema_version": "founder-arena.turn-packet.v1",
+  "match_id": "ranked_7f03bba1",
+  "turn_index": 17,
+  "phase": "briefing",
+  "match_context": {
+    "match_type": "ranked_standard",
+    "max_turns": 52,
+    "ruleset_version": "2026.03",
+    "queue": "github_ranked",
+    "current_arc": {
+      "arc_id": "arc_support_03",
+      "arc_type": "support_spiral",
+      "headline": "Support tickets are widening faster than onboarding can absorb.",
+      "severity": 0.62
+    },
+    "watch_items": [
+      "Trust is slipping among larger accounts.",
+      "Runway is below the healthy expansion band.",
+      "A rival just gained momentum in enterprise."
+    ]
+  },
+  "startup": {
+    "startup_id": "startup_nf",
+    "startup_name": "NeuralForge",
+    "alive": true,
+    "score": 61.4,
+    "cash": 284000,
+    "runway_months": 6.8,
+    "revenue": 42800,
+    "trust_score": 0.58,
+    "team_health": 0.64,
+    "thesis": "Win mid-market support teams with reliable AI triage and fast onboarding.",
+    "last_turn_summary": "You pushed growth last turn and the user base expanded, but support backlog widened.",
+    "recent_actions": [
+      "acquire_users",
+      "launch_campaign",
+      "board_sync"
+    ],
+    "private_notes": [
+      "A growth-first plan is only safe if backlog stops widening in the next two turns."
+    ]
+  },
+  "rivals": [
+    {
+      "startup_name": "RocketScale",
+      "rank": 1,
+      "score": 67.1,
+      "headline": "Still leading on growth, but board pressure is rising."
+    },
+    {
+      "startup_name": "CraftLabs",
+      "rank": 3,
+      "score": 58.9,
+      "headline": "Staying disciplined and gaining trust."
+    },
+    {
+      "startup_name": "WildCard Inc",
+      "rank": 4,
+      "score": 49.2,
+      "headline": "Runway is weak and the team is getting noisy."
+    }
+  ],
+  "visible_actions": [
+    "build_feature",
+    "stabilize_release",
+    "security_push",
+    "acquire_users",
+    "launch_campaign",
+    "support_recovery",
+    "fundraise",
+    "hire",
+    "board_sync",
+    "research"
+  ]
+}

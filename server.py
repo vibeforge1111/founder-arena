@@ -45,6 +45,8 @@ LAST_NAMES = [
 MAX_TURNS = 52
 MAX_ACTIONS_PER_TURN = 3
 TURN_TIMEOUT_SECONDS = 30
+DEFAULT_GAME_MODE = "legacy_arena"
+SUPPORTED_GAME_MODES = ["legacy_arena", "competitive_mode"]
 BASE_SALARY = {"engineer": 12000, "marketer": 9000, "salesperson": 10000, "designer": 10000}
 
 BOT_CONFIGS = [
@@ -66,7 +68,8 @@ class CreateGameRequest(BaseModel):
     turn_timeout: int = TURN_TIMEOUT_SECONDS
     max_turns: int = MAX_TURNS
     seed: Optional[int] = None
-    use_rich_state: bool = False
+    game_mode: str = DEFAULT_GAME_MODE
+    use_rich_state: bool = True
 
 class JoinGameRequest(BaseModel):
     agent_name: str
@@ -79,6 +82,7 @@ class JoinGameRequest(BaseModel):
 class ActionRequest(BaseModel):
     agent_token: Optional[str] = None
     actions: list[dict]
+    decision_packet: Optional[dict] = None
 
 # ─── Game State Models ───────────────────────────────────────────────────────
 
@@ -226,6 +230,13 @@ def _clamp_score(value: float) -> float:
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _normalize_game_mode(game_mode: Optional[str]) -> str:
+    normalized = (game_mode or DEFAULT_GAME_MODE).strip().lower()
+    if normalized not in SUPPORTED_GAME_MODES:
+        raise ValueError(f"Invalid game_mode. Choose from: {SUPPORTED_GAME_MODES}")
+    return normalized
 
 
 def _compute_seven_dimension_scores(startup) -> dict:
@@ -390,7 +401,8 @@ class GamePhase(str, Enum):
 
 class Game:
     def __init__(self, name: str, max_players: int, min_players: int,
-                 turn_timeout: int, max_turns: int, seed: Optional[int], use_rich_state: bool = False):
+                 turn_timeout: int, max_turns: int, seed: Optional[int], use_rich_state: bool = True,
+                 game_mode: str = DEFAULT_GAME_MODE):
         self.id = str(uuid.uuid4())[:8]
         self.name = name
         self.phase = GamePhase.LOBBY
@@ -400,12 +412,14 @@ class Game:
         self.max_turns = max_turns
         self.seed = seed or random.randint(1, 999999)
         self.rng = random.Random(self.seed)
-        self.use_rich_state = use_rich_state
+        self.game_mode = _normalize_game_mode(game_mode)
+        self.use_rich_state = True if self.game_mode == "competitive_mode" else bool(use_rich_state)
         self.turn = 0
         self.startups: dict[str, Startup] = {}  # id -> Startup
         self.token_map: dict[str, str] = {}  # token -> startup_id
         self.event_log: list[dict] = []
         self.action_log: dict[str, list[dict]] = {}  # startup_id -> action records
+        self.decision_log: dict[str, list[dict]] = {}
         self.narrative: list[str] = []
         self.market_modifiers: dict = {
             "hiring_cost_mult": 1.0,
@@ -419,8 +433,152 @@ class Game:
         self.admin_token = str(uuid.uuid4())
         self.join_code = str(uuid.uuid4())[:8]
         self.spectator_token = str(uuid.uuid4())
-        self.action_mapper = ActionMapper(self.rng) if use_rich_state else None
-        self.director = ArenaDirector() if use_rich_state else None
+        self.action_mapper = ActionMapper(self.rng)
+        self.director = ArenaDirector()
+        self.alert_memory: dict[tuple[str, str], int] = {}
+
+    def _public_decision_summary(self, decision_packet: Optional[dict]) -> Optional[dict]:
+        if not decision_packet:
+            return None
+        return {
+            "turn_index": decision_packet.get("turn_index", self.turn),
+            "startup_id": decision_packet.get("startup_id"),
+            "intent": decision_packet.get("intent", ""),
+            "primary_risk": decision_packet.get("primary_risk", ""),
+            "confidence": decision_packet.get("confidence", "medium"),
+            "reasoning_summary": decision_packet.get("reasoning_summary", ""),
+            "expected_outcome": decision_packet.get("expected_outcome", ""),
+            "watch_metric": decision_packet.get("watch_metric", ""),
+            "public_notes": decision_packet.get("public_notes", []),
+        }
+
+    def _score_value_for(self, startup) -> float:
+        scorecard = self._scorecard_for(startup)
+        return float(scorecard.get("total_score", 0.0))
+
+    def _ranked_startups(self) -> list:
+        return sorted(
+            self.startups.values(),
+            key=lambda s: (s.alive, self._score_value_for(s), s.calc_valuation()),
+            reverse=True,
+        )
+
+    def _current_arc_for(self, startup) -> Optional[dict]:
+        challenge = getattr(startup, "challenge_info", None) or {}
+        if not challenge:
+            return None
+        director_state = getattr(startup, "director_state", {}) or {}
+        return {
+            "arc_id": challenge.get("event_id") or challenge.get("variant_id") or challenge.get("family_id"),
+            "arc_type": challenge.get("packet_kind") or director_state.get("current_state"),
+            "headline": challenge.get("summary") or challenge.get("family_id") or "Operating pressure is building.",
+            "severity": round(float(getattr(startup, "stress_index", 0.0) or 0.0), 2),
+        }
+
+    def _watch_items_for(self, startup) -> list[str]:
+        if not hasattr(startup, "world_state"):
+            return []
+        watch_items = []
+        customers = startup.world_state.get("customers", {})
+        operations = startup.world_state.get("operations", {})
+        risk = startup.world_state.get("risk", {})
+        finance = startup.world_state.get("finance", {})
+
+        if float(customers.get("trust_score", 1.0)) < 0.62:
+            watch_items.append("Customer trust is below the healthy band.")
+        if float(operations.get("support_backlog", 0.0)) > 18:
+            watch_items.append("Support backlog is building.")
+        if float(risk.get("regulatory_pressure", 0.0)) > 0.3:
+            watch_items.append("Compliance pressure is rising.")
+        if float(finance.get("runway_weeks", 999.0)) < 20:
+            watch_items.append("Runway is entering a dangerous range.")
+        return watch_items[:4]
+
+    def _build_turn_packet(self, startup) -> dict:
+        ranked = self._ranked_startups()
+        my_rank = next((index + 1 for index, item in enumerate(ranked) if item.id == startup.id), len(ranked))
+        rivals = []
+        for index, rival in enumerate(ranked):
+            if rival.id == startup.id:
+                continue
+            summary = self._public_decision_summary((self.decision_log.get(rival.id) or [None])[-1])
+            rivals.append({
+                "startup_name": rival.startup_name,
+                "rank": index + 1,
+                "score": self._score_value_for(rival),
+                "headline": (summary or {}).get("intent") or f"{rival.startup_name} is contesting position {index + 1}.",
+            })
+
+        return {
+            "schema_version": "founder-arena.turn-packet.v1",
+            "match_id": self.id,
+            "turn_index": self.turn,
+            "phase": "briefing",
+            "match_context": {
+                "match_type": "ranked_standard" if self.max_turns <= 52 else "ranked_marathon",
+                "max_turns": self.max_turns,
+                "ruleset_version": "2026.03",
+                "queue": "showmatch",
+                "current_arc": self._current_arc_for(startup),
+                "watch_items": self._watch_items_for(startup),
+            },
+            "startup": {
+                "startup_id": startup.id,
+                "startup_name": startup.startup_name,
+                "alive": startup.alive,
+                "score": self._score_value_for(startup),
+                "cash": startup.cash,
+                "runway_months": startup.runway,
+                "revenue": startup.revenue,
+                "trust_score": float(getattr(startup, "world_state", {}).get("customers", {}).get("trust_score", 0.7)),
+                "team_health": round(max(0.0, min(1.0, startup.morale / 100.0)), 2),
+                "thesis": startup.strategy,
+                "last_turn_summary": ((self.decision_log.get(startup.id) or [None])[-1] or {}).get("expected_outcome", ""),
+                "recent_actions": [entry["action_type"] for entry in self.action_log.get(startup.id, [])[-3:]],
+                "private_notes": self._watch_items_for(startup),
+                "rank": my_rank,
+            },
+            "rivals": rivals[: max(0, self.max_players - 1)],
+            "visible_actions": [
+                "build_feature", "hire", "fundraise", "acquire_users", "pivot",
+                "spy", "poach", "launch_pr", "cut_costs", "research",
+                "support_recovery", "incident_response", "compliance_response", "board_sync",
+            ],
+        }
+
+    def get_turn_packet(self, token: str) -> dict:
+        startup = self.get_startup_by_token(token)
+        if not startup:
+            raise ValueError("Invalid agent token")
+        if self.phase != GamePhase.PLAYING:
+            raise ValueError("Game not in playing phase")
+        return self._build_turn_packet(startup)
+
+    def _coerce_decision_packet(self, startup, actions: list[dict], decision_packet: Optional[dict]) -> dict:
+        packet = dict(decision_packet or {})
+        packet.setdefault("schema_version", "founder-arena.decision-packet.v1")
+        packet.setdefault("match_id", self.id)
+        packet.setdefault("turn_index", self.turn)
+        packet.setdefault("startup_id", startup.id)
+        packet.setdefault("intent", "Execute current operating plan.")
+        packet.setdefault("primary_risk", "General execution risk.")
+        packet.setdefault("confidence", "medium")
+        packet.setdefault("reasoning_summary", "No structured reasoning was supplied for this turn.")
+        packet.setdefault("expected_outcome", "")
+        packet.setdefault("watch_metric", "")
+        packet.setdefault("public_notes", [])
+        packet_actions = packet.get("actions")
+        if packet_actions is None:
+            packet["actions"] = actions[:MAX_ACTIONS_PER_TURN]
+        if packet.get("match_id") != self.id:
+            raise ValueError("decision_packet.match_id must match the current game")
+        if packet.get("startup_id") != startup.id:
+            raise ValueError("decision_packet.startup_id must match the acting startup")
+        if int(packet.get("turn_index", self.turn)) != self.turn:
+            raise ValueError("decision_packet.turn_index must match the current turn")
+        if packet.get("confidence") not in {"low", "medium", "high"}:
+            raise ValueError("decision_packet.confidence must be one of: low, medium, high")
+        return packet
 
     def _narrate(self, text: str):
         entry = f"Week {self.turn}: {text}"
@@ -431,6 +589,13 @@ class Game:
             "text": text,
             "type": "narrative",
         })
+
+    def _warn_once(self, startup, key: str, text: str) -> None:
+        marker = (startup.id, key)
+        if self.alert_memory.get(marker) == self.turn:
+            return
+        self.alert_memory[marker] = self.turn
+        self._narrate(text)
 
     def _event(self, event_data: dict, text: str):
         self.event_log.append({
@@ -452,17 +617,14 @@ class Game:
         if sector not in SECTORS:
             raise ValueError(f"Invalid sector. Choose from: {SECTORS}")
 
-        if self.use_rich_state:
-            s = RichStartupState(
-                agent_name,
-                startup_name,
-                sector,
-                motto,
-                strategy,
-                seed=self.seed + len(self.startups) + 1,
-            )
-        else:
-            s = Startup(agent_name, startup_name, sector, motto, strategy)
+        s = RichStartupState(
+            agent_name,
+            startup_name,
+            sector,
+            motto,
+            strategy,
+            seed=self.seed + len(self.startups) + 1,
+        )
         self.startups[s.id] = s
         self.token_map[s.agent_token] = s.id
         self._narrate(f"🏁 {startup_name} ({agent_name}) enters the arena in {sector}! \"{motto}\"")
@@ -489,7 +651,7 @@ class Game:
     def has_agent_token(self, token: Optional[str]) -> bool:
         return bool(token and token in self.token_map)
 
-    def submit_actions(self, token: str, actions: list[dict]) -> dict:
+    def submit_actions(self, token: str, actions: list[dict], decision_packet: Optional[dict] = None) -> dict:
         if self.phase != GamePhase.PLAYING:
             raise ValueError("Game not in playing phase")
         startup = self.get_startup_by_token(token)
@@ -499,11 +661,18 @@ class Game:
             raise ValueError("Your startup is dead")
         if startup.actions_submitted:
             raise ValueError("Actions already submitted this turn")
-        if len(actions) > MAX_ACTIONS_PER_TURN:
+        decision = self._coerce_decision_packet(startup, actions, decision_packet) if self.game_mode == "competitive_mode" else None
+        effective_actions = actions[:MAX_ACTIONS_PER_TURN]
+        if decision is not None:
+            effective_actions = list(decision.get("actions", effective_actions))[:MAX_ACTIONS_PER_TURN]
+
+        if len(effective_actions) > MAX_ACTIONS_PER_TURN:
             raise ValueError(f"Max {MAX_ACTIONS_PER_TURN} actions per turn")
 
-        startup.pending_actions = actions[:MAX_ACTIONS_PER_TURN]
+        startup.pending_actions = effective_actions
         startup.actions_submitted = True
+        if decision is not None:
+            self.decision_log.setdefault(startup.id, []).append(decision)
 
         # Check if all alive agents have submitted
         alive = [s for s in self.startups.values() if s.alive]
@@ -511,8 +680,13 @@ class Game:
         if all_submitted:
             self._resolve_turn()
 
-        return {"status": "ok", "actions_accepted": len(startup.pending_actions),
-                "all_submitted": all_submitted}
+        return {
+            "status": "ok",
+            "actions_accepted": len(startup.pending_actions),
+            "all_submitted": all_submitted,
+            "game_mode": self.game_mode,
+            "decision_packet_received": decision is not None,
+        }
 
     def check_timeout(self):
         """Call periodically to auto-resolve turns on timeout."""
@@ -603,18 +777,27 @@ class Game:
                 startup.alive = False
                 startup.death_reason = "Ran out of money"
                 self._narrate(f"💀 {startup.startup_name} ran out of cash and shut down!")
-            elif startup.morale <= 0:
-                startup.alive = False
-                startup.death_reason = "Team mutiny - everyone quit"
-                self._narrate(f"💀 {startup.startup_name} collapsed from zero morale!")
-            elif self.use_rich_state and float(startup.world_state["customers"].get("trust_score", 1.0)) < 0.35:
-                startup.alive = False
-                startup.death_reason = "Trust collapse"
-                self._narrate(f"💀 {startup.startup_name} lost customer trust and collapsed!")
-            elif self.use_rich_state and float(startup.world_state["risk"].get("regulatory_pressure", 0.0)) > 0.95:
-                startup.alive = False
-                startup.death_reason = "Compliance failure"
-                self._narrate(f"💀 {startup.startup_name} was crushed by compliance pressure!")
+            elif self.use_rich_state:
+                if startup.morale <= 0:
+                    self._warn_once(
+                        startup,
+                        "morale_crisis",
+                        f"⚠️ {startup.startup_name} hit zero morale and is barely functioning. It needs team recovery fast.",
+                    )
+                trust_score = float(startup.world_state["customers"].get("trust_score", 1.0))
+                regulatory_pressure = float(startup.world_state["risk"].get("regulatory_pressure", 0.0))
+                if trust_score < 0.35:
+                    self._warn_once(
+                        startup,
+                        "trust_crisis",
+                        f"⚠️ {startup.startup_name} is in a trust crisis and must recover or risk commercial collapse.",
+                    )
+                if regulatory_pressure > 0.95:
+                    self._warn_once(
+                        startup,
+                        "compliance_crisis",
+                        f"⚠️ {startup.startup_name} is under extreme compliance pressure and needs corrective action.",
+                    )
 
         # 6. Record history for all
         for s in self.startups.values():
@@ -1121,6 +1304,7 @@ class Game:
         state = {
             "game_id": self.id,
             "name": self.name,
+            "game_mode": self.game_mode,
             "phase": self.phase.value,
             "turn": self.turn,
             "max_turns": self.max_turns,
@@ -1142,13 +1326,24 @@ class Game:
                 state["startups"][sid] = s.private_view()
                 state["my_startup_id"] = sid
                 state["startups"][sid]["seven_dimension_scores"] = self._scorecard_for(s)
+                if self.game_mode == "competitive_mode":
+                    state["startups"][sid]["latest_decision"] = self._public_decision_summary(
+                        (self.decision_log.get(sid) or [None])[-1]
+                    )
             else:
                 state["startups"][sid] = s.public_view()
                 if self.phase == GamePhase.FINISHED:
                     state["startups"][sid]["seven_dimension_scores"] = self._scorecard_for(s)
+                    if self.game_mode == "competitive_mode":
+                        state["startups"][sid]["latest_decision"] = self._public_decision_summary(
+                            (self.decision_log.get(sid) or [None])[-1]
+                        )
             if self.use_rich_state:
                 if sid == my_startup_id or self.phase == GamePhase.FINISHED:
                     state["startups"][sid].update(self._director_payload_for(s))
+
+        if self.game_mode == "competitive_mode" and my_startup_id:
+            state["turn_packet"] = self._build_turn_packet(self.startups[my_startup_id])
 
         return state
 
@@ -1167,6 +1362,7 @@ class Game:
         state = {
             "game_id": self.id,
             "name": self.name,
+            "game_mode": self.game_mode,
             "phase": self.phase.value,
             "turn": self.turn,
             "max_turns": self.max_turns,
@@ -1180,6 +1376,10 @@ class Game:
             "market_modifiers": self.market_modifiers,
             "seven_dimension_scores": {sid: self._scorecard_for(s) for sid, s in self.startups.items()},
             "action_logs": self.action_log,
+            "decision_summaries": {
+                sid: self._public_decision_summary((self.decision_log.get(sid) or [None])[-1])
+                for sid in self.startups
+            },
         }
         return state
 
@@ -1191,6 +1391,7 @@ class Game:
             "game_id": self.id,
             "name": self.name,
             "seed": self.seed,
+            "game_mode": self.game_mode,
             "total_turns": self.turn,
             "use_rich_state": self.use_rich_state,
             "winner": self.winner,
@@ -1211,6 +1412,7 @@ class Game:
             "histories": {sid: s.history for sid, s in self.startups.items()},
             "seven_dimension_scores": {sid: self._scorecard_for(s) for sid, s in self.startups.items()},
             "action_logs": self.action_log,
+            "decision_logs": self.decision_log,
         }
 
 
@@ -1286,17 +1488,22 @@ async def info():
     return {
         "name": "Founder Arena",
         "tagline": "Where AI agents build empires and humans watch the chaos",
-        "version": "1.0.0",
+        "version": "1.2.0",
         "sectors": SECTORS,
         "roles": ROLES,
         "max_actions_per_turn": MAX_ACTIONS_PER_TURN,
         "actions": [
             "build_feature", "hire", "fundraise", "acquire_users", "pivot",
             "spy", "poach", "launch_pr", "cut_costs", "research",
+            "support_recovery", "incident_response", "compliance_response", "board_sync",
         ],
         "fundraise_rounds": ["angel", "seed", "series_a", "series_b"],
         "acquire_channels": ["organic", "paid_ads", "viral", "partnerships"],
         "supports_use_rich_state": True,
+        "supported_game_modes": SUPPORTED_GAME_MODES,
+        "supports_turn_packets": True,
+        "supports_decision_packets": True,
+        "simulation_engine": "agentic-startup-simulator",
         "active_games": len(games),
     }
 
@@ -1307,12 +1514,13 @@ async def info():
 async def create_game(req: CreateGameRequest, request: Request):
     _enforce_rate_limit(request, scope="create_game", identity=_client_ip(request), limit=12, window_seconds=60)
     game = Game(req.name, req.max_players, req.min_players,
-                req.turn_timeout, req.max_turns, req.seed, req.use_rich_state)
+                req.turn_timeout, req.max_turns, req.seed, req.use_rich_state, req.game_mode)
     games[game.id] = game
     payload = {
         "game_id": game.id,
         "name": game.name,
         "seed": game.seed,
+        "game_mode": game.game_mode,
         "use_rich_state": game.use_rich_state,
         "admin_token": game.admin_token,
         "join_code": game.join_code,
@@ -1322,6 +1530,7 @@ async def create_game(req: CreateGameRequest, request: Request):
         request,
         "game_created",
         game_id=game.id,
+        game_mode=game.game_mode,
         use_rich_state=game.use_rich_state,
         admin_token_fingerprint=token_fingerprint(game.admin_token),
         spectator_token_fingerprint=token_fingerprint(game.spectator_token),
@@ -1336,6 +1545,7 @@ async def list_games():
             {"id": g.id, "name": g.name, "phase": g.phase.value,
              "players": len(g.startups), "turn": g.turn,
              "max_turns": g.max_turns, "created_at": g.created_at,
+             "game_mode": g.game_mode,
              "use_rich_state": g.use_rich_state}
             for g in games.values()
         ]
@@ -1398,7 +1608,8 @@ async def start_game(game_id: str, request: Request, x_admin_token: Optional[str
         game.start()
         _audit(request, "game_started", game_id=game_id, admin_token_fingerprint=token_fingerprint(token))
         return {"status": "started", "turn": game.turn,
-                "players": len(game.startups), "use_rich_state": game.use_rich_state}
+                "players": len(game.startups), "use_rich_state": game.use_rich_state,
+                "game_mode": game.game_mode}
     except ValueError as e:
         _audit(request, "start_denied", game_id=game_id, reason=str(e))
         raise HTTPException(400, str(e))
@@ -1464,6 +1675,7 @@ async def fill_bots(game_id: str, request: Request,
         "bot_names": [c["name"] for c in configs],
         "total_players": len(game.startups),
         "turn": game.turn,
+        "game_mode": game.game_mode,
     }
 
 
@@ -1484,6 +1696,26 @@ async def get_state(game_id: str, request: Request, x_agent_token: Optional[str]
     return game.get_state(token)
 
 
+@app.get("/api/games/{game_id}/turn-packet")
+async def get_turn_packet(game_id: str, request: Request, x_agent_token: Optional[str] = Header(None, alias="X-Agent-Token")):
+    game = games.get(game_id)
+    if not game:
+        raise HTTPException(404, "Game not found")
+    game.check_timeout()
+    token = _require_header_token(x_agent_token, header_name="X-Agent-Token")
+    _enforce_rate_limit(request, scope="turn_packet", identity=token_fingerprint(token) or _client_ip(request), limit=180, window_seconds=60)
+    if not game.has_agent_token(token):
+        _audit(request, "turn_packet_denied", game_id=game_id, reason="invalid_agent_token")
+        raise HTTPException(403, "Invalid agent token")
+    try:
+        packet = game.get_turn_packet(token)
+    except ValueError as e:
+        _audit(request, "turn_packet_denied", game_id=game_id, reason=str(e), agent_token_fingerprint=token_fingerprint(token))
+        raise HTTPException(400, str(e))
+    _audit(request, "turn_packet_read", game_id=game_id, agent_token_fingerprint=token_fingerprint(token))
+    return packet
+
+
 @app.post("/api/games/{game_id}/action")
 async def submit_action(game_id: str, req: ActionRequest, request: Request, x_agent_token: Optional[str] = Header(None, alias="X-Agent-Token")):
     game = games.get(game_id)
@@ -1496,13 +1728,14 @@ async def submit_action(game_id: str, req: ActionRequest, request: Request, x_ag
         _audit(request, "action_denied", game_id=game_id, reason="invalid_agent_token")
         raise HTTPException(403, "Invalid agent token")
     try:
-        result = game.submit_actions(agent_token, req.actions)
+        result = game.submit_actions(agent_token, req.actions, req.decision_packet)
         _audit(
             request,
             "actions_submitted",
             game_id=game_id,
             agent_token_fingerprint=token_fingerprint(agent_token),
             action_count=len(req.actions),
+            decision_packet_supplied=req.decision_packet is not None,
         )
         return result
     except ValueError as e:
@@ -1515,9 +1748,11 @@ async def spectate(game_id: str, request: Request, spectator_token: Optional[str
     game = games.get(game_id)
     if not game:
         raise HTTPException(404, "Game not found")
-    token = x_spectator_token or spectator_token
+    if spectator_token:
+        raise HTTPException(403, "Missing required header: X-Spectator-Token")
+    token = _require_header_token(x_spectator_token, header_name="X-Spectator-Token")
     _enforce_rate_limit(request, scope="spectate", identity=token_fingerprint(token) or _client_ip(request), limit=120, window_seconds=60)
-    if token and token != game.spectator_token:
+    if token != game.spectator_token:
         _audit(request, "spectate_denied", game_id=game_id, reason="invalid_spectator_token")
         raise HTTPException(403, "Invalid spectator token")
     game.check_timeout()

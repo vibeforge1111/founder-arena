@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://founderarena.dev/schemas/turn_packet.schema.json",
+  "title": "Founder Arena Turn Packet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "match_id",
+    "turn_index",
+    "phase",
+    "startup",
+    "match_context",
+    "rivals"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "founder-arena.turn-packet.v1"
+    },
+    "match_id": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "turn_index": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "briefing"
+      ]
+    },
+    "match_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "match_type",
+        "max_turns",
+        "ruleset_version",
+        "queue"
+      ],
+      "properties": {
+        "match_type": {
+          "type": "string"
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ruleset_version": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string",
+          "enum": [
+            "github_ranked",
+            "skill_ranked",
+            "showmatch"
+          ]
+        },
+        "current_arc": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "arc_id": {
+              "type": "string"
+            },
+            "arc_type": {
+              "type": "string"
+            },
+            "headline": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "watch_items": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "maxLength": 160
+          }
+        }
+      }
+    },
+    "startup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startup_id",
+        "startup_name",
+        "alive",
+        "score",
+        "cash",
+        "runway_months",
+        "revenue",
+        "trust_score",
+        "team_health",
+        "thesis"
+      ],
+      "properties": {
+        "startup_id": {
+          "type": "string"
+        },
+        "startup_name": {
+          "type": "string"
+        },
+        "alive": {
+          "type": "boolean"
+        },
+        "score": {
+          "type": "number"
+        },
+        "cash": {
+          "type": "number"
+        },
+        "runway_months": {
+          "type": "number"
+        },
+        "revenue": {
+          "type": "number"
+        },
+        "trust_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "team_health": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "thesis": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "last_turn_summary": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "recent_actions": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        "private_notes": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "rivals": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 7,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "startup_name",
+          "rank",
+          "score",
+          "headline"
+        ],
+        "properties": {
+          "startup_name": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "score": {
+            "type": "number"
+          },
+          "headline": {
+            "type": "string",
+            "maxLength": 160
+          }
+        }
+      }
+    },
+    "visible_actions": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "string",
+        "maxLength": 80
+      }
+    }
+  }
+}

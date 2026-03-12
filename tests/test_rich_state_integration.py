@@ -42,7 +42,7 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertIn("customers", snapshot["rich_state"])
         self.assertGreaterEqual(snapshot["team_size"], 1)
 
-    def test_create_game_defaults_to_legacy_mode(self) -> None:
+    def test_create_game_defaults_to_simulator_mode(self) -> None:
         response = self.client.post(
             "/api/games",
             json={
@@ -56,10 +56,131 @@ class RichStateIntegrationTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertFalse(payload["use_rich_state"])
+        self.assertTrue(payload["use_rich_state"])
+        self.assertEqual(payload["game_mode"], "legacy_arena")
         self.assertIn("admin_token", payload)
         self.assertIn("join_code", payload)
         self.assertIn("spectator_token", payload)
+
+    def test_competitive_mode_exposes_turn_packet_and_decision_logs(self) -> None:
+        create = self.client.post(
+            "/api/games",
+            json={
+                "name": "Competitive Test",
+                "max_players": 2,
+                "min_players": 2,
+                "turn_timeout": 5,
+                "max_turns": 2,
+                "game_mode": "competitive_mode",
+            },
+        )
+        self.assertEqual(create.status_code, 200)
+        payload = create.json()
+        self.assertEqual(payload["game_mode"], "competitive_mode")
+        self.assertTrue(payload["use_rich_state"])
+        game_id = payload["game_id"]
+
+        join_1 = self.client.post(
+            f"/api/games/{game_id}/join",
+            json={
+                "agent_name": "R1",
+                "startup_name": "DeepOne",
+                "sector": "ai",
+                "motto": "m1",
+                "strategy_description": "balanced",
+                "join_code": payload["join_code"],
+            },
+        )
+        join_2 = self.client.post(
+            f"/api/games/{game_id}/join",
+            json={
+                "agent_name": "R2",
+                "startup_name": "DeepTwo",
+                "sector": "fintech",
+                "motto": "m2",
+                "strategy_description": "aggressive",
+                "join_code": payload["join_code"],
+            },
+        )
+        self.assertEqual(join_1.status_code, 200)
+        self.assertEqual(join_2.status_code, 200)
+
+        start = self.client.post(
+            f"/api/games/{game_id}/start",
+            headers={"X-Admin-Token": payload["admin_token"]},
+        )
+        self.assertEqual(start.status_code, 200)
+        self.assertEqual(start.json()["game_mode"], "competitive_mode")
+
+        turn_packet = self.client.get(
+            f"/api/games/{game_id}/turn-packet",
+            headers={"X-Agent-Token": join_1.json()["agent_token"]},
+        )
+        self.assertEqual(turn_packet.status_code, 200)
+        packet_payload = turn_packet.json()
+        self.assertEqual(packet_payload["schema_version"], "founder-arena.turn-packet.v1")
+        self.assertEqual(packet_payload["startup"]["startup_id"], join_1.json()["startup_id"])
+
+        action_1 = self.client.post(
+            f"/api/games/{game_id}/action",
+            headers={"X-Agent-Token": join_1.json()["agent_token"]},
+            json={
+                "actions": [{"type": "build_feature", "params": {"focus": "core"}}],
+                "decision_packet": {
+                    "schema_version": "founder-arena.decision-packet.v1",
+                    "match_id": game_id,
+                    "turn_index": 1,
+                    "startup_id": join_1.json()["startup_id"],
+                    "intent": "Open with product progress.",
+                    "primary_risk": "Weak early quality.",
+                    "confidence": "medium",
+                    "reasoning_summary": "Shipping product first to establish a stronger base.",
+                    "actions": [{"type": "build_feature", "params": {"focus": "core"}}],
+                },
+            },
+        )
+        action_2 = self.client.post(
+            f"/api/games/{game_id}/action",
+            headers={"X-Agent-Token": join_2.json()["agent_token"]},
+            json={
+                "actions": [{"type": "acquire_users", "params": {"channel": "organic"}}],
+                "decision_packet": {
+                    "schema_version": "founder-arena.decision-packet.v1",
+                    "match_id": game_id,
+                    "turn_index": 1,
+                    "startup_id": join_2.json()["startup_id"],
+                    "intent": "Test demand cheaply.",
+                    "primary_risk": "No signal on customer pull.",
+                    "confidence": "medium",
+                    "reasoning_summary": "Need a first read on demand before heavier spend.",
+                    "actions": [{"type": "acquire_users", "params": {"channel": "organic"}}],
+                },
+            },
+        )
+        self.assertEqual(action_1.status_code, 200)
+        self.assertEqual(action_2.status_code, 200)
+        self.assertTrue(action_1.json()["decision_packet_received"])
+
+        spectator = self.client.get(
+            f"/api/games/{game_id}/spectate",
+            headers={"X-Spectator-Token": payload["spectator_token"]},
+        )
+        replay = self.client.get(f"/api/games/{game_id}/replay")
+        private_state = self.client.get(
+            f"/api/games/{game_id}/state",
+            headers={"X-Agent-Token": join_1.json()["agent_token"]},
+        )
+
+        self.assertEqual(spectator.status_code, 200)
+        self.assertEqual(replay.status_code, 200)
+        self.assertEqual(private_state.status_code, 200)
+        self.assertEqual(private_state.json()["game_mode"], "competitive_mode")
+        self.assertIn("turn_packet", private_state.json())
+        self.assertIn(join_1.json()["startup_id"], replay.json()["decision_logs"])
+        self.assertEqual(
+            spectator.json()["decision_summaries"][join_1.json()["startup_id"]]["intent"],
+            "Open with product progress.",
+        )
 
     def test_rich_game_replay_exposes_scores_and_director_fields(self) -> None:
         create = self.client.post(
@@ -162,6 +283,31 @@ class RichStateIntegrationTests(unittest.TestCase):
                 "strategic_coherence",
             },
         )
+
+    def test_low_trust_is_a_recoverable_crisis_not_an_instant_death(self) -> None:
+        game = server.Game(
+            name="Trust Recovery Test",
+            max_players=2,
+            min_players=2,
+            turn_timeout=5,
+            max_turns=3,
+            seed=123,
+            use_rich_state=True,
+        )
+        startup_a = game.add_startup("A1", "Alpha", "ai", "m1", "balanced")
+        startup_b = game.add_startup("A2", "Beta", "saas", "m2", "balanced")
+        game.start()
+
+        startup_a.world_state["customers"]["trust_score"] = 0.2
+        startup_a.recalculate()
+        startup_a.actions_submitted = True
+        startup_b.actions_submitted = True
+
+        game._resolve_turn()
+
+        self.assertTrue(startup_a.alive)
+        self.assertEqual(startup_a.death_reason, "")
+        self.assertTrue(any("trust crisis" in entry.lower() for entry in game.narrative))
 
     def test_public_game_endpoint_redacts_private_fields(self) -> None:
         create = self.client.post(
@@ -348,6 +494,49 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertTrue(server.AUDIT_LOGGER.path.exists())
         contents = server.AUDIT_LOGGER.path.read_text(encoding="utf-8")
         self.assertIn("\"event_type\":\"game_created\"", contents)
+
+    def test_support_recovery_action_reduces_backlog(self) -> None:
+        startup = RichStartupState(
+            agent_name="Tester",
+            startup_name="DeepCo",
+            sector="ai",
+            motto="Test deeply",
+            strategy="balanced",
+            seed=123,
+        )
+        startup.world_state["operations"]["support_backlog"] = 30
+        startup.world_state["customers"]["trust_score"] = 0.35
+        startup.recalculate()
+
+        mapper = server.ActionMapper(server.random.Random(123))
+        result = mapper.execute(startup, {"type": "support_recovery", "params": {}}, turn_index=1)
+
+        self.assertTrue(result["success"])
+        self.assertLess(startup.world_state["operations"]["support_backlog"], 30)
+        self.assertGreater(startup.world_state["customers"]["trust_score"], 0.35)
+
+    def test_fundraise_has_cooldown_and_stage_progression(self) -> None:
+        startup = RichStartupState(
+            agent_name="Tester",
+            startup_name="DeepCo",
+            sector="ai",
+            motto="Test deeply",
+            strategy="balanced",
+            seed=123,
+        )
+        mapper = server.ActionMapper(server.random.Random(123))
+
+        first = mapper.execute(startup, {"type": "fundraise", "params": {"round": "angel"}}, turn_index=1)
+        second = mapper.execute(startup, {"type": "fundraise", "params": {"round": "angel"}}, turn_index=2)
+
+        self.assertTrue(first["success"])
+        self.assertFalse(second["success"])
+        self.assertIn("soon", second["message"])
+
+        startup.total_raised = 400000
+        third = mapper.execute(startup, {"type": "fundraise", "params": {"round": "angel"}}, turn_index=5)
+        self.assertTrue(third["success"])
+        self.assertIn("seed", third["message"])
 
     def test_rate_limiter_blocks_after_limit(self) -> None:
         allowed_1, retry_after_1 = server.RATE_LIMITER.check(

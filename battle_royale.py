@@ -113,6 +113,8 @@ def main():
         "min_players": num_agents,
         "turn_timeout": 5 if args.fast else 30,
         "max_turns": args.turns,
+        "game_mode": "competitive_mode",
+        "use_rich_state": True,
     })
     resp.raise_for_status()
     game_data = resp.json()

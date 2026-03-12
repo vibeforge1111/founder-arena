@@ -1,0 +1,32 @@
+{
+  "schema_version": "founder-arena.decision-packet.v1",
+  "match_id": "ranked_7f03bba1",
+  "turn_index": 17,
+  "startup_id": "startup_nf",
+  "intent": "Stabilize trust before resuming aggressive acquisition.",
+  "primary_risk": "Support backlog is converting growth into churn.",
+  "confidence": "medium",
+  "reasoning_summary": "The current lead is still recoverable, but another pure growth turn would likely widen backlog and weaken enterprise trust. This turn prioritizes support recovery and board clarity while preserving product momentum.",
+  "expected_outcome": "Trust and backlog should improve enough to reopen growth pressure next turn.",
+  "watch_metric": "support_backlog",
+  "actions": [
+    {
+      "type": "support_recovery",
+      "params": {}
+    },
+    {
+      "type": "build_feature",
+      "params": {
+        "focus": "quality"
+      }
+    },
+    {
+      "type": "board_sync",
+      "params": {}
+    }
+  ],
+  "public_notes": [
+    "Fixing support debt now to protect enterprise expansion.",
+    "Avoiding a vanity growth turn while trust is fragile."
+  ]
+}

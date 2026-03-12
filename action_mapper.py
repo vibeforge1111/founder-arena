@@ -14,6 +14,7 @@ from thestartupbench.runtime import execute_tool_call
 
 
 LEGACY_ARENA_ONLY_ACTIONS = {"pivot", "spy", "poach"}
+ROUND_ORDER = ["angel", "seed", "series_a", "series_b"]
 READ_ONLY_EXTENDED_TOOLS = {
     "metrics.report",
     "research.market.read",
@@ -23,6 +24,13 @@ READ_ONLY_EXTENDED_TOOLS = {
 class ActionMapper:
     def __init__(self, rng):
         self.rng = rng
+
+    @staticmethod
+    def _bump_metric(startup, area: str, key: str, delta: float, *, minimum: float = 0.0, maximum: float = 1.0) -> None:
+        bucket = startup.world_state.setdefault(area, {})
+        current = float(bucket.get(key, 0.0))
+        bucket[key] = round(max(minimum, min(maximum, current + delta)), 4)
+        startup.recalculate()
 
     def execute(self, startup, action: dict, turn_index: int) -> dict | None:
         action_type = str(action.get("type", ""))
@@ -69,6 +77,7 @@ class ActionMapper:
             "growth": 0.04,
             "polish": 0.05,
             "quality": 0.06,
+            "security": 0.06,
             "general": 0.05,
         }.get(focus, 0.05)
         cost = 15000
@@ -88,6 +97,12 @@ class ActionMapper:
         if result["success"]:
             startup.cash = startup.cash - cost
             startup.features_built = startup.features_built + 1
+            if focus in {"ux", "quality", "polish", "security"}:
+                self._bump_metric(startup, "customers", "trust_score", 0.025)
+                self._bump_metric(startup, "customers", "monthly_churn_rate", -0.004)
+            if focus in {"security", "quality"}:
+                self._bump_metric(startup, "risk", "regulatory_pressure", -0.05)
+                self._bump_metric(startup, "risk", "compliance_backlog", -1.0, maximum=1000.0)
             result["quality_gain"] = max(1, startup.product_quality - int(result.get("before_product_quality", startup.product_quality)))
             result["message"] = f"Built {focus} roadmap work through simulator product planning."
         return result
@@ -115,18 +130,32 @@ class ActionMapper:
         if result["success"]:
             startup.cash = startup.cash - signing_bonus
             startup.sync_team_roster()
+            if role in {"engineer", "designer"}:
+                self._bump_metric(startup, "team", "morale", 0.03)
             result["member"] = startup.team[-1].to_dict()
             result["message"] = f"Hired {result['member']['name']} as {role} via simulator hiring flow."
         return result
 
     def _map_fundraise(self, startup, params: dict, turn_index: int) -> dict:
-        round_type = str(params.get("round", "angel"))
+        requested_round = str(params.get("round", "angel"))
         round_terms = {
             "angel": {"raise_amount_usd": 120000, "dilution_pct": 0.08, "transaction_cost_usd": 6000},
             "seed": {"raise_amount_usd": 350000, "dilution_pct": 0.14, "transaction_cost_usd": 12000},
             "series_a": {"raise_amount_usd": 1200000, "dilution_pct": 0.18, "transaction_cost_usd": 24000},
             "series_b": {"raise_amount_usd": 2800000, "dilution_pct": 0.22, "transaction_cost_usd": 45000},
         }
+        total_raised = startup.total_raised
+        minimum_round = "angel"
+        if total_raised >= 1_500_000:
+            minimum_round = "series_a"
+        elif total_raised >= 300_000:
+            minimum_round = "seed"
+        if requested_round not in round_terms:
+            return {"action": "fundraise", "success": False, "message": "Invalid round"}
+        round_type = ROUND_ORDER[max(ROUND_ORDER.index(requested_round), ROUND_ORDER.index(minimum_round))]
+        last_raise_turn = getattr(startup, "last_fundraise_turn", None)
+        if last_raise_turn is not None and turn_index - int(last_raise_turn) < 3:
+            return {"action": "fundraise", "success": False, "message": "Investors will not take another round this soon"}
         config = round_terms.get(round_type)
         if config is None:
             return {"action": "fundraise", "success": False, "message": "Invalid round"}
@@ -142,6 +171,7 @@ class ActionMapper:
             turn_index=turn_index,
         )
         if result["success"]:
+            startup.last_fundraise_turn = turn_index
             startup.total_raised = startup.total_raised + int(config["raise_amount_usd"])
             startup.funding_round = round_type
             startup.dilution = startup.dilution
@@ -272,6 +302,7 @@ class ActionMapper:
         startup.cash = startup.cash - 10000
         startup.brand = min(100, startup.brand + 9)
         startup.users = startup.users + 160
+        self._bump_metric(startup, "customers", "trust_score", 0.015)
         return {
             "action": "launch_pr",
             "success": board["success"] and sales["success"],
@@ -280,6 +311,86 @@ class ActionMapper:
             "user_gain": 160,
             "tool_results": [board, sales],
         }
+
+    def _map_support_recovery(self, startup, params: dict, turn_index: int) -> dict:
+        backlog = float(startup.world_state.get("operations", {}).get("support_backlog", 0.0))
+        intensity = "major" if backlog > 25 else "standard"
+        response = self._run_tool(
+            startup,
+            "ops.support.resolve",
+            {
+                "backlog_reduction": 18 if intensity == "major" else 10,
+                "sla_risk_reduction": 0.18 if intensity == "major" else 0.1,
+                "trust_recovery": 0.05 if intensity == "major" else 0.03,
+                "churn_reduction": 0.008 if intensity == "major" else 0.004,
+                "monthly_burn_increase_usd": 6000 if intensity == "major" else 3500,
+            },
+            action_label="support_recovery",
+            turn_index=turn_index,
+        )
+        if response["success"]:
+            response["message"] = "Ran a simulator support recovery plan to reduce backlog and rebuild trust."
+        return response
+
+    def _map_incident_response(self, startup, params: dict, turn_index: int) -> dict:
+        response = self._run_tool(
+            startup,
+            "ops.incident.respond",
+            {
+                "incident_reduction": 1,
+                "trust_recovery": 0.06,
+                "churn_reduction": 0.008,
+                "monthly_burn_increase_usd": 9000,
+                "customer_comms_plan": "rapid disclosure and resolution",
+            },
+            action_label="incident_response",
+            turn_index=turn_index,
+        )
+        if response["success"]:
+            response["message"] = "Activated a simulator incident response plan."
+        return response
+
+    def _map_compliance_response(self, startup, params: dict, turn_index: int) -> dict:
+        response = self._run_tool(
+            startup,
+            "legal.compliance.respond",
+            {
+                "pressure_reduction": 0.2,
+                "matters_reduction": 1,
+                "compliance_backlog_reduction": 5,
+                "trust_recovery": 0.02,
+                "monthly_burn_increase_usd": 7000,
+            },
+            action_label="compliance_response",
+            turn_index=turn_index,
+        )
+        if response["success"]:
+            response["message"] = "Ran a simulator compliance response to reduce legal and regulatory pressure."
+        return response
+
+    def _map_board_sync(self, startup, params: dict, turn_index: int) -> dict:
+        response = self._run_tool(
+            startup,
+            "board.update",
+            {
+                "update_type": params.get("update_type", "operating_update"),
+                "summary": f"{startup.startup_name} board update for week {turn_index}",
+                "forecast": {
+                    "cash": startup.cash,
+                    "revenue": startup.revenue,
+                    "users": startup.users,
+                    "trust_score": startup.world_state.get("customers", {}).get("trust_score"),
+                    "support_backlog": startup.world_state.get("operations", {}).get("support_backlog"),
+                },
+                "asks": ["support recovery", "capital discipline", "focus"],
+            },
+            action_label="board_sync",
+            turn_index=turn_index,
+        )
+        if response["success"]:
+            self._bump_metric(startup, "risk", "financing_pressure", -0.04)
+            response["message"] = "Sent a formal simulator board update and reduced financing uncertainty."
+        return response
 
     def _map_research(self, startup, params: dict, turn_index: int) -> dict:
         if startup.cash > 0:
@@ -298,6 +409,10 @@ class ActionMapper:
             "demand_index": market.get("demand_index"),
             "segment_mix_index": startup.world_state.get("customers", {}).get("segment_mix_index"),
             "market_reads_count": market.get("market_reads_count", 0),
+            "trust_score": startup.world_state.get("customers", {}).get("trust_score"),
+            "monthly_churn_rate": startup.world_state.get("customers", {}).get("monthly_churn_rate"),
+            "support_backlog": startup.world_state.get("operations", {}).get("support_backlog"),
+            "regulatory_pressure": startup.world_state.get("risk", {}).get("regulatory_pressure"),
         }
         result["message"] = "Simulator market research complete."
         return result

@@ -1,0 +1,30 @@
+{
+  "schema_version": "founder-arena.entrant.v1",
+  "entrant_id": "blazerun-v4",
+  "display_name": "BlazeRun v4",
+  "entrant_type": "github_repo",
+  "description": "Growth-forward startup operator tuned for ranked Founder Arena matches.",
+  "author": "arena-builder",
+  "repo": {
+    "url": "https://github.com/example/blazerun-agent",
+    "ref": "v4.2.1",
+    "subdir": "arena"
+  },
+  "runtime": {
+    "entry_command": [
+      "python",
+      "-m",
+      "arena_agent"
+    ],
+    "timeout_seconds": 25,
+    "max_actions_per_turn": 3,
+    "network_access": "declared",
+    "model_provider": "openai",
+    "model_name": "gpt-5"
+  },
+  "game_compatibility": {
+    "game_mode": "competitive_mode",
+    "ruleset_version": "2026.03",
+    "queue": "github_ranked"
+  }
+}

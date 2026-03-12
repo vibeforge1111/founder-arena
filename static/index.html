@@ -794,6 +794,19 @@ function fmtNum(n) {
   return n.toLocaleString();
 }
 
+function latestDecisionFor(sid) {
+  if (!gameData) return null;
+  const summary = (gameData.decision_summaries || {})[sid];
+  if (summary) return summary;
+  const startup = (gameData.startups || {})[sid] || {};
+  return startup.latest_decision || null;
+}
+
+function scoreValueForStartup(startup) {
+  if (!startup) return 0;
+  return startup.seven_dimension_scores?.total_score || startup.score || 0;
+}
+
 // ──────────────────────────────────────────────────
 // DATA FETCHING
 // ──────────────────────────────────────────────────
@@ -817,9 +830,11 @@ async function fetchState() {
     if (!gameId) return;
   }
   try {
-    let url = `/api/games/${gameId}/spectate`;
-    if (spectatorToken) url += `?spectator_token=${spectatorToken}`;
-    const resp = await fetch(url);
+    const resp = spectatorToken
+      ? await fetch(`/api/games/${gameId}/spectate`, {
+          headers: { 'X-Spectator-Token': spectatorToken },
+        })
+      : await fetch(`/api/games/${gameId}`);
     if (!resp.ok) { gameId = null; return; }
     gameData = await resp.json();
     updateUI();
@@ -863,7 +878,8 @@ function updateUI() {
     dot.className = 'status-dot';
     txt.textContent = phase.toUpperCase();
   }
-  badge.textContent = `W${gameData.turn}/${gameData.max_turns}`;
+  const modeLabel = gameData.game_mode === 'competitive_mode' ? ' COMP' : '';
+  badge.textContent = `W${gameData.turn}/${gameData.max_turns}${modeLabel}`;
 
   renderRankings();
   renderTimeline();
@@ -881,6 +897,8 @@ function renderRankings() {
 
   const sorted = Object.entries(startups).sort((a, b) => {
     if (a[1].alive !== b[1].alive) return a[1].alive ? -1 : 1;
+    const scoreDiff = scoreValueForStartup(b[1]) - scoreValueForStartup(a[1]);
+    if (Math.abs(scoreDiff) > 0.01) return scoreDiff;
     return (b[1].valuation || 0) - (a[1].valuation || 0);
   });
 
@@ -892,6 +910,8 @@ function renderRankings() {
     const deadClass = !s.alive ? ' dead' : '';
     const statusClass = s.alive ? 'alive' : 'dead';
     const statusText = s.alive ? 'ALIVE' : 'DEAD';
+    const decision = latestDecisionFor(sid);
+    const score = scoreValueForStartup(s);
     const q = Math.max(2, (s.product_quality || 0) * 0.14);
     const b = Math.max(2, (s.brand || 0) * 0.14);
     const m = Math.max(2, (s.morale || 0) * 0.14);
@@ -902,13 +922,14 @@ function renderRankings() {
       <div class="rank-info">
         <div class="agent-name">${s.agent_name}</div>
         <div class="startup-name">${s.startup_name}${!s.alive ? ' - ' + (s.death_reason || 'Dead') : ''}</div>
+        ${decision?.intent ? `<div class="hint" style="margin-top:3px">${decision.intent}</div>` : ''}
       </div>
       <div class="mini-bars" title="Q:${s.product_quality||0} B:${s.brand||0} M:${s.morale||0}">
         <div class="mini-bar" style="height:${q}px;background:var(--purple)"></div>
         <div class="mini-bar" style="height:${b}px;background:var(--pink)"></div>
         <div class="mini-bar" style="height:${m}px;background:var(--cyan)"></div>
       </div>
-      <div class="rank-val">${fmtMoney(s.valuation)}</div>
+      <div class="rank-val">${gameData.game_mode === 'competitive_mode' ? score.toFixed(1) : fmtMoney(s.valuation)}</div>
       <div class="rank-status ${statusClass}">${statusText}</div>
     </div>`;
   }).join('');
@@ -952,15 +973,33 @@ function clearFilter() {
 function renderTimeline() {
   const container = document.getElementById('timeline');
   const logs = gameData.action_logs || {};
+  const decisionSummaries = gameData.decision_summaries || {};
 
   let entries = [];
+  for (const [sid, decision] of Object.entries(decisionSummaries)) {
+    const s = gameData.startups[sid];
+    if (!s || !decision) continue;
+    if (filterStartupId && sid !== filterStartupId) continue;
+    const ci = getAgentColor(sid);
+    entries.push({
+      turn: decision.turn_index || gameData.turn,
+      sid,
+      agentName: s.agent_name,
+      ci,
+      type: 'decision',
+      intent: decision.intent,
+      risk: decision.primary_risk,
+      confidence: decision.confidence,
+      message: decision.reasoning_summary || decision.expected_outcome || '',
+    });
+  }
   for (const [sid, actions] of Object.entries(logs)) {
     const s = gameData.startups[sid];
     if (!s) continue;
     if (filterStartupId && sid !== filterStartupId) continue;
     const ci = getAgentColor(sid);
     for (const a of actions) {
-      entries.push({ turn: a.turn, sid, agentName: s.agent_name, ci, actionType: a.action_type, params: a.params, message: a.message, success: a.success });
+      entries.push({ turn: a.turn, sid, agentName: s.agent_name, ci, type: 'action', actionType: a.action_type, params: a.params, message: a.message, success: a.success });
     }
   }
 
@@ -974,6 +1013,16 @@ function renderTimeline() {
     if (e.turn !== currentTurn) {
       currentTurn = e.turn;
       html += `<div class="turn-divider">WEEK ${currentTurn}</div>`;
+    }
+    if (e.type === 'decision') {
+      html += `<div class="timeline-entry" style="background:rgba(255,255,255,0.02)">
+        <div class="tl-dot ac-${e.ci}"></div>
+        <div class="tl-agent tc-${e.ci}">${e.agentName}</div>
+        <div class="tl-action" style="color:var(--gold)">plan</div>
+        <div class="tl-message"><strong>${e.intent || 'Operating plan'}</strong>${e.risk ? ` - risk: ${e.risk}` : ''}${e.message ? `<div class="hint" style="margin-top:4px">${e.message}</div>` : ''}</div>
+        <div class="tl-icon ${e.confidence === 'high' ? 'success' : e.confidence === 'low' ? 'fail' : ''}">${(e.confidence || 'mid').slice(0,1).toUpperCase()}</div>
+      </div>`;
+      continue;
     }
     const paramStr = e.params && Object.keys(e.params).length > 0
       ? '(' + Object.values(e.params).join(', ') + ')' : '';
@@ -1081,6 +1130,7 @@ function renderAgentDetail(sid) {
 
   const ci = getAgentColor(sid);
   const actions = (gameData.action_logs || {})[sid] || [];
+  const decision = latestDecisionFor(sid);
   const recentActions = actions.slice(-15).reverse();
   const dims = s.seven_dimension_scores?.dimensions || {};
 
@@ -1115,6 +1165,25 @@ function renderAgentDetail(sid) {
       ${makeProgressBar('Brand', s.brand || 0, '--pink')}
       ${makeProgressBar('Morale', s.morale || 0, '--cyan')}
     </div>`;
+
+  if (decision) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">DECISION SUMMARY</div>
+      <div class="recent-action" style="grid-template-columns:80px 1fr;align-items:start">
+        <div class="recent-turn">TURN ${decision.turn_index || gameData.turn}</div>
+        <div>
+          <div style="font-weight:700;color:var(--text)">${decision.intent || 'No intent recorded'}</div>
+          ${decision.primary_risk ? `<div class="hint" style="margin-top:4px">Risk: ${decision.primary_risk}</div>` : ''}
+          ${decision.reasoning_summary ? `<div style="margin-top:8px;color:var(--text-soft);line-height:1.45">${decision.reasoning_summary}</div>` : ''}
+          <div class="detail-tags" style="margin-top:10px">
+            ${decision.confidence ? `<div class="detail-tag">${decision.confidence} confidence</div>` : ''}
+            ${decision.watch_metric ? `<div class="detail-tag">watch ${decision.watch_metric}</div>` : ''}
+          </div>
+          ${decision.expected_outcome ? `<div class="hint" style="margin-top:8px">Expected: ${decision.expected_outcome}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }
 
   if (Object.keys(dims).length > 0) {
     html += `<div class="detail-section">
@@ -1157,6 +1226,8 @@ function renderPostGame() {
 
   const sorted = Object.entries(startups).sort((a, b) => {
     if (a[1].alive !== b[1].alive) return a[1].alive ? -1 : 1;
+    const scoreDiff = scoreValueForStartup(b[1]) - scoreValueForStartup(a[1]);
+    if (Math.abs(scoreDiff) > 0.01) return scoreDiff;
     return (b[1].valuation || 0) - (a[1].valuation || 0);
   });
 
@@ -1179,6 +1250,7 @@ function renderPostGame() {
     const ci = getAgentColor(sid);
     const isWinner = sid === winnerId || (rank === 1 && s.alive);
     const actions = logs[sid] || [];
+    const decision = latestDecisionFor(sid);
 
     html += `<tr class="${isWinner ? 'winner-row' : ''}">
       <td class="rank-cell" style="color:${rank===1?'var(--gold)':rank===2?'var(--silver)':rank===3?'var(--bronze)':'var(--text-dim)'}">${rank}</td>
@@ -1204,6 +1276,8 @@ function renderPostGame() {
         <div class="expand-stat"><div class="stat-label">STRATEGY</div><div class="stat-value">${s.strategy||'unknown'}</div></div>
         <div class="expand-stat"><div class="stat-label">ROUND</div><div class="stat-value">${s.funding_round||'pre-seed'}</div></div>
       </div>
+      ${decision ? `<div class="expand-actions-title">LAST PLAN</div>
+      <div class="recent-action"><div class="recent-turn">${decision.confidence || 'mid'}</div><div class="recent-type">${decision.intent || 'No intent'}</div><div class="recent-msg">${decision.reasoning_summary || decision.expected_outcome || ''}</div><div class="recent-ok">${decision.watch_metric || '-'}</div></div>` : ''}
       ${actions.length ? `<div class="expand-actions-title">ACTION HISTORY (${actions.length} actions)</div>
       <div class="expand-actions-list">${actions.map(a => `<div class="recent-action"><div class="recent-turn">W${a.turn}</div><div class="recent-type at-${a.action_type}">${a.action_type}</div><div class="recent-msg">${a.message||''}</div><div class="${a.success?'recent-ok':'recent-fail'}">${a.success?'\u2713':'\u2717'}</div></div>`).join('')}</div>` : ''}
     </div></td></tr>`;
@@ -1313,6 +1387,8 @@ async function createGame() {
         min_players: 2,
         turn_timeout: selectedSpeed,
         max_turns: turns,
+        game_mode: 'competitive_mode',
+        use_rich_state: true,
       }),
     });
     if (!resp.ok) throw new Error('Failed to create game');
