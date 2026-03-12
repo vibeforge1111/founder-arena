@@ -1,6 +1,8 @@
 import sys
 import unittest
 from pathlib import Path
+import shutil
+from unittest import mock
 
 from fastapi.testclient import TestClient
 
@@ -17,6 +19,9 @@ class RichStateIntegrationTests(unittest.TestCase):
     def setUp(self) -> None:
         server.games.clear()
         server.RATE_LIMITER.clear()
+        server.ENTRANTS.clear()
+        if server.ENTRANT_ROOT.exists():
+            shutil.rmtree(server.ENTRANT_ROOT)
         if server.AUDIT_LOGGER.path.exists():
             server.AUDIT_LOGGER.path.unlink()
         self.client = TestClient(server.app)
@@ -181,6 +186,201 @@ class RichStateIntegrationTests(unittest.TestCase):
             spectator.json()["decision_summaries"][join_1.json()["startup_id"]]["intent"],
             "Open with product progress.",
         )
+
+    def test_competitive_mode_exposes_named_arc_summaries(self) -> None:
+        game = server.Game(
+            name="Arc Summary Test",
+            max_players=2,
+            min_players=2,
+            turn_timeout=5,
+            max_turns=3,
+            seed=123,
+            use_rich_state=True,
+            game_mode="competitive_mode",
+        )
+        startup_a = game.add_startup("A1", "Alpha", "ai", "m1", "balanced")
+        startup_b = game.add_startup("A2", "Beta", "saas", "m2", "balanced")
+        game.start()
+
+        startup_a.challenge_info = {
+            "event_id": "evt_1",
+            "family_id": "financing_squeeze",
+            "base_family_id": "financing_squeeze",
+            "packet_kind": "adversity",
+            "phase": "scaling_stress",
+            "response_routes": ["cut_burn", "raise_capital"],
+        }
+        startup_a.stress_index = 0.72
+
+        spectator = game.get_spectator_state()
+        turn_packet = game.get_turn_packet(startup_a.agent_token)
+
+        self.assertTrue(spectator["arc_feed"])
+        self.assertEqual(spectator["arc_feed"][0]["title"], "Financing Squeeze")
+        self.assertEqual(spectator["startups"][startup_a.id]["current_arc"]["arc_type"], "financing_squeeze")
+        self.assertEqual(turn_packet["match_context"]["current_arc"]["title"], "Financing Squeeze")
+        self.assertIn("capital", spectator["arc_feed"][0]["theme"])
+
+    def test_skill_entrant_registration_and_queue_enforcement(self) -> None:
+        register = self.client.post(
+            "/api/entrants",
+            json={
+                "manifest": {
+                    "schema_version": "founder-arena.entrant.v1",
+                    "entrant_id": "skill-test",
+                    "display_name": "Skill Test",
+                    "entrant_type": "skill_package",
+                    "skill": {"entry_file": "SKILL.md"},
+                    "runtime": {
+                        "timeout_seconds": 10,
+                        "max_actions_per_turn": 3,
+                    },
+                },
+                "inline_files": {
+                    "SKILL.md": "# Skill Test\n"
+                },
+            },
+        )
+        self.assertEqual(register.status_code, 200)
+        entrant_payload = register.json()
+        self.assertEqual(entrant_payload["entrant_type"], "skill_package")
+        self.assertTrue(Path(entrant_payload["workspace"]).exists())
+        entrant_detail = self.client.get("/api/entrants/skill-test")
+        self.assertEqual(entrant_detail.status_code, 200)
+        self.assertEqual(
+            entrant_detail.json()["manifest"]["runtime"]["entry_command"],
+            ["python", "skill_runner.py"],
+        )
+        self.assertTrue((Path(entrant_payload["workspace"]) / "skill_runner.py").exists())
+
+        create = self.client.post(
+            "/api/games",
+            json={
+                "name": "Queue Test",
+                "max_players": 2,
+                "min_players": 2,
+                "turn_timeout": 5,
+                "max_turns": 2,
+                "game_mode": "competitive_mode",
+                "queue": "github_ranked",
+            },
+        )
+        self.assertEqual(create.status_code, 200)
+        game_payload = create.json()
+
+        rejected = self.client.post(
+            f"/api/games/{game_payload['game_id']}/add-entrant",
+            headers={"X-Admin-Token": game_payload["admin_token"]},
+            json={
+                "entrant_id": "skill-test",
+                "agent_name": "SkillRunner",
+                "startup_name": "SkillCo",
+                "sector": "ai",
+                "launch": False,
+            },
+        )
+        self.assertEqual(rejected.status_code, 400)
+
+        create_skill = self.client.post(
+            "/api/games",
+            json={
+                "name": "Skill Queue Test",
+                "max_players": 2,
+                "min_players": 2,
+                "turn_timeout": 5,
+                "max_turns": 2,
+                "game_mode": "competitive_mode",
+                "queue": "skill_ranked",
+            },
+        )
+        self.assertEqual(create_skill.status_code, 200)
+        skill_game = create_skill.json()
+
+        accepted = self.client.post(
+            f"/api/games/{skill_game['game_id']}/add-entrant",
+            headers={"X-Admin-Token": skill_game["admin_token"]},
+            json={
+                "entrant_id": "skill-test",
+                "agent_name": "SkillRunner",
+                "startup_name": "SkillCo",
+                "sector": "ai",
+                "launch": False,
+            },
+        )
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(accepted.json()["queue"], "skill_ranked")
+
+    def test_github_manifest_validation_rejects_non_github_urls(self) -> None:
+        with self.assertRaises(ValueError):
+            server._validate_entrant_manifest(
+                {
+                    "schema_version": "founder-arena.entrant.v1",
+                    "entrant_id": "bad-github",
+                    "display_name": "Bad GitHub",
+                    "entrant_type": "github_repo",
+                    "repo": {"url": "https://gitlab.com/example/repo", "ref": "main"},
+                    "runtime": {"entry_command": ["python", "agent.py"], "timeout_seconds": 10, "max_actions_per_turn": 3},
+                }
+            )
+
+    def test_github_launch_uses_declared_subdir_and_records_launch_metadata(self) -> None:
+        workspace = server.ENTRANT_ROOT / "gh-test" / "abc123"
+        app_dir = workspace / "arena"
+        app_dir.mkdir(parents=True, exist_ok=True)
+
+        entrant = {
+            "entrant_id": "gh-test",
+            "display_name": "GH Test",
+            "entrant_type": "github_repo",
+            "manifest": {
+                "schema_version": "founder-arena.entrant.v1",
+                "entrant_id": "gh-test",
+                "display_name": "GH Test",
+                "entrant_type": "github_repo",
+                "repo": {"url": "https://github.com/example/repo", "ref": "main", "subdir": "arena"},
+                "runtime": {"entry_command": ["python", "agent.py"], "timeout_seconds": 10, "max_actions_per_turn": 3},
+            },
+            "version_hash": "abc123",
+            "workspace": str(workspace),
+            "registered_at": server._utc_now_iso(),
+        }
+        server.ENTRANTS["gh-test"] = entrant
+
+        game = server.Game(
+            name="GitHub Launch Test",
+            max_players=2,
+            min_players=2,
+            turn_timeout=5,
+            max_turns=2,
+            seed=123,
+            use_rich_state=True,
+            game_mode="competitive_mode",
+            queue="github_ranked",
+        )
+
+        req = server.AddEntrantRequest(
+            entrant_id="gh-test",
+            agent_name="RepoRunner",
+            startup_name="RepoCo",
+            sector="ai",
+            launch=True,
+        )
+
+        class DummyProcess:
+            pid = 4242
+
+        with mock.patch("server.subprocess.Popen", return_value=DummyProcess()) as popen_mock:
+            command = server._launch_registered_entrant(
+                game,
+                entrant,
+                req,
+                mock.Mock(url=mock.Mock(scheme="http"), headers={"host": "localhost:8888"}),
+            )
+
+        popen_mock.assert_called_once()
+        self.assertEqual(command[:2], ["python", "agent.py"])
+        self.assertEqual(server.ENTRANTS["gh-test"]["last_launch"]["pid"], 4242)
+        self.assertTrue(server.ENTRANTS["gh-test"]["last_launch"]["cwd"].endswith("arena"))
 
     def test_rich_game_replay_exposes_scores_and_director_fields(self) -> None:
         create = self.client.post(

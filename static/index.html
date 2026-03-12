@@ -974,8 +974,22 @@ function renderTimeline() {
   const container = document.getElementById('timeline');
   const logs = gameData.action_logs || {};
   const decisionSummaries = gameData.decision_summaries || {};
+  const arcFeed = gameData.arc_feed || [];
 
   let entries = [];
+  for (const arc of arcFeed) {
+    entries.push({
+      turn: gameData.turn,
+      sid: arc.startup_id,
+      agentName: arc.agent_name,
+      ci: getAgentColor(arc.startup_id),
+      type: 'arc',
+      title: arc.title,
+      headline: arc.headline,
+      severity: arc.severity,
+      startupName: arc.startup_name,
+    });
+  }
   for (const [sid, decision] of Object.entries(decisionSummaries)) {
     const s = gameData.startups[sid];
     if (!s || !decision) continue;
@@ -1013,6 +1027,16 @@ function renderTimeline() {
     if (e.turn !== currentTurn) {
       currentTurn = e.turn;
       html += `<div class="turn-divider">WEEK ${currentTurn}</div>`;
+    }
+    if (e.type === 'arc') {
+      html += `<div class="timeline-entry" style="background:rgba(255,214,10,0.05)">
+        <div class="tl-dot ac-${e.ci}"></div>
+        <div class="tl-agent tc-${e.ci}">${e.agentName}</div>
+        <div class="tl-action" style="color:var(--gold)">arc</div>
+        <div class="tl-message"><strong>${e.title}</strong> - ${e.headline}</div>
+        <div class="tl-icon ${e.severity > 0.65 ? 'fail' : e.severity > 0.35 ? '' : 'success'}">${Math.round((e.severity || 0) * 100)}</div>
+      </div>`;
+      continue;
     }
     if (e.type === 'decision') {
       html += `<div class="timeline-entry" style="background:rgba(255,255,255,0.02)">
@@ -1131,6 +1155,7 @@ function renderAgentDetail(sid) {
   const ci = getAgentColor(sid);
   const actions = (gameData.action_logs || {})[sid] || [];
   const decision = latestDecisionFor(sid);
+  const currentArc = s.current_arc || null;
   const recentActions = actions.slice(-15).reverse();
   const dims = s.seven_dimension_scores?.dimensions || {};
 
@@ -1180,6 +1205,25 @@ function renderAgentDetail(sid) {
             ${decision.watch_metric ? `<div class="detail-tag">watch ${decision.watch_metric}</div>` : ''}
           </div>
           ${decision.expected_outcome ? `<div class="hint" style="margin-top:8px">Expected: ${decision.expected_outcome}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if (currentArc) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">CURRENT ARC</div>
+      <div class="recent-action" style="grid-template-columns:80px 1fr;align-items:start">
+        <div class="recent-turn">${Math.round((currentArc.severity || 0) * 100)}</div>
+        <div>
+          <div style="font-weight:700;color:var(--gold)">${currentArc.title || currentArc.arc_type}</div>
+          <div class="hint" style="margin-top:4px">${currentArc.packet_kind_label || currentArc.packet_kind || ''}</div>
+          <div style="margin-top:8px;color:var(--text-soft);line-height:1.45">${currentArc.headline || ''}</div>
+          <div class="detail-tags" style="margin-top:10px">
+            ${currentArc.theme ? `<div class="detail-tag">${currentArc.theme}</div>` : ''}
+            ${currentArc.phase ? `<div class="detail-tag">${currentArc.phase}</div>` : ''}
+          </div>
+          ${currentArc.response_routes?.length ? `<div class="hint" style="margin-top:8px">Suggested responses: ${currentArc.response_routes.join(', ')}</div>` : ''}
         </div>
       </div>
     </div>`;

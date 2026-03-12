@@ -9,10 +9,14 @@ API Docs: http://localhost:8888/docs
 
 import hashlib
 import json
+import os
 import random
+import shutil
+import subprocess
 import threading
 import time
 import uuid
+from urllib.parse import urlparse
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -47,6 +51,7 @@ MAX_ACTIONS_PER_TURN = 3
 TURN_TIMEOUT_SECONDS = 30
 DEFAULT_GAME_MODE = "legacy_arena"
 SUPPORTED_GAME_MODES = ["legacy_arena", "competitive_mode"]
+SUPPORTED_QUEUES = ["showmatch", "github_ranked", "skill_ranked"]
 BASE_SALARY = {"engineer": 12000, "marketer": 9000, "salesperson": 10000, "designer": 10000}
 
 BOT_CONFIGS = [
@@ -69,6 +74,7 @@ class CreateGameRequest(BaseModel):
     max_turns: int = MAX_TURNS
     seed: Optional[int] = None
     game_mode: str = DEFAULT_GAME_MODE
+    queue: str = "showmatch"
     use_rich_state: bool = True
 
 class JoinGameRequest(BaseModel):
@@ -83,6 +89,21 @@ class ActionRequest(BaseModel):
     agent_token: Optional[str] = None
     actions: list[dict]
     decision_packet: Optional[dict] = None
+
+
+class EntrantRegisterRequest(BaseModel):
+    manifest: dict
+    inline_files: dict[str, str] = {}
+
+
+class AddEntrantRequest(BaseModel):
+    entrant_id: str
+    agent_name: str
+    startup_name: str
+    sector: str
+    motto: str = ""
+    strategy_description: str = "competitive"
+    launch: bool = True
 
 # ─── Game State Models ───────────────────────────────────────────────────────
 
@@ -223,6 +244,84 @@ SCORE_WEIGHTS = {
     "strategic_coherence": 0.12,
 }
 
+ARC_TYPE_LABELS = {
+    "adversity": "Pressure Arc",
+    "opportunity": "Breakout Window",
+    "lucky_break": "Lucky Break",
+    "world_event": "World Shock",
+    "chaos": "Chaos Arc",
+    "recovery": "Recovery Window",
+}
+
+ARC_FAMILY_PROFILES = {
+    "financing_squeeze": {
+        "arc_type": "financing_squeeze",
+        "title": "Financing Squeeze",
+        "headline": "Capital is tightening and the board wants a cleaner financing story.",
+        "theme": "capital",
+    },
+    "enterprise_procurement_stall": {
+        "arc_type": "enterprise_drag",
+        "title": "Enterprise Drag",
+        "headline": "Enterprise buyers are slowing down and revenue timing is slipping.",
+        "theme": "sales",
+    },
+    "design_partner_pullforward": {
+        "arc_type": "validation_window",
+        "title": "Validation Window",
+        "headline": "Early customer pull is real, but the team has to convert it into durable proof.",
+        "theme": "market",
+    },
+    "support_backlog_spike": {
+        "arc_type": "support_spiral",
+        "title": "Support Spiral",
+        "headline": "Support debt is widening fast enough to threaten trust and retention.",
+        "theme": "operations",
+    },
+    "support_load_spike": {
+        "arc_type": "support_spiral",
+        "title": "Support Spiral",
+        "headline": "Support load is compounding faster than the team can absorb.",
+        "theme": "operations",
+    },
+    "incident_truth_test": {
+        "arc_type": "trust_crisis",
+        "title": "Trust Crisis",
+        "headline": "Operational truth and narrative pressure are colliding in public.",
+        "theme": "trust",
+    },
+    "board_update_quality": {
+        "arc_type": "board_truth_test",
+        "title": "Board Truth Test",
+        "headline": "The board wants clarity, not smoothing, and weak updates will cost trust.",
+        "theme": "governance",
+    },
+    "stakeholder_conflict": {
+        "arc_type": "board_truth_test",
+        "title": "Board Truth Test",
+        "headline": "Stakeholders are pulling in different directions and governance discipline matters.",
+        "theme": "governance",
+    },
+    "pricing_trap": {
+        "arc_type": "pricing_pressure",
+        "title": "Pricing Pressure",
+        "headline": "The market is forcing hard tradeoffs between growth optics and durable revenue.",
+        "theme": "pricing",
+    },
+    "compliance_heat": {
+        "arc_type": "compliance_heat",
+        "title": "Compliance Heat",
+        "headline": "Compliance exposure is becoming material and delay will be punished.",
+        "theme": "legal",
+    },
+    "hiring_trap": {
+        "arc_type": "hiring_misalignment",
+        "title": "Hiring Mismatch",
+        "headline": "Hiring pressure is rising, but the wrong org move will deepen the burn problem.",
+        "theme": "people",
+    },
+}
+
 
 def _clamp_score(value: float) -> float:
     return round(max(0.0, min(100.0, value)), 2)
@@ -237,6 +336,17 @@ def _normalize_game_mode(game_mode: Optional[str]) -> str:
     if normalized not in SUPPORTED_GAME_MODES:
         raise ValueError(f"Invalid game_mode. Choose from: {SUPPORTED_GAME_MODES}")
     return normalized
+
+
+def _normalize_queue(queue: Optional[str]) -> str:
+    normalized = (queue or "showmatch").strip().lower()
+    if normalized not in SUPPORTED_QUEUES:
+        raise ValueError(f"Invalid queue. Choose from: {SUPPORTED_QUEUES}")
+    return normalized
+
+
+def _titleize_slug(value: str) -> str:
+    return value.replace("_", " ").strip().title()
 
 
 def _compute_seven_dimension_scores(startup) -> dict:
@@ -402,7 +512,7 @@ class GamePhase(str, Enum):
 class Game:
     def __init__(self, name: str, max_players: int, min_players: int,
                  turn_timeout: int, max_turns: int, seed: Optional[int], use_rich_state: bool = True,
-                 game_mode: str = DEFAULT_GAME_MODE):
+                 game_mode: str = DEFAULT_GAME_MODE, queue: str = "showmatch"):
         self.id = str(uuid.uuid4())[:8]
         self.name = name
         self.phase = GamePhase.LOBBY
@@ -413,6 +523,7 @@ class Game:
         self.seed = seed or random.randint(1, 999999)
         self.rng = random.Random(self.seed)
         self.game_mode = _normalize_game_mode(game_mode)
+        self.queue = _normalize_queue(queue)
         self.use_rich_state = True if self.game_mode == "competitive_mode" else bool(use_rich_state)
         self.turn = 0
         self.startups: dict[str, Startup] = {}  # id -> Startup
@@ -463,17 +574,54 @@ class Game:
             reverse=True,
         )
 
-    def _current_arc_for(self, startup) -> Optional[dict]:
+    def _arc_profile(self, challenge: dict) -> dict:
+        family_id = challenge.get("family_id") or challenge.get("base_family_id") or ""
+        base_family_id = challenge.get("base_family_id") or family_id
+        packet_kind = challenge.get("packet_kind") or "adversity"
+        profile = ARC_FAMILY_PROFILES.get(family_id) or ARC_FAMILY_PROFILES.get(base_family_id) or {}
+        title = profile.get("title") or _titleize_slug(base_family_id or family_id or packet_kind)
+        return {
+            "arc_type": profile.get("arc_type") or base_family_id or family_id or packet_kind,
+            "title": title,
+            "headline": profile.get("headline") or challenge.get("visible_message") or challenge.get("summary") or f"{title} is shaping the current turn.",
+            "theme": profile.get("theme") or challenge.get("domain") or packet_kind,
+            "packet_kind_label": ARC_TYPE_LABELS.get(packet_kind, _titleize_slug(packet_kind)),
+        }
+
+    def _arc_summary_for(self, startup) -> Optional[dict]:
         challenge = getattr(startup, "challenge_info", None) or {}
         if not challenge:
             return None
-        director_state = getattr(startup, "director_state", {}) or {}
+        profile = self._arc_profile(challenge)
         return {
             "arc_id": challenge.get("event_id") or challenge.get("variant_id") or challenge.get("family_id"),
-            "arc_type": challenge.get("packet_kind") or director_state.get("current_state"),
-            "headline": challenge.get("summary") or challenge.get("family_id") or "Operating pressure is building.",
+            "arc_type": profile["arc_type"],
+            "title": profile["title"],
+            "headline": profile["headline"],
+            "theme": profile["theme"],
+            "phase": challenge.get("phase"),
+            "packet_kind": challenge.get("packet_kind"),
+            "packet_kind_label": profile["packet_kind_label"],
             "severity": round(float(getattr(startup, "stress_index", 0.0) or 0.0), 2),
+            "response_routes": challenge.get("response_routes", []),
+            "reasoning_dimensions": challenge.get("reasoning_dimensions", []),
         }
+
+    def _arc_feed(self) -> list[dict]:
+        arcs = []
+        for startup in self._ranked_startups():
+            summary = self._arc_summary_for(startup)
+            if not summary:
+                continue
+            summary = dict(summary)
+            summary["startup_id"] = startup.id
+            summary["startup_name"] = startup.startup_name
+            summary["agent_name"] = startup.agent_name
+            arcs.append(summary)
+        return arcs[:6]
+
+    def _current_arc_for(self, startup) -> Optional[dict]:
+        return self._arc_summary_for(startup)
 
     def _watch_items_for(self, startup) -> list[str]:
         if not hasattr(startup, "world_state"):
@@ -518,7 +666,7 @@ class Game:
                 "match_type": "ranked_standard" if self.max_turns <= 52 else "ranked_marathon",
                 "max_turns": self.max_turns,
                 "ruleset_version": "2026.03",
-                "queue": "showmatch",
+                "queue": self.queue,
                 "current_arc": self._current_arc_for(startup),
                 "watch_items": self._watch_items_for(startup),
             },
@@ -1305,6 +1453,7 @@ class Game:
             "game_id": self.id,
             "name": self.name,
             "game_mode": self.game_mode,
+            "queue": self.queue,
             "phase": self.phase.value,
             "turn": self.turn,
             "max_turns": self.max_turns,
@@ -1315,6 +1464,7 @@ class Game:
             "event_log": self.event_log[-20:],
             "narrative": self.narrative[-20:],
             "winner": self.winner,
+            "arc_feed": self._arc_feed(),
         }
 
         my_startup_id = None
@@ -1330,6 +1480,7 @@ class Game:
                     state["startups"][sid]["latest_decision"] = self._public_decision_summary(
                         (self.decision_log.get(sid) or [None])[-1]
                     )
+                    state["startups"][sid]["current_arc"] = self._arc_summary_for(s)
             else:
                 state["startups"][sid] = s.public_view()
                 if self.phase == GamePhase.FINISHED:
@@ -1338,6 +1489,7 @@ class Game:
                         state["startups"][sid]["latest_decision"] = self._public_decision_summary(
                             (self.decision_log.get(sid) or [None])[-1]
                         )
+                        state["startups"][sid]["current_arc"] = self._arc_summary_for(s)
             if self.use_rich_state:
                 if sid == my_startup_id or self.phase == GamePhase.FINISHED:
                     state["startups"][sid].update(self._director_payload_for(s))
@@ -1363,6 +1515,7 @@ class Game:
             "game_id": self.id,
             "name": self.name,
             "game_mode": self.game_mode,
+            "queue": self.queue,
             "phase": self.phase.value,
             "turn": self.turn,
             "max_turns": self.max_turns,
@@ -1376,11 +1529,14 @@ class Game:
             "market_modifiers": self.market_modifiers,
             "seven_dimension_scores": {sid: self._scorecard_for(s) for sid, s in self.startups.items()},
             "action_logs": self.action_log,
+            "arc_feed": self._arc_feed(),
             "decision_summaries": {
                 sid: self._public_decision_summary((self.decision_log.get(sid) or [None])[-1])
                 for sid in self.startups
             },
         }
+        for sid, startup in self.startups.items():
+            state["startups"][sid]["current_arc"] = self._arc_summary_for(startup)
         return state
 
     def get_replay(self) -> dict:
@@ -1392,6 +1548,7 @@ class Game:
             "name": self.name,
             "seed": self.seed,
             "game_mode": self.game_mode,
+            "queue": self.queue,
             "total_turns": self.turn,
             "use_rich_state": self.use_rich_state,
             "winner": self.winner,
@@ -1412,6 +1569,7 @@ class Game:
             "histories": {sid: s.history for sid, s in self.startups.items()},
             "seven_dimension_scores": {sid: self._scorecard_for(s) for sid, s in self.startups.items()},
             "action_logs": self.action_log,
+            "arc_feed": self._arc_feed(),
             "decision_logs": self.decision_log,
         }
 
@@ -1421,7 +1579,7 @@ class Game:
 app = FastAPI(
     title="Founder Arena",
     description="The Agent-Only Startup Battle Royale. Where AI agents build empires and humans watch the chaos.",
-    version="1.0.0",
+    version="1.3.0",
 )
 
 # In-memory game store
@@ -1441,6 +1599,204 @@ def _require_header_token(token: Optional[str], *, header_name: str) -> str:
 
 RATE_LIMITER = RateLimiter()
 AUDIT_LOGGER = AuditLogger(Path(__file__).parent / "data" / "security_audit.jsonl")
+ENTRANT_ROOT = Path(__file__).parent / "data" / "entrants"
+ENTRANT_REGISTRY_PATH = ENTRANT_ROOT / "registry.json"
+
+
+def _load_entrant_registry() -> dict[str, dict]:
+    if not ENTRANT_REGISTRY_PATH.exists():
+        return {}
+    return json.loads(ENTRANT_REGISTRY_PATH.read_text(encoding="utf-8"))
+
+
+def _save_entrant_registry(registry: dict[str, dict]) -> None:
+    ENTRANT_ROOT.mkdir(parents=True, exist_ok=True)
+    ENTRANT_REGISTRY_PATH.write_text(json.dumps(registry, indent=2), encoding="utf-8")
+
+
+ENTRANTS: dict[str, dict] = _load_entrant_registry()
+
+
+def _safe_relative_path(path_value: str) -> Path:
+    candidate = Path(path_value)
+    if candidate.is_absolute() or ".." in candidate.parts:
+        raise ValueError("Inline file paths must be relative and stay within the entrant workspace")
+    return candidate
+
+
+def _manifest_hash(manifest: dict) -> str:
+    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()[:12]
+
+
+def _validate_entrant_manifest(manifest: dict) -> dict:
+    required = {"schema_version", "entrant_id", "display_name", "entrant_type", "runtime"}
+    missing = sorted(required - set(manifest))
+    if missing:
+        raise ValueError(f"Entrant manifest missing required fields: {missing}")
+    if manifest.get("schema_version") != "founder-arena.entrant.v1":
+        raise ValueError("Unsupported entrant schema_version")
+    entrant_type = manifest.get("entrant_type")
+    if entrant_type not in {"github_repo", "skill_package"}:
+        raise ValueError("entrant_type must be github_repo or skill_package")
+    runtime = manifest.setdefault("runtime", {})
+    entry_command = runtime.get("entry_command") or []
+    if entrant_type == "skill_package" and not entry_command:
+        runtime["entry_command"] = ["python", "skill_runner.py"]
+        entry_command = runtime["entry_command"]
+    if not isinstance(entry_command, list) or not entry_command or not all(isinstance(item, str) and item for item in entry_command):
+        raise ValueError("runtime.entry_command must be a non-empty list of strings")
+    if entrant_type == "github_repo":
+        repo = manifest.get("repo") or {}
+        if not repo.get("url") or not repo.get("ref"):
+            raise ValueError("github_repo entrants require repo.url and repo.ref")
+        parsed = urlparse(repo["url"])
+        if parsed.scheme != "https":
+            raise ValueError("github_repo repo.url must use https")
+        if parsed.netloc.lower() != "github.com":
+            raise ValueError("github_repo repo.url must point to github.com")
+        ref_value = str(repo["ref"])
+        if not all(ch.isalnum() or ch in "._-/" for ch in ref_value):
+            raise ValueError("github_repo repo.ref contains unsupported characters")
+        subdir = repo.get("subdir")
+        if subdir:
+            _safe_relative_path(subdir)
+    if entrant_type == "skill_package":
+        skill = manifest.get("skill") or {}
+        if not skill.get("entry_file"):
+            raise ValueError("skill_package entrants require skill.entry_file")
+    return manifest
+
+
+def _entrant_workspace(entrant_id: str, version_hash: str) -> Path:
+    return ENTRANT_ROOT / entrant_id / version_hash
+
+
+def _register_skill_workspace(manifest: dict, inline_files: dict[str, str], workspace: Path) -> None:
+    entry_file = ((manifest.get("skill") or {}).get("entry_file") or "").strip()
+    if not entry_file:
+        raise ValueError("skill_package entrants require skill.entry_file")
+    if entry_file not in inline_files:
+        raise ValueError(f"inline_files must include the declared skill entry file: {entry_file}")
+    workspace.mkdir(parents=True, exist_ok=True)
+    for relative_path, contents in inline_files.items():
+        target = workspace / _safe_relative_path(relative_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(contents, encoding="utf-8")
+    runner_source = Path(__file__).parent / "skill_runner.py"
+    shutil.copy2(runner_source, workspace / "skill_runner.py")
+
+
+def _register_github_workspace(manifest: dict, workspace: Path) -> None:
+    repo = manifest["repo"]
+    repo_url = repo["url"]
+    repo_ref = repo["ref"]
+    if workspace.exists():
+        return
+    workspace.parent.mkdir(parents=True, exist_ok=True)
+    clone_target = workspace.parent / f"{workspace.name}_tmp"
+    if clone_target.exists():
+        shutil.rmtree(clone_target)
+    subprocess.run(
+        ["git", "clone", "--depth", "1", repo_url, str(clone_target)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(clone_target), "checkout", repo_ref],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subdir = repo.get("subdir")
+    if subdir:
+        candidate = clone_target / _safe_relative_path(subdir)
+        if not candidate.exists():
+            raise ValueError(f"Declared repo.subdir does not exist in cloned repo: {subdir}")
+    clone_target.rename(workspace)
+
+
+def _register_entrant(manifest: dict, inline_files: dict[str, str]) -> dict:
+    validated = _validate_entrant_manifest(manifest)
+    version_hash = _manifest_hash(validated)
+    workspace = _entrant_workspace(validated["entrant_id"], version_hash)
+    if validated["entrant_type"] == "skill_package":
+        _register_skill_workspace(validated, inline_files, workspace)
+    else:
+        _register_github_workspace(validated, workspace)
+    record = {
+        "entrant_id": validated["entrant_id"],
+        "display_name": validated["display_name"],
+        "entrant_type": validated["entrant_type"],
+        "manifest": validated,
+        "version_hash": version_hash,
+        "workspace": str(workspace),
+        "registered_at": _utc_now_iso(),
+    }
+    ENTRANTS[validated["entrant_id"]] = record
+    _save_entrant_registry(ENTRANTS)
+    return record
+
+
+def _queue_accepts_entrant(queue: str, entrant_type: str) -> bool:
+    if queue == "showmatch":
+        return True
+    if queue == "github_ranked":
+        return entrant_type == "github_repo"
+    if queue == "skill_ranked":
+        return entrant_type == "skill_package"
+    return False
+
+
+def _server_base_url(request: Request) -> str:
+    return f"{request.url.scheme}://{request.headers.get('host', 'localhost:8888')}"
+
+
+def _launch_registered_entrant(game: Game, entrant: dict, add_req: AddEntrantRequest, request: Request) -> list[str]:
+    manifest = entrant["manifest"]
+    runtime = manifest["runtime"]
+    workspace = Path(entrant["workspace"])
+    launch_cwd = workspace
+    command = list(runtime["entry_command"])
+    if entrant["entrant_type"] == "skill_package":
+        skill_entry = ((manifest.get("skill") or {}).get("entry_file") or "SKILL.md").strip()
+        command = ["python", "skill_runner.py", "--skill-file", skill_entry]
+    elif entrant["entrant_type"] == "github_repo":
+        subdir = ((manifest.get("repo") or {}).get("subdir") or "").strip()
+        if subdir:
+            launch_cwd = workspace / _safe_relative_path(subdir)
+            if not launch_cwd.exists():
+                raise ValueError(f"GitHub entrant subdir does not exist at launch time: {subdir}")
+    command.extend([
+        "--game-id", game.id,
+        "--join-code", game.join_code,
+        "--name", add_req.agent_name,
+        "--startup", add_req.startup_name,
+        "--sector", add_req.sector,
+        "--motto", add_req.motto,
+        "--strategy", add_req.strategy_description,
+        "--server", _server_base_url(request),
+    ])
+    process = subprocess.Popen(
+        command,
+        cwd=str(launch_cwd),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env={**os.environ, "FOUNDER_ARENA_GAME_MODE": game.game_mode, "FOUNDER_ARENA_QUEUE": game.queue},
+    )
+    entrant["last_launch"] = {
+        "game_id": game.id,
+        "startup_name": add_req.startup_name,
+        "agent_name": add_req.agent_name,
+        "pid": process.pid,
+        "cwd": str(launch_cwd),
+        "command": command,
+        "launched_at": _utc_now_iso(),
+    }
+    ENTRANTS[entrant["entrant_id"]] = entrant
+    _save_entrant_registry(ENTRANTS)
+    return command
 
 
 def _client_ip(request: Request) -> str:
@@ -1488,7 +1844,7 @@ async def info():
     return {
         "name": "Founder Arena",
         "tagline": "Where AI agents build empires and humans watch the chaos",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "sectors": SECTORS,
         "roles": ROLES,
         "max_actions_per_turn": MAX_ACTIONS_PER_TURN,
@@ -1501,11 +1857,57 @@ async def info():
         "acquire_channels": ["organic", "paid_ads", "viral", "partnerships"],
         "supports_use_rich_state": True,
         "supported_game_modes": SUPPORTED_GAME_MODES,
+        "supported_queues": SUPPORTED_QUEUES,
+        "supports_entrant_registry": True,
         "supports_turn_packets": True,
         "supports_decision_packets": True,
         "simulation_engine": "agentic-startup-simulator",
         "active_games": len(games),
     }
+
+
+@app.post("/api/entrants")
+async def register_entrant(req: EntrantRegisterRequest, request: Request):
+    _enforce_rate_limit(request, scope="register_entrant", identity=_client_ip(request), limit=20, window_seconds=60)
+    try:
+        entrant = _register_entrant(req.manifest, req.inline_files)
+    except subprocess.CalledProcessError as exc:
+        raise HTTPException(400, f"Failed to prepare entrant workspace: {exc.stderr or exc.stdout or str(exc)}")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    _audit(request, "entrant_registered", entrant_id=entrant["entrant_id"], entrant_type=entrant["entrant_type"])
+    return {
+        "entrant_id": entrant["entrant_id"],
+        "display_name": entrant["display_name"],
+        "entrant_type": entrant["entrant_type"],
+        "version_hash": entrant["version_hash"],
+        "workspace": entrant["workspace"],
+        "registered_at": entrant["registered_at"],
+    }
+
+
+@app.get("/api/entrants")
+async def list_entrants():
+    return {
+        "entrants": [
+            {
+                "entrant_id": entrant["entrant_id"],
+                "display_name": entrant["display_name"],
+                "entrant_type": entrant["entrant_type"],
+                "version_hash": entrant["version_hash"],
+                "registered_at": entrant["registered_at"],
+            }
+            for entrant in ENTRANTS.values()
+        ]
+    }
+
+
+@app.get("/api/entrants/{entrant_id}")
+async def get_entrant(entrant_id: str):
+    entrant = ENTRANTS.get(entrant_id)
+    if not entrant:
+        raise HTTPException(404, "Entrant not found")
+    return entrant
 
 
 # ─── Game CRUD ───────────────────────────────────────────────────────────────
@@ -1514,13 +1916,14 @@ async def info():
 async def create_game(req: CreateGameRequest, request: Request):
     _enforce_rate_limit(request, scope="create_game", identity=_client_ip(request), limit=12, window_seconds=60)
     game = Game(req.name, req.max_players, req.min_players,
-                req.turn_timeout, req.max_turns, req.seed, req.use_rich_state, req.game_mode)
+                req.turn_timeout, req.max_turns, req.seed, req.use_rich_state, req.game_mode, req.queue)
     games[game.id] = game
     payload = {
         "game_id": game.id,
         "name": game.name,
         "seed": game.seed,
         "game_mode": game.game_mode,
+        "queue": game.queue,
         "use_rich_state": game.use_rich_state,
         "admin_token": game.admin_token,
         "join_code": game.join_code,
@@ -1531,6 +1934,7 @@ async def create_game(req: CreateGameRequest, request: Request):
         "game_created",
         game_id=game.id,
         game_mode=game.game_mode,
+        queue=game.queue,
         use_rich_state=game.use_rich_state,
         admin_token_fingerprint=token_fingerprint(game.admin_token),
         spectator_token_fingerprint=token_fingerprint(game.spectator_token),
@@ -1545,7 +1949,7 @@ async def list_games():
             {"id": g.id, "name": g.name, "phase": g.phase.value,
              "players": len(g.startups), "turn": g.turn,
              "max_turns": g.max_turns, "created_at": g.created_at,
-             "game_mode": g.game_mode,
+             "game_mode": g.game_mode, "queue": g.queue,
              "use_rich_state": g.use_rich_state}
             for g in games.values()
         ]
@@ -1594,6 +1998,52 @@ async def join_game(game_id: str, req: JoinGameRequest, request: Request):
         _audit(request, "join_denied", game_id=game_id, reason=str(e))
         raise HTTPException(400, str(e))
 
+
+@app.post("/api/games/{game_id}/add-entrant")
+async def add_registered_entrant(
+    game_id: str,
+    req: AddEntrantRequest,
+    request: Request,
+    x_admin_token: Optional[str] = Header(None, alias="X-Admin-Token"),
+):
+    game = games.get(game_id)
+    if not game:
+        raise HTTPException(404, "Game not found")
+    token = _require_header_token(x_admin_token, header_name="X-Admin-Token")
+    if token != game.admin_token:
+        raise HTTPException(403, "Invalid admin token")
+    entrant = ENTRANTS.get(req.entrant_id)
+    if not entrant:
+        raise HTTPException(404, "Entrant not found")
+    if not _queue_accepts_entrant(game.queue, entrant["entrant_type"]):
+        raise HTTPException(400, f"Queue {game.queue} does not accept entrant type {entrant['entrant_type']}")
+
+    launch_command = list(entrant["manifest"]["runtime"]["entry_command"])
+    if req.launch:
+        try:
+            launch_command = _launch_registered_entrant(game, entrant, req, request)
+        except FileNotFoundError as exc:
+            raise HTTPException(400, f"Entrant runtime command not found: {exc}")
+
+    _audit(
+        request,
+        "entrant_added_to_game",
+        game_id=game_id,
+        entrant_id=req.entrant_id,
+        entrant_type=entrant["entrant_type"],
+        launched=req.launch,
+    )
+    return {
+        "status": "queued",
+        "game_id": game_id,
+        "entrant_id": req.entrant_id,
+        "entrant_type": entrant["entrant_type"],
+        "launch": req.launch,
+        "launch_command": launch_command,
+        "queue": game.queue,
+        "join_code": game.join_code,
+    }
+
 @app.post("/api/games/{game_id}/start")
 async def start_game(game_id: str, request: Request, x_admin_token: Optional[str] = Header(None, alias="X-Admin-Token")):
     game = games.get(game_id)
@@ -1609,7 +2059,7 @@ async def start_game(game_id: str, request: Request, x_admin_token: Optional[str
         _audit(request, "game_started", game_id=game_id, admin_token_fingerprint=token_fingerprint(token))
         return {"status": "started", "turn": game.turn,
                 "players": len(game.startups), "use_rich_state": game.use_rich_state,
-                "game_mode": game.game_mode}
+                "game_mode": game.game_mode, "queue": game.queue}
     except ValueError as e:
         _audit(request, "start_denied", game_id=game_id, reason=str(e))
         raise HTTPException(400, str(e))
