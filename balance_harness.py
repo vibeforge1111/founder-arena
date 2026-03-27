@@ -133,6 +133,45 @@ def _bucket(table: dict, key: str) -> dict:
     )
 
 
+def _winner_profile_bucket() -> dict:
+    return {
+        "count": 0,
+        "total_score": 0.0,
+        "total_valuation": 0.0,
+        "score_dimension_totals": {},
+        "agent_counts": Counter(),
+        "strategy_counts": Counter(),
+    }
+
+
+def _record_winner_profile(bucket: dict, entry: dict, config: dict) -> None:
+    bucket["count"] += 1
+    bucket["total_score"] += float(entry.get("score", 0.0))
+    bucket["total_valuation"] += float(entry.get("valuation", 0.0))
+    bucket["agent_counts"][entry.get("agent", "")] += 1
+    bucket["strategy_counts"][config.get("strategy", "unknown")] += 1
+    for dimension, value in dict((entry.get("seven_dimension_scores") or {}).get("dimensions") or {}).items():
+        bucket["score_dimension_totals"][dimension] = round(
+            bucket["score_dimension_totals"].get(dimension, 0.0) + float(value),
+            4,
+        )
+
+
+def _finalize_winner_profile(bucket: dict) -> dict:
+    count = max(1, int(bucket.get("count", 0)))
+    return {
+        "count": int(bucket.get("count", 0)),
+        "avg_score": round(float(bucket.get("total_score", 0.0)) / count, 2),
+        "avg_valuation": int(round(float(bucket.get("total_valuation", 0.0)) / count)),
+        "avg_score_dimensions": {
+            dimension: round(total / count, 2)
+            for dimension, total in sorted(dict(bucket.get("score_dimension_totals", {})).items())
+        },
+        "agent_counts": dict(bucket.get("agent_counts", {})),
+        "strategy_counts": dict(bucket.get("strategy_counts", {})),
+    }
+
+
 def run_seeded_tournament(
     *,
     seed_start: int = 1,
@@ -151,6 +190,8 @@ def run_seeded_tournament(
     segments: dict[str, dict] = {}
     divergence_winner_count = 0
     rank_delta_values: list[float] = []
+    score_winner_profile = _winner_profile_bucket()
+    valuation_winner_profile = _winner_profile_bucket()
 
     for seed in range(seed_start, seed_start + seed_count):
         game, replay = run_local_match(seed, configs, max_turns=max_turns)
@@ -161,6 +202,14 @@ def run_seeded_tournament(
         winner_agent = rankings[0]["agent"] if rankings else ""
         valuation_winner = valuation_rankings[0]["agent"] if valuation_rankings else ""
         divergence_winner_count += 1 if winner_agent != valuation_winner else 0
+        if rankings:
+            _record_winner_profile(score_winner_profile, rankings[0], config_by_agent[rankings[0]["agent"]])
+        if valuation_rankings:
+            _record_winner_profile(
+                valuation_winner_profile,
+                valuation_rankings[0],
+                config_by_agent[valuation_rankings[0]["agent"]],
+            )
 
         per_match_action_usage = Counter(entry["action_type"] for logs in game.action_log.values() for entry in logs)
         per_match_failed_usage = Counter(
@@ -285,6 +334,10 @@ def run_seeded_tournament(
             "winner_divergence_matches": divergence_winner_count,
             "winner_divergence_rate": round(divergence_winner_count / max(1, seed_count), 3),
             "avg_absolute_rank_delta": round(mean(rank_delta_values), 2) if rank_delta_values else 0.0,
+        },
+        "winner_profiles": {
+            "score_winners": _finalize_winner_profile(score_winner_profile),
+            "valuation_winners": _finalize_winner_profile(valuation_winner_profile),
         },
         "scenario_bias": {
             "by_sector": sectors,

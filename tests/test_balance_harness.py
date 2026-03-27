@@ -50,6 +50,9 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("lean", summary["archetypes"])
         self.assertIn("winner_divergence_rate", summary["score_valuation_divergence"])
         self.assertIn("avg_absolute_rank_delta", summary["score_valuation_divergence"])
+        self.assertIn("winner_profiles", summary)
+        self.assertIn("score_winners", summary["winner_profiles"])
+        self.assertIn("valuation_winners", summary["winner_profiles"])
         self.assertIn("by_sector", summary["scenario_bias"])
         self.assertIn("by_market_segment", summary["scenario_bias"])
         self.assertTrue(summary["action_usage"])
@@ -68,6 +71,12 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("avg_valuation", aggressive)
         self.assertIn("avg_score_dimensions", aggressive)
         self.assertIn("cash_efficiency", aggressive["avg_score_dimensions"])
+
+        score_winners = summary["winner_profiles"]["score_winners"]
+        self.assertIn("avg_score", score_winners)
+        self.assertIn("avg_valuation", score_winners)
+        self.assertIn("agent_counts", score_winners)
+        self.assertIn("strategy_counts", score_winners)
 
     def test_threshold_failures_trigger_when_metrics_exceed_limits(self) -> None:
         summary = {
