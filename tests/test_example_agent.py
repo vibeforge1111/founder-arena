@@ -187,6 +187,62 @@ class ExampleAgentTests(unittest.TestCase):
         self.assertEqual(action_types, ["acquire_users", "launch_pr", "build_feature"])
         self.assertNotIn("support_recovery", action_types)
 
+    def test_balanced_scale_phase_ignores_mild_backlog_when_customers_are_stable(self) -> None:
+        self.agent = FounderAgent(
+            name="Tester",
+            startup_name="BalancedCo",
+            sector="saas",
+            strategy="balanced",
+            server="local://founder-arena",
+        )
+        state = {
+            "game_mode": "competitive_mode",
+            "turn": 30,
+            "my_startup_id": "s1",
+            "hot_sectors": [],
+            "startups": {
+                "s1": {
+                    "cash": 90000,
+                    "users": 2400,
+                    "product_quality": 66,
+                    "morale": 60,
+                    "brand": 38,
+                    "team_size": 4,
+                    "runway": 8,
+                    "revenue": 18000,
+                    "sector": "saas",
+                    "rich_state": {
+                        "customers": {
+                            "trust_score": 0.58,
+                            "monthly_churn_rate": 0.04,
+                        },
+                        "operations": {
+                            "support_backlog": 30,
+                        },
+                        "risk": {
+                            "regulatory_pressure": 0.1,
+                        },
+                    },
+                }
+            },
+        }
+        turn_packet = {
+            "visible_actions": [
+                "build_feature",
+                "acquire_users",
+                "launch_pr",
+                "support_recovery",
+                "fundraise",
+                "hire",
+            ]
+        }
+
+        actions = self.agent.decide(state, turn_packet=turn_packet)
+        action_types = [action["type"] for action in actions]
+
+        self.assertEqual(action_types, ["acquire_users", "launch_pr", "build_feature"])
+        self.assertNotIn("support_recovery", action_types)
+
 
 if __name__ == "__main__":
     unittest.main()

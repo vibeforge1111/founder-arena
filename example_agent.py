@@ -390,6 +390,7 @@ class FounderAgent:
         """Balanced growth: build quality, then users, then fundraise when needed."""
         actions = []
         trust = float(my.get("rich_state", {}).get("customers", {}).get("trust_score", 0.7))
+        churn = float(my.get("rich_state", {}).get("customers", {}).get("monthly_churn_rate", 0.04))
         support_backlog = int(my.get("rich_state", {}).get("operations", {}).get("support_backlog", 0))
 
         # Phase 1 (weeks 1-10): Build the product
@@ -430,7 +431,7 @@ class FounderAgent:
                 actions.append({"type": "launch_pr", "params": {}})
             if quality < 70 and cash > 20000 and runway > 4:
                 actions.append({"type": "build_feature", "params": {"focus": "scale"}})
-            if len(actions) < 3 and (support_backlog > 28 or trust < 0.6):
+            if len(actions) < 3 and (support_backlog > 34 or trust < 0.55 or churn > 0.05):
                 actions.append({"type": "support_recovery", "params": {}})
 
         # Phase 4 (weeks 41-52): Maximize valuation
