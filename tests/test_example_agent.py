@@ -243,6 +243,5 @@ class ExampleAgentTests(unittest.TestCase):
         self.assertEqual(action_types, ["acquire_users", "launch_pr", "build_feature"])
         self.assertNotIn("support_recovery", action_types)
 
-
 if __name__ == "__main__":
     unittest.main()

@@ -544,6 +544,7 @@ def run_seeded_tournament(
 def _threshold_failures(summary: dict, args: argparse.Namespace) -> list[str]:
     failures = []
     divergence_rate = summary["score_valuation_divergence"]["winner_divergence_rate"]
+    avg_rank_delta = summary["score_valuation_divergence"]["avg_absolute_rank_delta"]
     best_archetype_win_rate = max((bucket["win_rate"] for bucket in summary["archetypes"].values()), default=0.0)
     best_sector_win_rate = max((bucket["win_rate"] for bucket in summary["scenario_bias"]["by_sector"].values()), default=0.0)
     best_archetype_score_bias = max(
@@ -557,6 +558,10 @@ def _threshold_failures(summary: dict, args: argparse.Namespace) -> list[str]:
     if args.max_winner_divergence_rate is not None and divergence_rate > args.max_winner_divergence_rate:
         failures.append(
             f"winner divergence rate {divergence_rate:.3f} exceeded {args.max_winner_divergence_rate:.3f}"
+        )
+    if args.max_avg_rank_delta is not None and avg_rank_delta > args.max_avg_rank_delta:
+        failures.append(
+            f"avg rank delta {avg_rank_delta:.2f} exceeded {args.max_avg_rank_delta:.2f}"
         )
     if args.max_best_archetype_win_rate is not None and best_archetype_win_rate > args.max_best_archetype_win_rate:
         failures.append(
@@ -635,6 +640,7 @@ def main() -> int:
     parser.add_argument("--json-out", type=Path, default=None)
     parser.add_argument("--print-json", action="store_true")
     parser.add_argument("--max-winner-divergence-rate", type=float, default=None)
+    parser.add_argument("--max-avg-rank-delta", type=float, default=None)
     parser.add_argument("--max-best-archetype-win-rate", type=float, default=None)
     parser.add_argument("--max-best-sector-win-rate", type=float, default=None)
     parser.add_argument("--max-best-archetype-score-bias", type=float, default=None)

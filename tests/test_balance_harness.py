@@ -103,7 +103,7 @@ class BalanceHarnessTests(unittest.TestCase):
 
     def test_threshold_failures_trigger_when_metrics_exceed_limits(self) -> None:
         summary = {
-            "score_valuation_divergence": {"winner_divergence_rate": 0.4},
+            "score_valuation_divergence": {"winner_divergence_rate": 0.4, "avg_absolute_rank_delta": 0.7},
             "archetypes": {
                 "balanced": {"win_rate": 0.2, "games": 10, "score_wins": 2, "valuation_wins": 1},
                 "chaos": {"win_rate": 0.6, "games": 10, "score_wins": 6, "valuation_wins": 2},
@@ -120,6 +120,7 @@ class BalanceHarnessTests(unittest.TestCase):
             (),
             {
                 "max_winner_divergence_rate": 0.2,
+                "max_avg_rank_delta": 0.5,
                 "max_best_archetype_win_rate": 0.5,
                 "max_best_sector_win_rate": 0.6,
                 "max_best_archetype_score_bias": 0.1,
@@ -128,11 +129,12 @@ class BalanceHarnessTests(unittest.TestCase):
 
         failures = balance_harness._threshold_failures(summary, args)
 
-        self.assertEqual(len(failures), 4)
+        self.assertEqual(len(failures), 5)
         self.assertIn("winner divergence rate 0.400 exceeded 0.200", failures[0])
-        self.assertIn("best archetype win rate 0.600 exceeded 0.500", failures[1])
-        self.assertIn("best sector win rate 0.700 exceeded 0.600", failures[2])
-        self.assertIn("best archetype score bias 0.400 exceeded 0.100", failures[3])
+        self.assertIn("avg rank delta 0.70 exceeded 0.50", failures[1])
+        self.assertIn("best archetype win rate 0.600 exceeded 0.500", failures[2])
+        self.assertIn("best sector win rate 0.700 exceeded 0.600", failures[3])
+        self.assertIn("best archetype score bias 0.400 exceeded 0.100", failures[4])
 
 
 if __name__ == "__main__":
