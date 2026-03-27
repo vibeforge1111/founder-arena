@@ -489,23 +489,33 @@ class FounderAgent:
                        team_size, runway, revenue, turn, hot_sectors, my):
         """Bootstrap: minimize spend, maximize product quality, grow organically."""
         actions = []
+        trust = float(my.get("rich_state", {}).get("customers", {}).get("trust_score", 0.7))
 
         # Focus on product quality
         if runway < 4:
             actions.append({"type": "fundraise", "params": {"round": "angel"}})
-        elif quality < 76 and cash > 15000:
+        elif quality < 72 and cash > 15000:
             actions.append({"type": "build_feature", "params": {"focus": "quality"}})
 
-        # Organic growth only
-        if cash > 8000 and runway > 4 and len(actions) < 2:
+        # Once the product is credible, lean startups should pursue lower-burn commercial capture.
+        if quality >= 70 and trust >= 0.6 and cash > 15000 and runway > 5 and users < 2200 and len(actions) < 2:
+            actions.append({"type": "acquire_users", "params": {"channel": "partnerships"}})
+
+        # Otherwise fall back to organic growth.
+        if (
+            cash > 8000
+            and runway > 4
+            and len(actions) < 2
+            and not any(action["type"] == "acquire_users" for action in actions)
+        ):
             actions.append({"type": "acquire_users", "params": {"channel": "organic"}})
 
         # Lean teams still need market presence once the product is credible.
         if quality >= 72 and brand < 45 and cash > 12000 and runway > 5 and len(actions) < 3:
             actions.append({"type": "launch_pr", "params": {}})
 
-        # Small team, high skill
-        if team_size < 4 and cash > 50000 and runway > 9 and len(actions) < 3:
+        # Lean teams should add go-to-market capacity earlier once the product has found some footing.
+        if team_size < 4 and quality >= 68 and cash > 36000 and runway > 7 and len(actions) < 3:
             role = "marketer" if users < 1200 else "engineer"
             actions.append({"type": "hire", "params": {"role": role}})
 
