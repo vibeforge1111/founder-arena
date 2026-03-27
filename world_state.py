@@ -254,6 +254,7 @@ class RichStartupState:
         self.rng = random.Random(seed)
         self.alive = True
         self.death_reason = ""
+        self.bankruptcy_turn: int | None = None
         self.actions_submitted = False
         self.pending_actions: list[dict] = []
         self.turn_results: list[dict] = []

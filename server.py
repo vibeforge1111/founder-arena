@@ -1079,6 +1079,7 @@ class Game:
             if startup.cash <= 0:
                 startup.alive = False
                 startup.death_reason = "Ran out of money"
+                startup.bankruptcy_turn = self.turn
                 self._narrate(f"💀 {startup.startup_name} ran out of cash and shut down!")
             elif self.use_rich_state:
                 if startup.morale <= 0:
