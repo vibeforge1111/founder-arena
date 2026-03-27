@@ -537,6 +537,48 @@ class FounderAgent:
 
         return actions[:3]
 
+    def _chaos_limit_resilience_stack(self, chosen, population, *, cash, runway, my):
+        rich_state = my.get("rich_state", {})
+        trust = float(rich_state.get("customers", {}).get("trust_score", 0.7))
+        churn = float(rich_state.get("customers", {}).get("monthly_churn_rate", 0.04))
+        support_backlog = float(rich_state.get("operations", {}).get("support_backlog", 0.0))
+        risk_state = rich_state.get("risk", {})
+        regulatory_pressure = float(risk_state.get("regulatory_pressure", 0.0))
+        financial_risk = float(risk_state.get("financial_risk", 0.0))
+        under_pressure = (
+            runway < 5
+            or cash < 30000
+            or support_backlog > 28
+            or trust < 0.55
+            or churn > 0.06
+            or regulatory_pressure > 0.45
+            or financial_risk > 0.6
+        )
+        if under_pressure:
+            return chosen
+
+        resilience_types = {"fundraise", "support_recovery", "incident_response", "compliance_response", "board_sync"}
+        filtered = []
+        resilience_count = 0
+        for action_type in chosen:
+            if action_type in resilience_types:
+                if resilience_count >= 1:
+                    continue
+                resilience_count += 1
+            filtered.append(action_type)
+
+        if len(filtered) >= len(chosen):
+            return filtered
+
+        replacement_pool = [
+            action_type
+            for action_type in population
+            if action_type not in resilience_types and action_type not in filtered
+        ]
+        if replacement_pool:
+            filtered.extend(random.sample(replacement_pool, min(len(chosen) - len(filtered), len(replacement_pool))))
+        return filtered
+
     def _strategy_chaos(self, cash, users, quality, morale, brand,
                         team_size, runway, revenue, turn, hot_sectors, my, state, visible_actions=None):
         """The Chaotic Agent: unpredictable within the currently available action surface."""
@@ -555,6 +597,7 @@ class FounderAgent:
 
         # Pick 3 random actions
         chosen = random.sample(population, min(3, len(population)))
+        chosen = self._chaos_limit_resilience_stack(chosen, population, cash=cash, runway=runway, my=my)
 
         for action_type in chosen:
             if action_type == "build_feature":

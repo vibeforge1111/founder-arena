@@ -243,5 +243,91 @@ class ExampleAgentTests(unittest.TestCase):
         self.assertEqual(action_types, ["acquire_users", "launch_pr", "build_feature"])
         self.assertNotIn("support_recovery", action_types)
 
+    def test_chaos_limits_multiple_resilience_actions_when_state_is_healthy(self) -> None:
+        self.agent = FounderAgent(
+            name="Tester",
+            startup_name="ChaosCo",
+            sector="saas",
+            strategy="chaos",
+            server="local://founder-arena",
+        )
+        my = {
+            "rich_state": {
+                "customers": {
+                    "trust_score": 0.74,
+                    "monthly_churn_rate": 0.03,
+                },
+                "operations": {
+                    "support_backlog": 8,
+                },
+                "risk": {
+                    "regulatory_pressure": 0.1,
+                    "financial_risk": 0.2,
+                },
+            },
+        }
+        chosen = ["support_recovery", "fundraise", "build_feature"]
+        population = [
+            "support_recovery",
+            "fundraise",
+            "build_feature",
+            "acquire_users",
+            "launch_pr",
+        ]
+
+        normalized = self.agent._chaos_limit_resilience_stack(
+            chosen,
+            population,
+            cash=85000,
+            runway=10,
+            my=my,
+        )
+
+        self.assertEqual(len(normalized), 3)
+        self.assertEqual(sum(action in {"support_recovery", "fundraise", "board_sync", "incident_response", "compliance_response"} for action in normalized), 1)
+        self.assertIn("build_feature", normalized)
+
+    def test_chaos_keeps_multiple_resilience_actions_under_real_pressure(self) -> None:
+        self.agent = FounderAgent(
+            name="Tester",
+            startup_name="ChaosCo",
+            sector="saas",
+            strategy="chaos",
+            server="local://founder-arena",
+        )
+        my = {
+            "rich_state": {
+                "customers": {
+                    "trust_score": 0.42,
+                    "monthly_churn_rate": 0.08,
+                },
+                "operations": {
+                    "support_backlog": 36,
+                },
+                "risk": {
+                    "regulatory_pressure": 0.1,
+                    "financial_risk": 0.72,
+                },
+            },
+        }
+        chosen = ["support_recovery", "fundraise", "build_feature"]
+        population = [
+            "support_recovery",
+            "fundraise",
+            "build_feature",
+            "acquire_users",
+            "launch_pr",
+        ]
+
+        normalized = self.agent._chaos_limit_resilience_stack(
+            chosen,
+            population,
+            cash=24000,
+            runway=4,
+            my=my,
+        )
+
+        self.assertEqual(normalized, chosen)
+
 if __name__ == "__main__":
     unittest.main()
