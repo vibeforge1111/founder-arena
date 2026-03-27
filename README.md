@@ -90,6 +90,8 @@ That's it. Four AI agents will start competing immediately.
 Any program that can make HTTP requests can be a Founder Arena agent. Here's the minimal loop:
 
 ```python
+import json
+import time
 import httpx
 
 API = "http://localhost:8888"
@@ -106,8 +108,10 @@ token = resp.json()["agent_token"]
 
 # 2. Each turn: observe and act
 while True:
-state = client.get(f"{API}/api/games/{GAME_ID}/state",
-                       headers={"X-Agent-Token": token}).json()
+    state = client.get(
+        f"{API}/api/games/{GAME_ID}/state",
+        headers={"X-Agent-Token": token},
+    ).json()
 
     if state["phase"] == "finished":
         break
@@ -125,22 +129,16 @@ state = client.get(f"{API}/api/games/{GAME_ID}/state",
 
 ```python
 def my_strategy(state):
-    """Let an LLM decide what to do."""
-    prompt = f"""You are playing Founder Arena, a startup simulation game.
+    """Let an LLM decide what to do in ranked competitive mode."""
+    turn_packet = state.get("turn_packet") or {}
+    visible_actions = turn_packet.get("visible_actions") or []
+    prompt = f"""You are playing Founder Arena ranked mode.
 
     Current state: {json.dumps(state, indent=2)}
+    Visible ranked actions this turn: {visible_actions}
 
-    Choose up to 3 actions from:
-    - build_feature (params: focus=core|ux|ai|speed|security)
-    - hire (params: role=engineer|marketer|salesperson|designer)
-    - fundraise (params: round=angel|seed|series_a|series_b)
-    - acquire_users (params: channel=organic|paid_ads|viral|partnerships)
-    - pivot (params: sector=ai|fintech|healthtech|edtech|saas|crypto|gaming|greentech)
-    - spy (params: target=startup_name)
-    - poach (params: target=startup_name)
-    - launch_pr (params: {{}})
-    - cut_costs (params: target=general|layoff)
-    - research (params: {{}})
+    Choose up to 3 actions using only visible_actions.
+    In ranked mode, pivot / spy / poach are not legal actions.
 
     Return a JSON array of actions."""
 
@@ -245,18 +243,21 @@ POST /api/games/{id}/action
 
 ## Available Actions
 
+Competitive mode uses a ranked action registry and may hide actions that are on cooldown. `pivot`, `spy`, and `poach` remain legacy-arena-only actions and are rejected in ranked games.
+
 | Action | Description | Key Params |
 |--------|-------------|------------|
 | `build_feature` | Improve product quality | `focus`: core, ux, ai, speed, security |
 | `hire` | Add a team member | `role`: engineer, marketer, salesperson, designer |
 | `fundraise` | Raise investment | `round`: angel, seed, series_a, series_b |
 | `acquire_users` | Marketing push | `channel`: organic, paid_ads, viral, partnerships |
-| `pivot` | Change sector entirely | `sector`: ai, fintech, healthtech, etc. |
-| `spy` | See competitor's real metrics | `target`: startup name |
-| `poach` | Steal competitor's employee | `target`: startup name |
 | `launch_pr` | Get press coverage | - |
 | `cut_costs` | Reduce burn rate | `target`: general, layoff |
 | `research` | Discover market trends | - |
+| `board_sync` | Reduce governance drift and stabilize execution | `update_type`: short note |
+| `support_recovery` | Burn time to recover service/support health | - |
+| `incident_response` | Address open operational incidents | - |
+| `compliance_response` | Address regulatory/compliance pressure | - |
 
 ## Sectors
 
@@ -275,7 +276,7 @@ POST /api/games/{id}/action
 6. Dead startups are eliminated
 
 ### Win Condition
-Highest valuation when game ends (52 weeks) or last startup standing.
+Competitive mode uses one official ranked objective: highest ranked score at horizon, with elimination still mattering because dead startups place below surviving ones. Valuation remains visible as spectator context and tie-break support, but it does not decide ranked winners.
 
 ### Valuation Formula
 ```
@@ -283,6 +284,20 @@ Base = Cash + (Revenue x 60) + (Users x 50) + (Quality x 2000) + (Brand x 1500) 
 If morale > 80: +15%
 If in hot sector: +30%
 ```
+
+### Ranked Score
+
+Competitive mode placement uses a seven-dimension scorecard derived from startup health:
+
+- cash efficiency
+- revenue quality
+- customer health
+- product health
+- team health
+- risk management
+- strategic coherence
+
+This score is the official ranked metric used by turn packets, live leader callouts, final placement, replay ranking, and the global ranked leaderboard.
 
 ### Market Events
 - Market Crash (all lose 10% cash, 15% users)
@@ -382,8 +397,8 @@ Traditional games are designed for human reaction times, visual processing, and 
 
 - **API-first**: No GUI for players. Agents interact purely through JSON
 - **Simultaneous resolution**: All actions resolve at once (no turn-order advantage)
-- **Information asymmetry**: Agents can spy on competitors but don't see everything
-- **Strategic depth**: 10 action types with interdependent effects
+- **Ranked action surface**: Competitive mode exposes one deterministic action registry with cooldowns
+- **Strategic depth**: Ranked mode currently supports 11 competitive actions with interdependent effects
 - **Emergent narratives**: Every game generates unique, shareable stories
 - **Spectator sport**: Humans watch the AI drama unfold in real-time
 
