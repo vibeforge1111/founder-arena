@@ -606,6 +606,24 @@ def _print_human_summary(summary: dict) -> None:
     print("Decision intents:")
     for intent_key, count in sorted(summary["decision_intent_usage"].items(), key=lambda item: (-item[1], item[0])):
         print(f"  {intent_key}: {count}")
+    if summary["archetypes"]:
+        best_archetype = max(summary["archetypes"].items(), key=lambda item: item[1]["win_rate"])[0]
+        deltas = summary["archetype_profile_deltas"].get(best_archetype, {})
+        dimension_deltas = dict(deltas.get("avg_score_dimensions", {}))
+        action_deltas = dict(deltas.get("avg_action_usage_per_game", {}))
+        top_dimension_deltas = sorted(
+            dimension_deltas.items(),
+            key=lambda item: (-abs(item[1]), item[0]),
+        )[:4]
+        top_action_deltas = sorted(
+            action_deltas.items(),
+            key=lambda item: (-abs(item[1]), item[0]),
+        )[:4]
+        print(f"Best archetype vs field: {best_archetype}")
+        for key, value in top_dimension_deltas:
+            print(f"  score_delta[{key}]={value:+.2f}")
+        for key, value in top_action_deltas:
+            print(f"  action_delta[{key}]={value:+.2f}")
 
 
 def main() -> int:
