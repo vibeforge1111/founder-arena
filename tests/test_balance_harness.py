@@ -56,6 +56,8 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("by_sector", summary["scenario_bias"])
         self.assertIn("by_market_segment", summary["scenario_bias"])
         self.assertTrue(summary["action_usage"])
+        self.assertTrue(summary["decision_intent_usage"])
+        self.assertTrue(summary["watch_metric_usage"])
 
         for match in summary["matches"]:
             self.assertEqual(len(match["rankings"]), 3)
@@ -75,6 +77,8 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("avg_score_dimensions", aggressive)
         self.assertIn("action_usage", aggressive)
         self.assertIn("failed_action_usage", aggressive)
+        self.assertIn("intent_usage", aggressive)
+        self.assertIn("watch_metric_usage", aggressive)
         self.assertIn("cash_efficiency", aggressive["avg_score_dimensions"])
 
         score_winners = summary["winner_profiles"]["score_winners"]

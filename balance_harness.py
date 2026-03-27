@@ -134,8 +134,29 @@ def _bucket(table: dict, key: str) -> dict:
             "score_dimension_totals": {},
             "action_usage": Counter(),
             "failed_action_usage": Counter(),
+            "intent_usage": Counter(),
+            "watch_metric_usage": Counter(),
         },
     )
+
+
+def _decision_intent_key(decision: dict | None) -> str:
+    intent = str((decision or {}).get("intent", "")).strip().lower()
+    if "stabilize operations" in intent:
+        return "stabilize_operations"
+    if "reduce operational risk" in intent:
+        return "reduce_operational_risk"
+    if "extend runway" in intent:
+        return "extend_runway"
+    if "team capacity" in intent:
+        return "team_and_product"
+    if "testing market pull" in intent:
+        return "product_and_demand"
+    if "customer acquisition" in intent:
+        return "customer_acquisition"
+    if "align the board" in intent:
+        return "board_alignment"
+    return "generic_execution"
 
 
 def _winner_profile_bucket() -> dict:
@@ -189,6 +210,8 @@ def run_seeded_tournament(
     matches = []
     action_usage = Counter()
     failed_action_usage = Counter()
+    decision_intent_usage = Counter()
+    watch_metric_usage = Counter()
     archetypes: dict[str, dict] = {}
     agents: dict[str, dict] = {}
     sectors: dict[str, dict] = {}
@@ -233,8 +256,25 @@ def run_seeded_tournament(
             for startup_id, logs in game.action_log.items()
             for startup in [game.startups[startup_id]]
         }
+        intent_usage_by_agent = {
+            startup.agent_name: Counter(_decision_intent_key(entry) for entry in decisions)
+            for startup_id, decisions in game.decision_log.items()
+            for startup in [game.startups[startup_id]]
+        }
+        watch_metric_usage_by_agent = {
+            startup.agent_name: Counter(
+                str(entry.get("watch_metric", "") or "unknown")
+                for entry in decisions
+            )
+            for startup_id, decisions in game.decision_log.items()
+            for startup in [game.startups[startup_id]]
+        }
         action_usage.update(per_match_action_usage)
         failed_action_usage.update(per_match_failed_usage)
+        for counts in intent_usage_by_agent.values():
+            decision_intent_usage.update(counts)
+        for counts in watch_metric_usage_by_agent.values():
+            watch_metric_usage.update(counts)
 
         bankruptcy_turns = {startup.agent_name: startup.bankruptcy_turn for startup in game.startups.values()}
         startup_segments = {startup.agent_name: getattr(startup, "market_segment", "unknown:unknown") for startup in game.startups.values()}
@@ -274,6 +314,8 @@ def run_seeded_tournament(
             agent_bucket["total_valuation"] += valuation_value
             agent_bucket["action_usage"].update(action_usage_by_agent.get(agent_name, Counter()))
             agent_bucket["failed_action_usage"].update(failed_usage_by_agent.get(agent_name, Counter()))
+            agent_bucket["intent_usage"].update(intent_usage_by_agent.get(agent_name, Counter()))
+            agent_bucket["watch_metric_usage"].update(watch_metric_usage_by_agent.get(agent_name, Counter()))
             if bankruptcy_turn is not None:
                 agent_bucket["bankruptcy_turns"].append(bankruptcy_turn)
             agent_bucket["strategy"] = config["strategy"]
@@ -295,6 +337,8 @@ def run_seeded_tournament(
             archetype_bucket["total_valuation"] += valuation_value
             archetype_bucket["action_usage"].update(action_usage_by_agent.get(agent_name, Counter()))
             archetype_bucket["failed_action_usage"].update(failed_usage_by_agent.get(agent_name, Counter()))
+            archetype_bucket["intent_usage"].update(intent_usage_by_agent.get(agent_name, Counter()))
+            archetype_bucket["watch_metric_usage"].update(watch_metric_usage_by_agent.get(agent_name, Counter()))
             if bankruptcy_turn is not None:
                 archetype_bucket["bankruptcy_turns"].append(bankruptcy_turn)
             for dimension, value in score_dimensions.items():
@@ -314,6 +358,8 @@ def run_seeded_tournament(
             sector_bucket["total_valuation"] += valuation_value
             sector_bucket["action_usage"].update(action_usage_by_agent.get(agent_name, Counter()))
             sector_bucket["failed_action_usage"].update(failed_usage_by_agent.get(agent_name, Counter()))
+            sector_bucket["intent_usage"].update(intent_usage_by_agent.get(agent_name, Counter()))
+            sector_bucket["watch_metric_usage"].update(watch_metric_usage_by_agent.get(agent_name, Counter()))
             if bankruptcy_turn is not None:
                 sector_bucket["bankruptcy_turns"].append(bankruptcy_turn)
             for dimension, value in score_dimensions.items():
@@ -333,6 +379,8 @@ def run_seeded_tournament(
             segment_bucket["total_valuation"] += valuation_value
             segment_bucket["action_usage"].update(action_usage_by_agent.get(agent_name, Counter()))
             segment_bucket["failed_action_usage"].update(failed_usage_by_agent.get(agent_name, Counter()))
+            segment_bucket["intent_usage"].update(intent_usage_by_agent.get(agent_name, Counter()))
+            segment_bucket["watch_metric_usage"].update(watch_metric_usage_by_agent.get(agent_name, Counter()))
             if bankruptcy_turn is not None:
                 segment_bucket["bankruptcy_turns"].append(bankruptcy_turn)
             for dimension, value in score_dimensions.items():
@@ -356,6 +404,8 @@ def run_seeded_tournament(
             }
             bucket["action_usage"] = dict(sorted(bucket["action_usage"].items()))
             bucket["failed_action_usage"] = dict(sorted(bucket["failed_action_usage"].items()))
+            bucket["intent_usage"] = dict(sorted(bucket["intent_usage"].items()))
+            bucket["watch_metric_usage"] = dict(sorted(bucket["watch_metric_usage"].items()))
             bucket.pop("rank_deltas", None)
             bucket.pop("total_score", None)
             bucket.pop("total_valuation", None)
@@ -369,6 +419,8 @@ def run_seeded_tournament(
         "archetypes": archetypes,
         "action_usage": dict(action_usage),
         "failed_action_usage": dict(failed_action_usage),
+        "decision_intent_usage": dict(sorted(decision_intent_usage.items())),
+        "watch_metric_usage": dict(sorted(watch_metric_usage.items())),
         "score_valuation_divergence": {
             "winner_divergence_matches": divergence_winner_count,
             "winner_divergence_rate": round(divergence_winner_count / max(1, seed_count), 3),
@@ -449,6 +501,9 @@ def _print_human_summary(summary: dict) -> None:
     print("Action usage:")
     for action_type, count in sorted(summary["action_usage"].items(), key=lambda item: (-item[1], item[0])):
         print(f"  {action_type}: {count}")
+    print("Decision intents:")
+    for intent_key, count in sorted(summary["decision_intent_usage"].items(), key=lambda item: (-item[1], item[0])):
+        print(f"  {intent_key}: {count}")
 
 
 def main() -> int:
