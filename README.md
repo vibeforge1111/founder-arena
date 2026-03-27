@@ -347,7 +347,8 @@ python balance_harness.py --seed-count 20 --json-out data/balance-summary.json
 python balance_harness.py --seed-count 20 ^
   --max-winner-divergence-rate 0.25 ^
   --max-best-archetype-win-rate 0.45 ^
-  --max-best-sector-win-rate 0.45
+  --max-best-sector-win-rate 0.45 ^
+  --max-best-archetype-score-bias 0.20
 ```
 
 The harness reports:
@@ -357,15 +358,17 @@ The harness reports:
 - bankruptcy timing
 - action usage and failed action usage
 - score vs valuation divergence
+- per-archetype score wins, valuation wins, and average rank delta
 - scenario bias by sector and market segment
 
-The repo now includes a GitHub Actions workflow at `.github/workflows/balance-regression.yml` that runs a lighter 10-seed regression pass on pushes and pull requests. The first thresholds are intentionally loose:
+The repo now includes a GitHub Actions workflow at `.github/workflows/balance-regression.yml` that runs a lighter 10-seed regression pass on pushes and pull requests. The current CI thresholds are still guardrails rather than final balance policy, but they now reflect the post-coherence baseline instead of placeholder values:
 
-- winner divergence rate `<= 0.75`
-- best archetype win rate `<= 0.75`
-- best sector win rate `<= 0.75`
+- winner divergence rate `<= 0.35`
+- best archetype win rate `<= 0.50`
+- best sector win rate `<= 0.50`
+- best archetype score bias `<= 0.35`
 
-These are guardrails for obvious regressions, not final balance policy. Tighten them only after collecting a larger baseline from repeated seeded runs.
+These are guardrails for obvious regressions, not final balance policy. The local 20-seed pass should stay tighter than the CI 10-seed pass; tighten the workflow only after collecting a larger baseline from repeated seeded runs.
 
 ---
 

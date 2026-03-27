@@ -25,7 +25,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run regression tests
-        run: python -m pytest tests/test_balance_harness.py tests/test_rich_state_integration.py -q
+        run: python -m pytest tests/test_balance_harness.py tests/test_example_agent.py tests/test_rich_state_integration.py -q
 
       - name: Run seeded balance harness
         run: >
@@ -34,9 +34,10 @@ jobs:
           --agents 4
           --turns 52
           --json-out data/balance-summary.json
-          --max-winner-divergence-rate 0.75
-          --max-best-archetype-win-rate 0.75
-          --max-best-sector-win-rate 0.75
+          --max-winner-divergence-rate 0.35
+          --max-best-archetype-win-rate 0.50
+          --max-best-sector-win-rate 0.50
+          --max-best-archetype-score-bias 0.35
 
       - name: Upload balance summary
         uses: actions/upload-artifact@v4

@@ -370,6 +370,13 @@ def _threshold_failures(summary: dict, args: argparse.Namespace) -> list[str]:
     divergence_rate = summary["score_valuation_divergence"]["winner_divergence_rate"]
     best_archetype_win_rate = max((bucket["win_rate"] for bucket in summary["archetypes"].values()), default=0.0)
     best_sector_win_rate = max((bucket["win_rate"] for bucket in summary["scenario_bias"]["by_sector"].values()), default=0.0)
+    best_archetype_score_bias = max(
+        (
+            abs(int(bucket.get("score_wins", 0)) - int(bucket.get("valuation_wins", 0))) / max(1, int(bucket.get("games", 0)))
+            for bucket in summary["archetypes"].values()
+        ),
+        default=0.0,
+    )
 
     if args.max_winner_divergence_rate is not None and divergence_rate > args.max_winner_divergence_rate:
         failures.append(
@@ -382,6 +389,13 @@ def _threshold_failures(summary: dict, args: argparse.Namespace) -> list[str]:
     if args.max_best_sector_win_rate is not None and best_sector_win_rate > args.max_best_sector_win_rate:
         failures.append(
             f"best sector win rate {best_sector_win_rate:.3f} exceeded {args.max_best_sector_win_rate:.3f}"
+        )
+    if (
+        args.max_best_archetype_score_bias is not None
+        and best_archetype_score_bias > args.max_best_archetype_score_bias
+    ):
+        failures.append(
+            f"best archetype score bias {best_archetype_score_bias:.3f} exceeded {args.max_best_archetype_score_bias:.3f}"
         )
     return failures
 
@@ -400,6 +414,8 @@ def _print_human_summary(summary: dict) -> None:
     for archetype, bucket in sorted(summary["archetypes"].items()):
         print(
             f"  {archetype}: win_rate={bucket['win_rate']:.3f} "
+            f"score_wins={bucket['score_wins']} valuation_wins={bucket['valuation_wins']} "
+            f"avg_rank_delta={bucket['avg_rank_delta']:.2f} "
             f"avg_place={bucket['avg_placement']:.2f} avg_bankruptcy={bucket['avg_bankruptcy_turn']}"
         )
     print("Sector bias:")
@@ -424,6 +440,7 @@ def main() -> int:
     parser.add_argument("--max-winner-divergence-rate", type=float, default=None)
     parser.add_argument("--max-best-archetype-win-rate", type=float, default=None)
     parser.add_argument("--max-best-sector-win-rate", type=float, default=None)
+    parser.add_argument("--max-best-archetype-score-bias", type=float, default=None)
     args = parser.parse_args()
 
     summary = run_seeded_tournament(
