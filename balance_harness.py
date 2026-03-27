@@ -16,6 +16,11 @@ from example_agent import FounderAgent
 DEFAULT_AGENT_COUNT = 4
 DEFAULT_SEED_COUNT = 20
 DEFAULT_MAX_TURNS = 52
+ACTION_FAMILIES = {
+    "stabilization": {"fundraise", "support_recovery", "board_sync", "incident_response", "compliance_response", "cut_costs"},
+    "commercial": {"acquire_users", "launch_pr", "hire"},
+    "product": {"build_feature", "research"},
+}
 
 
 def _selected_configs(agent_count: int) -> list[dict]:
@@ -223,6 +228,21 @@ def _average_counter(counter_map: dict, count: int) -> dict:
     }
 
 
+def _action_family_summary(action_usage: dict, divisor: int) -> dict:
+    usage_counter = Counter(dict(action_usage))
+    total_actions = max(1, sum(int(value) for value in usage_counter.values()))
+    avg_per_game = {}
+    share = {}
+    for family, action_types in ACTION_FAMILIES.items():
+        family_total = sum(int(usage_counter.get(action_type, 0)) for action_type in action_types)
+        avg_per_game[family] = round(family_total / max(1, int(divisor)), 2)
+        share[family] = round(family_total / total_actions, 3)
+    return {
+        "avg_per_game": avg_per_game,
+        "share": share,
+    }
+
+
 def _profile_delta(score_profile: dict, valuation_profile: dict, field: str) -> dict:
     keys = set(score_profile.get(field, {}).keys()) | set(valuation_profile.get(field, {}).keys())
     return {
@@ -232,7 +252,7 @@ def _profile_delta(score_profile: dict, valuation_profile: dict, field: str) -> 
 
 
 def _archetype_delta_vs_field(archetype_profile: dict, field_profile: dict, field: str) -> dict:
-    if field == "avg_score_dimensions":
+    if field in {"avg_score_dimensions", "action_family_avg_per_game", "action_family_share"}:
         archetype_values = archetype_profile.get(field, {})
         field_values = field_profile.get(field, {})
     else:
@@ -474,6 +494,9 @@ def run_seeded_tournament(
             bucket["failed_action_usage"] = dict(sorted(bucket["failed_action_usage"].items()))
             bucket["intent_usage"] = dict(sorted(bucket["intent_usage"].items()))
             bucket["watch_metric_usage"] = dict(sorted(bucket["watch_metric_usage"].items()))
+            action_family_summary = _action_family_summary(bucket["action_usage"], games)
+            bucket["action_family_avg_per_game"] = action_family_summary["avg_per_game"]
+            bucket["action_family_share"] = action_family_summary["share"]
             bucket.pop("rank_deltas", None)
             bucket.pop("total_score", None)
             bucket.pop("total_valuation", None)
@@ -514,25 +537,38 @@ def run_seeded_tournament(
         "avg_intent_usage_per_game": _average_counter(summary["decision_intent_usage"], total_entries),
         "avg_watch_metric_usage_per_game": _average_counter(summary["watch_metric_usage"], total_entries),
     }
+    field_action_family_summary = _action_family_summary(summary["action_usage"], total_entries)
+    field_profile["action_family_avg_per_game"] = field_action_family_summary["avg_per_game"]
+    field_profile["action_family_share"] = field_action_family_summary["share"]
     summary["field_profile"] = field_profile
     score_winners = summary["winner_profiles"]["score_winners"]
     valuation_winners = summary["winner_profiles"]["valuation_winners"]
     score_winners["avg_action_usage_per_winner"] = _average_counter(score_winners["action_usage"], score_winners["count"])
     score_winners["avg_intent_usage_per_winner"] = _average_counter(score_winners["intent_usage"], score_winners["count"])
     score_winners["avg_watch_metric_usage_per_winner"] = _average_counter(score_winners["watch_metric_usage"], score_winners["count"])
+    score_winner_action_family_summary = _action_family_summary(score_winners["action_usage"], score_winners["count"])
+    score_winners["avg_action_family_usage_per_winner"] = score_winner_action_family_summary["avg_per_game"]
+    score_winners["action_family_share"] = score_winner_action_family_summary["share"]
     valuation_winners["avg_action_usage_per_winner"] = _average_counter(valuation_winners["action_usage"], valuation_winners["count"])
     valuation_winners["avg_intent_usage_per_winner"] = _average_counter(valuation_winners["intent_usage"], valuation_winners["count"])
     valuation_winners["avg_watch_metric_usage_per_winner"] = _average_counter(valuation_winners["watch_metric_usage"], valuation_winners["count"])
+    valuation_winner_action_family_summary = _action_family_summary(valuation_winners["action_usage"], valuation_winners["count"])
+    valuation_winners["avg_action_family_usage_per_winner"] = valuation_winner_action_family_summary["avg_per_game"]
+    valuation_winners["action_family_share"] = valuation_winner_action_family_summary["share"]
     summary["winner_profile_deltas"] = {
         "avg_score_dimensions": _profile_delta(score_winners, valuation_winners, "avg_score_dimensions"),
         "avg_action_usage_per_winner": _profile_delta(score_winners, valuation_winners, "avg_action_usage_per_winner"),
+        "avg_action_family_usage_per_winner": _profile_delta(score_winners, valuation_winners, "avg_action_family_usage_per_winner"),
         "avg_intent_usage_per_winner": _profile_delta(score_winners, valuation_winners, "avg_intent_usage_per_winner"),
         "avg_watch_metric_usage_per_winner": _profile_delta(score_winners, valuation_winners, "avg_watch_metric_usage_per_winner"),
+        "action_family_share": _profile_delta(score_winners, valuation_winners, "action_family_share"),
     }
     summary["archetype_profile_deltas"] = {
         archetype: {
             "avg_score_dimensions": _archetype_delta_vs_field(bucket, field_profile, "avg_score_dimensions"),
             "avg_action_usage_per_game": _archetype_delta_vs_field(bucket, field_profile, "action_usage"),
+            "action_family_avg_per_game": _archetype_delta_vs_field(bucket, field_profile, "action_family_avg_per_game"),
+            "action_family_share": _archetype_delta_vs_field(bucket, field_profile, "action_family_share"),
             "avg_intent_usage_per_game": _archetype_delta_vs_field(bucket, field_profile, "intent_usage"),
             "avg_watch_metric_usage_per_game": _archetype_delta_vs_field(bucket, field_profile, "watch_metric_usage"),
         }
@@ -624,11 +660,18 @@ def _print_human_summary(summary: dict) -> None:
             action_deltas.items(),
             key=lambda item: (-abs(item[1]), item[0]),
         )[:4]
+        family_share_deltas = dict(deltas.get("action_family_share", {}))
+        top_family_deltas = sorted(
+            family_share_deltas.items(),
+            key=lambda item: (-abs(item[1]), item[0]),
+        )[:3]
         print(f"Best archetype vs field: {best_archetype}")
         for key, value in top_dimension_deltas:
             print(f"  score_delta[{key}]={value:+.2f}")
         for key, value in top_action_deltas:
             print(f"  action_delta[{key}]={value:+.2f}")
+        for key, value in top_family_deltas:
+            print(f"  family_share_delta[{key}]={value:+.3f}")
 
 
 def main() -> int:

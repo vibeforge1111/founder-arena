@@ -78,11 +78,14 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("score_wins", aggressive)
         self.assertIn("valuation_wins", aggressive)
         self.assertIn("avg_score_dimensions", aggressive)
+        self.assertIn("action_family_avg_per_game", aggressive)
+        self.assertIn("action_family_share", aggressive)
         self.assertIn("action_usage", aggressive)
         self.assertIn("failed_action_usage", aggressive)
         self.assertIn("intent_usage", aggressive)
         self.assertIn("watch_metric_usage", aggressive)
         self.assertIn("cash_efficiency", aggressive["avg_score_dimensions"])
+        self.assertIn("stabilization", aggressive["action_family_share"])
 
         score_winners = summary["winner_profiles"]["score_winners"]
         self.assertIn("avg_score", score_winners)
@@ -93,13 +96,20 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("intent_usage", score_winners)
         self.assertIn("watch_metric_usage", score_winners)
         self.assertIn("avg_action_usage_per_winner", score_winners)
+        self.assertIn("avg_action_family_usage_per_winner", score_winners)
+        self.assertIn("action_family_share", score_winners)
         self.assertIn("avg_intent_usage_per_winner", score_winners)
         self.assertIn("avg_watch_metric_usage_per_winner", score_winners)
         self.assertIn("avg_score_dimensions", summary["winner_profile_deltas"])
         self.assertIn("avg_action_usage_per_winner", summary["winner_profile_deltas"])
+        self.assertIn("avg_action_family_usage_per_winner", summary["winner_profile_deltas"])
+        self.assertIn("action_family_share", summary["winner_profile_deltas"])
         self.assertIn("avg_score_dimensions", summary["field_profile"])
         self.assertIn("avg_action_usage_per_game", summary["field_profile"])
+        self.assertIn("action_family_avg_per_game", summary["field_profile"])
+        self.assertIn("action_family_share", summary["field_profile"])
         self.assertIn("aggressive", summary["archetype_profile_deltas"])
+        self.assertIn("action_family_share", summary["archetype_profile_deltas"]["aggressive"])
 
     def test_threshold_failures_trigger_when_metrics_exceed_limits(self) -> None:
         summary = {

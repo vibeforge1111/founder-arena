@@ -358,6 +358,7 @@ The harness reports:
 - average placement
 - bankruptcy timing
 - action usage and failed action usage
+- action-family averages and shares for stabilization vs commercial vs product play
 - score vs valuation divergence
 - per-archetype score wins, valuation wins, and average rank delta
 - scenario bias by sector and market segment
