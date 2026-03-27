@@ -15,6 +15,7 @@ import time
 import httpx
 
 API = "http://localhost:8888"
+CANONICAL_BUILD_FOCI = ("core", "ux", "scale", "growth", "quality", "security")
 
 
 class FounderAgent:
@@ -437,7 +438,7 @@ class FounderAgent:
             if brand < 70 and cash > 12000:
                 actions.append({"type": "launch_pr", "params": {}})
             if quality < 80 and cash > 20000 and runway > 4:
-                actions.append({"type": "build_feature", "params": {"focus": "polish"}})
+                actions.append({"type": "build_feature", "params": {"focus": "quality"}})
             if len(actions) < 3 and turn % 6 == 0:
                 actions.append({"type": "board_sync", "params": {"update_type": "scale_update"}})
 
@@ -450,12 +451,6 @@ class FounderAgent:
             actions = [{"type": "fundraise", "params": {"round": "angel"}}]
             if morale > 30:
                 actions.append({"type": "cut_costs", "params": {"target": "general"}})
-
-        # Consider pivot if sector is cold
-        if turn > 15 and turn < 35 and my.get("sector") not in hot_sectors and users < 500:
-            if random.random() < 0.15:
-                new_sector = random.choice(hot_sectors) if hot_sectors else "ai"
-                actions = [{"type": "pivot", "params": {"sector": new_sector}}]
 
         return actions[:3]
 
@@ -487,11 +482,6 @@ class FounderAgent:
         # Build only when nothing else to do
         if len(actions) < 3 and cash > 20000 and runway > 4:
             actions.append({"type": "build_feature", "params": {"focus": "growth"}})
-
-        # Poach competitors when strong
-        if brand > 50 and cash > 30000 and len(actions) < 3:
-            others = [s for sid, s in my.items() if isinstance(s, dict) and s.get("startup_name")]
-            actions.append({"type": "spy", "params": {}})
 
         return actions[:3]
 
@@ -548,7 +538,7 @@ class FounderAgent:
 
         for action_type in chosen:
             if action_type == "build_feature":
-                actions.append({"type": "build_feature", "params": {"focus": random.choice(["ai", "ux", "speed", "security"])}})
+                actions.append({"type": "build_feature", "params": {"focus": random.choice(list(CANONICAL_BUILD_FOCI))}})
             elif action_type == "hire" and cash > 45000 and runway > 7:
                 actions.append({"type": "hire", "params": {"role": random.choice(["engineer", "marketer", "salesperson", "designer"])}})
             elif action_type == "fundraise":

@@ -835,6 +835,29 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertLess(startup.world_state["operations"]["support_backlog"], 30)
         self.assertGreater(startup.world_state["customers"]["trust_score"], 0.35)
 
+    def test_build_feature_focus_aliases_normalize_to_ranked_surface(self) -> None:
+        for raw_focus, expected_focus in (("ai", "core"), ("speed", "scale"), ("polish", "ux"), ("unknown", "core")):
+            with self.subTest(raw_focus=raw_focus):
+                startup = RichStartupState(
+                    agent_name="Tester",
+                    startup_name="DeepCo",
+                    sector="ai",
+                    motto="Test deeply",
+                    strategy="balanced",
+                    seed=123,
+                )
+                mapper = server.ActionMapper(server.random.Random(123))
+
+                result = mapper.execute(
+                    startup,
+                    {"type": "build_feature", "params": {"focus": raw_focus}},
+                    turn_index=1,
+                )
+
+                self.assertTrue(result["success"])
+                self.assertEqual(result["resolved_focus"], expected_focus)
+                self.assertIn(expected_focus, result["message"])
+
     def test_ranked_competitive_mode_rejects_legacy_only_actions(self) -> None:
         game = server.Game(
             name="Ranked Legacy Action Test",

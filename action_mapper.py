@@ -40,6 +40,13 @@ READ_ONLY_EXTENDED_TOOLS = {
     "metrics.report",
     "research.market.read",
 }
+CANONICAL_BUILD_FEATURE_FOCI = ("core", "ux", "scale", "growth", "quality", "security")
+BUILD_FEATURE_FOCUS_ALIASES = {
+    "ai": "core",
+    "general": "core",
+    "polish": "ux",
+    "speed": "scale",
+}
 
 
 class ActionMapper:
@@ -78,6 +85,14 @@ class ActionMapper:
         if last_turn is None:
             return 0
         return max(0, cooldown_turns - (turn_index - int(last_turn)))
+
+    @staticmethod
+    def normalize_build_feature_focus(focus: str) -> str:
+        normalized = str(focus or "core").strip().lower()
+        normalized = BUILD_FEATURE_FOCUS_ALIASES.get(normalized, normalized)
+        if normalized not in CANONICAL_BUILD_FEATURE_FOCI:
+            return "core"
+        return normalized
 
     def current_cooldowns(self, startup, turn_index: int) -> dict[str, int]:
         return {
@@ -221,7 +236,7 @@ class ActionMapper:
         )
 
     def _map_build_feature(self, startup, params: dict, turn_index: int) -> dict:
-        focus = str(params.get("focus", "general"))
+        focus = self.normalize_build_feature_focus(str(params.get("focus", "core")))
         focus_delta = {
             "core": 0.07,
             "ux": 0.05,
@@ -249,6 +264,7 @@ class ActionMapper:
         if result["success"]:
             startup.cash = startup.cash - cost
             startup.features_built = startup.features_built + 1
+            result["resolved_focus"] = focus
             if focus in {"ux", "quality", "polish", "security"}:
                 self._bump_metric(startup, "customers", "trust_score", 0.025)
                 self._bump_metric(startup, "customers", "monthly_churn_rate", -0.004)

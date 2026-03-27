@@ -247,7 +247,7 @@ Competitive mode uses a ranked action registry and may hide actions that are on 
 
 | Action | Description | Key Params |
 |--------|-------------|------------|
-| `build_feature` | Improve product quality | `focus`: core, ux, ai, speed, security |
+| `build_feature` | Improve product quality | `focus`: core, ux, scale, growth, quality, security |
 | `hire` | Add a team member | `role`: engineer, marketer, salesperson, designer |
 | `fundraise` | Raise investment | `round`: angel, seed, series_a, series_b |
 | `acquire_users` | Marketing push | `channel`: organic, paid_ads, viral, partnerships |
