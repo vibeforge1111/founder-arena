@@ -401,7 +401,50 @@ class ExampleAgentTests(unittest.TestCase):
             "support_recovery",
             "launch_pr",
             "build_feature",
-            "acquire_users",
+            "research",
+        ]
+
+        normalized = self.agent._chaos_limit_healthy_stabilization_mix(
+            chosen,
+            population,
+            cash=70000,
+            runway=9,
+            my=my,
+        )
+
+        self.assertNotIn("support_recovery", normalized)
+        self.assertIn("launch_pr", normalized)
+        self.assertIn("build_feature", normalized)
+        self.assertIn("research", normalized)
+
+    def test_chaos_keeps_stabilization_when_healthy_turn_has_no_viable_swap(self) -> None:
+        self.agent = FounderAgent(
+            name="Tester",
+            startup_name="ChaosCo",
+            sector="saas",
+            strategy="chaos",
+            server="local://founder-arena",
+        )
+        my = {
+            "rich_state": {
+                "customers": {
+                    "trust_score": 0.72,
+                    "monthly_churn_rate": 0.03,
+                },
+                "operations": {
+                    "support_backlog": 8,
+                },
+                "risk": {
+                    "regulatory_pressure": 0.1,
+                    "financial_risk": 0.2,
+                },
+            },
+        }
+        chosen = ["support_recovery", "launch_pr", "build_feature"]
+        population = [
+            "support_recovery",
+            "launch_pr",
+            "build_feature",
         ]
 
         normalized = self.agent._chaos_limit_healthy_stabilization_mix(

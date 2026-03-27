@@ -601,19 +601,24 @@ class FounderAgent:
 
         commercial_types = {"acquire_users", "launch_pr", "hire"}
         stabilization_types = {"fundraise", "support_recovery", "incident_response", "compliance_response", "board_sync", "cut_costs"}
-        if any(action_type in commercial_types for action_type in chosen):
-            return chosen
         stabilization_index = next((index for index, action_type in enumerate(chosen) if action_type in stabilization_types), None)
         if stabilization_index is None:
             return chosen
 
+        already_commercial = any(action_type in commercial_types for action_type in chosen)
         viable_replacements = []
-        if "launch_pr" in population and "launch_pr" not in chosen and cash > 12000 and runway > 4:
-            viable_replacements.append("launch_pr")
-        if "acquire_users" in population and "acquire_users" not in chosen and cash > 12000 and runway > 4:
-            viable_replacements.append("acquire_users")
-        if "hire" in population and "hire" not in chosen and cash > 45000 and runway > 7:
-            viable_replacements.append("hire")
+        if already_commercial:
+            if "build_feature" in population and "build_feature" not in chosen:
+                viable_replacements.append("build_feature")
+            if "research" in population and "research" not in chosen and cash > 10000:
+                viable_replacements.append("research")
+        else:
+            if "launch_pr" in population and "launch_pr" not in chosen and cash > 12000 and runway > 4:
+                viable_replacements.append("launch_pr")
+            if "acquire_users" in population and "acquire_users" not in chosen and cash > 12000 and runway > 4:
+                viable_replacements.append("acquire_users")
+            if "hire" in population and "hire" not in chosen and cash > 45000 and runway > 7:
+                viable_replacements.append("hire")
         if not viable_replacements:
             return chosen
 
