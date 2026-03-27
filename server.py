@@ -384,10 +384,10 @@ def _compute_seven_dimension_scores(startup) -> dict:
             + (100.0 - min(float(customers.get("monthly_churn_rate", 0.0)) * 1000.0, 100.0)) * 0.25
         )
         customer_health = _clamp_score(
-            float(customers.get("health_index", 0.0)) * 45.0
-            + float(customers.get("trust_score", 0.0)) * 25.0
-            + (100.0 - min(float(customers.get("monthly_churn_rate", 0.0)) * 1200.0, 100.0)) * 0.15
-            + customer_scale_score * 0.15
+            float(customers.get("health_index", 0.0)) * 38.0
+            + float(customers.get("trust_score", 0.0)) * 20.0
+            + (100.0 - min(float(customers.get("monthly_churn_rate", 0.0)) * 1200.0, 100.0)) * 0.12
+            + customer_scale_score * 0.3
         )
         product_health = _clamp_score(
             float(product.get("onboarding_quality", 0.0)) * 70.0
