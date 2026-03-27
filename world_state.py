@@ -197,6 +197,13 @@ SIMULATOR_CONFIG = {
     ],
 }
 
+
+def _market_option_for_profile(profile: dict) -> dict:
+    for option in SIMULATOR_CONFIG["market_options"]:
+        if option["market_area"] == profile["market_area"] and option["customer_type"] == profile["customer_type"]:
+            return deepcopy(option)
+    return deepcopy(SIMULATOR_CONFIG["market_options"][0])
+
 FIRST_NAMES = [
     "Alex", "Sam", "Jordan", "Casey", "Morgan", "Riley", "Quinn", "Avery",
     "Blake", "Drew", "Sage", "Reese", "Skyler", "Phoenix", "Dakota", "Rowan",
@@ -263,11 +270,20 @@ class RichStartupState:
         self.scenario = scenario
         self.world_state = initialize_world_state(scenario, seed=seed)
         self.runtime = RuntimeSession(scenario=scenario, world_state=self.world_state)
+        profile = SECTOR_TO_SIM_PROFILE.get(self.sector, SECTOR_TO_SIM_PROFILE["ai"])
+        market_option = _market_option_for_profile(profile)
+        segment_key = f"{profile['market_area']}:{profile['customer_type']}"
         self.world_state["company"]["founder_arena_sector"] = sector
         self.world_state["company"]["founder_arena_strategy"] = strategy
+        self.world_state["company"]["founder_arena_market_segment"] = segment_key
         self.world_state["company"]["brand_index"] = 0.1
         self.world_state["finance"]["total_raised_usd"] = 0.0
         self.world_state["finance"]["funding_round"] = "pre-seed"
+        self.world_state["market"]["market_area"] = profile["market_area"]
+        self.world_state["market"]["customer_type"] = profile["customer_type"]
+        self.world_state["market"]["segment_key"] = segment_key
+        self.world_state["market"]["segment_label"] = f"{profile['market_area']} / {profile['customer_type']}"
+        self.world_state["market"]["category_fit"] = market_option.get("category_fit", self.world_state["market"].get("category_fit", 0.72))
         self.world_state["product"]["features_built"] = 0
         self.world_state["customers"]["user_count_estimate"] = max(
             100,
@@ -482,6 +498,10 @@ class RichStartupState:
             valuation = int(valuation * 1.08)
         return max(valuation, 10000)
 
+    @property
+    def market_segment(self) -> str:
+        return str(self.world_state.get("market", {}).get("segment_key", "unknown:unknown"))
+
     def snapshot(self) -> dict:
         score = self.seven_dimension_scores
         return {
@@ -508,6 +528,7 @@ class RichStartupState:
             "total_raised": self.total_raised,
             "dilution": round(self.dilution, 2),
             "funding_round": self.funding_round,
+            "market_segment": self.market_segment,
             "director_state": self.director_state,
             "stress_index": round(self.stress_index, 4),
             "challenge_info": deepcopy(self.challenge_info),

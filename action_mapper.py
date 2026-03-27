@@ -98,6 +98,75 @@ class ActionMapper:
         if action_type == "fundraise":
             startup.last_fundraise_turn = int(turn_index)
 
+    @staticmethod
+    def _shared_market(startup) -> dict | None:
+        if getattr(startup, "game_mode", None) != "competitive_mode":
+            return None
+        shared_market = getattr(startup, "shared_market", None)
+        if isinstance(shared_market, dict):
+            return shared_market
+        return None
+
+    def _shared_market_scalar(self, startup, key: str, default: float) -> float:
+        shared_market = self._shared_market(startup)
+        if not shared_market:
+            return float(default)
+        return float(shared_market.get(key, default))
+
+    def _shared_market_acquisition(self, startup, channel: str, requested_users: int) -> dict:
+        shared_market = self._shared_market(startup)
+        if not shared_market:
+            return {
+                "users_gained": requested_users,
+                "users_displaced": 0,
+                "demand_consumed": requested_users,
+                "crowding_multiplier": 1.0,
+            }
+
+        segment_key = getattr(startup, "market_segment", None)
+        segment = (shared_market.get("segments") or {}).get(segment_key)
+        channels = shared_market.setdefault("channels", {})
+        channel_state = channels.setdefault(channel, {"attempts": 0, "spend": 0, "crowding": 0.0})
+
+        attempts_before = int(channel_state.get("attempts", 0))
+        crowding_multiplier = max(0.45, 1.0 - attempts_before * 0.18)
+        channel_state["attempts"] = attempts_before + 1
+        channel_state["crowding"] = round(1.0 - crowding_multiplier, 2)
+
+        if not segment:
+            return {
+                "users_gained": int(round(requested_users * crowding_multiplier)),
+                "users_displaced": 0,
+                "demand_consumed": int(round(requested_users * crowding_multiplier)),
+                "crowding_multiplier": crowding_multiplier,
+            }
+
+        available_demand = int(segment.get("available_demand", 0))
+        demand_gain = int(min(requested_users, available_demand) * crowding_multiplier)
+        segment["available_demand"] = max(0, available_demand - demand_gain)
+
+        rivals = [member for member in segment.get("members", []) if member.id != startup.id and getattr(member, "alive", True)]
+        switch_budget = min(int(segment.get("switching_pool", 0)), int(requested_users * 0.25))
+        displaced_total = 0
+        for rival in sorted(rivals, key=lambda member: member.users, reverse=True):
+            if switch_budget <= 0:
+                break
+            rival_loss = min(switch_budget, max(0, int(rival.users * 0.03)))
+            if rival_loss <= 0:
+                continue
+            rival.users = max(0, rival.users - rival_loss)
+            displaced_total += rival_loss
+            switch_budget -= rival_loss
+
+        segment["switching_pool"] = max(0, int(segment.get("switching_pool", 0)) - displaced_total)
+        segment["captured_users"] = max(0, int(segment.get("captured_users", 0)) + demand_gain)
+        return {
+            "users_gained": demand_gain + displaced_total,
+            "users_displaced": displaced_total,
+            "demand_consumed": demand_gain,
+            "crowding_multiplier": crowding_multiplier,
+        }
+
     def execute(self, startup, action: dict, turn_index: int) -> dict | None:
         action_type = str(action.get("type", ""))
         params = action.get("params", {})
@@ -192,7 +261,8 @@ class ActionMapper:
 
     def _map_hire(self, startup, params: dict, turn_index: int) -> dict:
         role = str(params.get("role", "engineer"))
-        salary = {"engineer": 12000, "marketer": 9000, "salesperson": 10000, "designer": 10000}.get(role, 10000)
+        talent_scarcity = self._shared_market_scalar(startup, "talent_scarcity", 1.0)
+        salary = int({"engineer": 12000, "marketer": 9000, "salesperson": 10000, "designer": 10000}.get(role, 10000) * talent_scarcity)
         signing_bonus = salary
         if startup.cash < signing_bonus:
             return {"action": "hire", "success": False, "message": "Not enough cash for signing bonus"}
@@ -213,6 +283,7 @@ class ActionMapper:
         if result["success"]:
             startup.cash = startup.cash - signing_bonus
             startup.sync_team_roster()
+            startup.team[-1].salary = salary
             if role in {"engineer", "designer"}:
                 self._bump_metric(startup, "team", "morale", 0.03)
             result["member"] = startup.team[-1].to_dict()
@@ -221,6 +292,7 @@ class ActionMapper:
 
     def _map_fundraise(self, startup, params: dict, turn_index: int) -> dict:
         requested_round = str(params.get("round", "angel"))
+        investor_climate = self._shared_market_scalar(startup, "investor_climate", 1.0)
         round_terms = {
             "angel": {"raise_amount_usd": 120000, "dilution_pct": 0.08, "transaction_cost_usd": 6000},
             "seed": {"raise_amount_usd": 350000, "dilution_pct": 0.14, "transaction_cost_usd": 12000},
@@ -239,6 +311,8 @@ class ActionMapper:
         config = round_terms.get(round_type)
         if config is None:
             return {"action": "fundraise", "success": False, "message": "Invalid round"}
+        config = dict(config)
+        config["raise_amount_usd"] = int(round(config["raise_amount_usd"] * investor_climate))
         result = self._run_tool(
             startup,
             "finance.raise.propose",
@@ -308,9 +382,21 @@ class ActionMapper:
         }
         if success:
             startup.cash = startup.cash - config["cost"]
-            startup.users = startup.users + config["users"]
+            shared_result = self._shared_market_acquisition(startup, channel, config["users"])
+            startup.users = startup.users + shared_result["users_gained"]
             startup.brand = min(100, startup.brand + (4 if channel in {"viral", "partnerships"} else 2))
-            result["users_gained"] = config["users"]
+            channel_state = (self._shared_market(startup) or {}).get("channels", {}).get(channel, {})
+            if channel_state:
+                channel_state["spend"] = int(channel_state.get("spend", 0)) + config["cost"]
+            result["users_gained"] = shared_result["users_gained"]
+            result["users_displaced"] = shared_result["users_displaced"]
+            result["demand_consumed"] = shared_result["demand_consumed"]
+            result["crowding_multiplier"] = round(shared_result["crowding_multiplier"], 2)
+            result["message"] = (
+                f"Ran simulator growth + sales motion on {channel}. "
+                f"Gained {shared_result['users_gained']} users with crowding {result['crowding_multiplier']:.2f}."
+            )
+            result["channel_crowding"] = channel_state.get("crowding", 0.0)
         return result
 
     def _map_cut_costs(self, startup, params: dict, turn_index: int) -> dict:
@@ -493,6 +579,20 @@ class ActionMapper:
             "support_backlog": startup.world_state.get("operations", {}).get("support_backlog"),
             "regulatory_pressure": startup.world_state.get("risk", {}).get("regulatory_pressure"),
         }
+        shared_market = self._shared_market(startup)
+        if shared_market:
+            segment = (shared_market.get("segments") or {}).get(getattr(startup, "market_segment", ""))
+            result["insights"]["shared_market"] = {
+                "investor_climate": shared_market.get("investor_climate", 1.0),
+                "talent_scarcity": shared_market.get("talent_scarcity", 1.0),
+                "segment_demand_pool": (segment or {}).get("base_demand_pool", 0),
+                "segment_available_demand": (segment or {}).get("available_demand", 0),
+                "switching_pool": (segment or {}).get("switching_pool", 0),
+                "channel_crowding": {
+                    key: value.get("crowding", 0.0)
+                    for key, value in (shared_market.get("channels") or {}).items()
+                },
+            }
         result["message"] = "Simulator market research complete."
         return result
 

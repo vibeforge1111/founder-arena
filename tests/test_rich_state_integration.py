@@ -129,6 +129,8 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertNotIn("pivot", packet_payload["visible_actions"])
         self.assertNotIn("spy", packet_payload["visible_actions"])
         self.assertNotIn("poach", packet_payload["visible_actions"])
+        self.assertIn("shared_market", packet_payload["match_context"])
+        self.assertIn("segment", packet_payload["match_context"]["shared_market"])
 
         action_1 = self.client.post(
             f"/api/games/{game_id}/action",
@@ -877,6 +879,122 @@ class RichStateIntegrationTests(unittest.TestCase):
         packet = game.get_turn_packet(startup_a.agent_token)
         self.assertNotIn("board_sync", packet["visible_actions"])
         self.assertEqual(packet["startup"]["action_cooldowns"]["board_sync"], 3)
+
+    def test_shared_market_contests_growth_through_demand_and_crowding(self) -> None:
+        game = server.Game(
+            name="Shared Market Growth Test",
+            max_players=2,
+            min_players=2,
+            turn_timeout=5,
+            max_turns=3,
+            seed=123,
+            use_rich_state=True,
+            game_mode="competitive_mode",
+            queue="github_ranked",
+        )
+        startup_a = game.add_startup("A1", "Alpha", "ai", "m1", "balanced")
+        startup_b = game.add_startup("A2", "Beta", "edtech", "m2", "balanced")
+        game.start()
+
+        startup_a.pending_actions = [{"type": "acquire_users", "params": {"channel": "organic"}}]
+        startup_b.pending_actions = [{"type": "acquire_users", "params": {"channel": "organic"}}]
+        startup_a.actions_submitted = True
+        startup_b.actions_submitted = True
+
+        with mock.patch.object(game.director, "decide_and_apply", return_value=None), mock.patch.object(
+            game.action_mapper,
+            "advance_week",
+            return_value={"action": "sim.advance", "success": True},
+        ):
+            game._resolve_turn()
+
+        first = startup_a.turn_results[0]
+        second = startup_b.turn_results[0]
+        self.assertTrue(first["success"])
+        self.assertTrue(second["success"])
+        self.assertLess(first["users_gained"] + second["users_gained"], 280)
+        self.assertGreater(second["channel_crowding"], 0.0)
+        self.assertLess(second["demand_consumed"], 140)
+
+    def test_shared_market_switching_can_displace_incumbent_users(self) -> None:
+        game = server.Game(
+            name="Shared Market Switching Test",
+            max_players=2,
+            min_players=2,
+            turn_timeout=5,
+            max_turns=3,
+            seed=123,
+            use_rich_state=True,
+            game_mode="competitive_mode",
+            queue="github_ranked",
+        )
+        incumbent = game.add_startup("A1", "Alpha", "ai", "m1", "balanced")
+        challenger = game.add_startup("A2", "Beta", "edtech", "m2", "balanced")
+        game.start()
+
+        incumbent.users = 5000
+        challenger.users = 200
+        game._refresh_shared_market()
+
+        incumbent.pending_actions = [{"type": "build_feature", "params": {"focus": "core"}}]
+        challenger.pending_actions = [{"type": "acquire_users", "params": {"channel": "organic"}}]
+        incumbent.actions_submitted = True
+        challenger.actions_submitted = True
+
+        with mock.patch.object(game.director, "decide_and_apply", return_value=None), mock.patch.object(
+            game.action_mapper,
+            "advance_week",
+            return_value={"action": "sim.advance", "success": True},
+        ):
+            game._resolve_turn()
+
+        result = challenger.turn_results[0]
+        self.assertTrue(result["success"])
+        self.assertGreater(result["users_displaced"], 0)
+        self.assertLess(incumbent.users, 5000)
+
+    def test_shared_market_climate_and_talent_hooks_affect_fundraise_and_hire(self) -> None:
+        mapper = server.ActionMapper(server.random.Random(123))
+
+        fundraise_startup = RichStartupState(
+            agent_name="Tester",
+            startup_name="CapitalCo",
+            sector="ai",
+            motto="Test deeply",
+            strategy="balanced",
+            seed=123,
+        )
+        fundraise_startup.game_mode = "competitive_mode"
+        fundraise_startup.shared_market = {
+            "investor_climate": 0.8,
+            "talent_scarcity": 1.0,
+            "segments": {},
+            "channels": {},
+        }
+
+        hire_startup = RichStartupState(
+            agent_name="Tester",
+            startup_name="TalentCo",
+            sector="ai",
+            motto="Test deeply",
+            strategy="balanced",
+            seed=124,
+        )
+        hire_startup.game_mode = "competitive_mode"
+        hire_startup.shared_market = {
+            "investor_climate": 1.0,
+            "talent_scarcity": 1.5,
+            "segments": {},
+            "channels": {},
+        }
+
+        raise_result = mapper.execute(fundraise_startup, {"type": "fundraise", "params": {"round": "angel"}}, turn_index=1)
+        hire_result = mapper.execute(hire_startup, {"type": "hire", "params": {"role": "engineer"}}, turn_index=1)
+
+        self.assertTrue(raise_result["success"])
+        self.assertEqual(raise_result["amount"], 96000)
+        self.assertTrue(hire_result["success"])
+        self.assertEqual(hire_result["member"]["salary"], 18000)
 
     def test_fundraise_has_cooldown_and_stage_progression(self) -> None:
         startup = RichStartupState(

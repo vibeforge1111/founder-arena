@@ -547,6 +547,13 @@ class Game:
         self.action_mapper = ActionMapper(self.rng)
         self.director = ArenaDirector()
         self.alert_memory: dict[tuple[str, str], int] = {}
+        self.shared_market: dict = {
+            "turn_prepared": 0,
+            "investor_climate": 1.0,
+            "talent_scarcity": 1.0,
+            "segments": {},
+            "channels": {},
+        }
 
     def _public_decision_summary(self, decision_packet: Optional[dict]) -> Optional[dict]:
         if not decision_packet:
@@ -656,6 +663,113 @@ class Game:
             watch_items.append("Runway is entering a dangerous range.")
         return watch_items[:4]
 
+    def _refresh_shared_market(self) -> None:
+        alive = [startup for startup in self.startups.values() if startup.alive]
+        channel_state = {
+            "organic": {"attempts": 0, "spend": 0, "crowding": 0.0},
+            "paid_ads": {"attempts": 0, "spend": 0, "crowding": 0.0},
+            "viral": {"attempts": 0, "spend": 0, "crowding": 0.0},
+            "partnerships": {"attempts": 0, "spend": 0, "crowding": 0.0},
+        }
+        total_headcount = sum(len(startup.team) for startup in alive)
+        avg_regulatory_pressure = (
+            sum(float(startup.world_state.get("risk", {}).get("regulatory_pressure", 0.0)) for startup in alive) / len(alive)
+            if alive else 0.0
+        )
+        investor_climate = round(
+            max(
+                0.7,
+                min(
+                    1.35,
+                    self.market_modifiers["fundraise_mult"]
+                    * (1.0 + max(0, len(alive) - 2) * 0.03 - avg_regulatory_pressure * 0.2),
+                ),
+            ),
+            2,
+        )
+        talent_scarcity = round(
+            max(
+                1.0,
+                self.market_modifiers["hiring_cost_mult"]
+                * (1.0 + max(0, total_headcount - len(alive) * 3) * 0.04),
+            ),
+            2,
+        )
+
+        grouped_segments: dict[str, list] = {}
+        for startup in alive:
+            grouped_segments.setdefault(getattr(startup, "market_segment", "unknown:unknown"), []).append(startup)
+
+        segments = {}
+        for segment_key, members in grouped_segments.items():
+            avg_demand = sum(float(member.world_state.get("market", {}).get("demand_index", 0.85)) for member in members) / len(members)
+            base_pool = int(320 + avg_demand * 780 + max(0, len(members) - 1) * 110)
+            captured_users = sum(member.users for member in members)
+            switching_pool = int(sum(member.users for member in members) * 0.05)
+            market = members[0].world_state.get("market", {})
+            segments[segment_key] = {
+                "segment_key": segment_key,
+                "market_area": market.get("market_area"),
+                "customer_type": market.get("customer_type"),
+                "segment_label": market.get("segment_label", segment_key),
+                "base_demand_pool": base_pool,
+                "available_demand": base_pool,
+                "captured_users": captured_users,
+                "switching_pool": switching_pool,
+                "member_ids": [member.id for member in members],
+                "members": members,
+            }
+
+        self.shared_market.clear()
+        self.shared_market.update(
+            {
+                "turn_prepared": self.turn,
+                "investor_climate": investor_climate,
+                "talent_scarcity": talent_scarcity,
+                "segments": segments,
+                "channels": channel_state,
+            }
+        )
+
+    def _shared_market_snapshot(self) -> dict:
+        return {
+            "turn_prepared": self.shared_market.get("turn_prepared", self.turn),
+            "investor_climate": self.shared_market.get("investor_climate", 1.0),
+            "talent_scarcity": self.shared_market.get("talent_scarcity", 1.0),
+            "segments": {
+                segment_key: {
+                    "segment_key": segment["segment_key"],
+                    "segment_label": segment.get("segment_label", segment_key),
+                    "market_area": segment.get("market_area"),
+                    "customer_type": segment.get("customer_type"),
+                    "base_demand_pool": segment.get("base_demand_pool", 0),
+                    "available_demand": segment.get("available_demand", 0),
+                    "captured_users": segment.get("captured_users", 0),
+                    "switching_pool": segment.get("switching_pool", 0),
+                    "member_ids": segment.get("member_ids", []),
+                }
+                for segment_key, segment in self.shared_market.get("segments", {}).items()
+            },
+            "channels": {
+                channel: {
+                    "attempts": payload.get("attempts", 0),
+                    "spend": payload.get("spend", 0),
+                    "crowding": payload.get("crowding", 0.0),
+                }
+                for channel, payload in self.shared_market.get("channels", {}).items()
+            },
+        }
+
+    def _shared_market_view_for(self, startup) -> dict:
+        snapshot = self._shared_market_snapshot()
+        segment = snapshot.get("segments", {}).get(getattr(startup, "market_segment", ""), {})
+        return {
+            "segment": segment,
+            "channels": snapshot.get("channels", {}),
+            "investor_climate": snapshot.get("investor_climate", 1.0),
+            "talent_scarcity": snapshot.get("talent_scarcity", 1.0),
+        }
+
     def _build_turn_packet(self, startup) -> dict:
         ranked = self._ranked_startups()
         my_rank = next((index + 1 for index, item in enumerate(ranked) if item.id == startup.id), len(ranked))
@@ -692,6 +806,7 @@ class Game:
                 "queue": self.queue,
                 "current_arc": self._current_arc_for(startup),
                 "watch_items": self._watch_items_for(startup),
+                "shared_market": self._shared_market_view_for(startup),
             },
             "startup": {
                 "startup_id": startup.id,
@@ -809,6 +924,7 @@ class Game:
             seed=self.seed + len(self.startups) + 1,
         )
         s.game_mode = self.game_mode
+        s.shared_market = self.shared_market
         self.startups[s.id] = s
         self.token_map[s.agent_token] = s.id
         self._narrate(f"🏁 {startup_name} ({agent_name}) enters the arena in {sector}! \"{motto}\"")
@@ -825,6 +941,7 @@ class Game:
         # Pick initial hot sectors
         global _hot_sectors
         _hot_sectors = self.rng.sample(SECTORS, 2)
+        self._refresh_shared_market()
         self._narrate(f"🔔 THE ARENA IS OPEN! {len(self.startups)} startups enter. "
                       f"Hot sectors: {', '.join(_hot_sectors)}. Let the battle begin!")
 
@@ -1007,6 +1124,7 @@ class Game:
             self._end_game()
         else:
             self.turn += 1
+            self._refresh_shared_market()
             self.turn_deadline = time.time() + self.turn_timeout
 
     def _execute_action(self, startup: Startup, action: dict,
@@ -1517,6 +1635,7 @@ class Game:
             "narrative": self.narrative[-20:],
             "winner": self.winner,
             "arc_feed": self._arc_feed(),
+            "shared_market": self._shared_market_snapshot(),
         }
 
         my_startup_id = None
@@ -1582,6 +1701,7 @@ class Game:
             "seven_dimension_scores": {sid: self._scorecard_for(s) for sid, s in self.startups.items()},
             "action_logs": self.action_log,
             "arc_feed": self._arc_feed(),
+            "shared_market": self._shared_market_snapshot(),
             "decision_summaries": {
                 sid: self._public_decision_summary((self.decision_log.get(sid) or [None])[-1])
                 for sid in self.startups
@@ -1618,6 +1738,7 @@ class Game:
             ],
             "narrative": self.narrative,
             "event_log": self.event_log,
+            "shared_market": self._shared_market_snapshot(),
             "histories": {sid: s.history for sid, s in self.startups.items()},
             "seven_dimension_scores": {sid: self._scorecard_for(s) for sid, s in self.startups.items()},
             "action_logs": self.action_log,
