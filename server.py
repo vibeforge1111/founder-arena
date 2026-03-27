@@ -236,13 +236,13 @@ class Startup:
 
 
 SCORE_WEIGHTS = {
-    "cash_efficiency": 0.20,
+    "cash_efficiency": 0.21,
     "revenue_quality": 0.16,
-    "customer_health": 0.13,
-    "product_health": 0.16,
+    "customer_health": 0.12,
+    "product_health": 0.17,
     "team_health": 0.12,
     "risk_management": 0.11,
-    "strategic_coherence": 0.12,
+    "strategic_coherence": 0.11,
 }
 
 ARC_TYPE_LABELS = {
