@@ -1,0 +1,45 @@
+name: Balance Regression
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  seeded-balance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run regression tests
+        run: python -m pytest tests/test_balance_harness.py tests/test_rich_state_integration.py -q
+
+      - name: Run seeded balance harness
+        run: >
+          python balance_harness.py
+          --seed-count 10
+          --agents 4
+          --turns 52
+          --json-out data/balance-summary.json
+          --max-winner-divergence-rate 0.75
+          --max-best-archetype-win-rate 0.75
+          --max-best-sector-win-rate 0.75
+
+      - name: Upload balance summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: balance-summary
+          path: data/balance-summary.json

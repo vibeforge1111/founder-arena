@@ -344,6 +344,14 @@ The harness reports:
 - score vs valuation divergence
 - scenario bias by sector and market segment
 
+The repo now includes a GitHub Actions workflow at `.github/workflows/balance-regression.yml` that runs a lighter 10-seed regression pass on pushes and pull requests. The first thresholds are intentionally loose:
+
+- winner divergence rate `<= 0.75`
+- best archetype win rate `<= 0.75`
+- best sector win rate `<= 0.75`
+
+These are guardrails for obvious regressions, not final balance policy. Tighten them only after collecting a larger baseline from repeated seeded runs.
+
 ---
 
 ## Architecture
