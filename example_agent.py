@@ -493,23 +493,30 @@ class FounderAgent:
         # Focus on product quality
         if runway < 4:
             actions.append({"type": "fundraise", "params": {"round": "angel"}})
-        elif quality < 80 and cash > 15000:
+        elif quality < 76 and cash > 15000:
             actions.append({"type": "build_feature", "params": {"focus": "quality"}})
 
         # Organic growth only
         if cash > 8000 and runway > 4 and len(actions) < 2:
             actions.append({"type": "acquire_users", "params": {"channel": "organic"}})
 
-        # Small team, high skill
-        if team_size < 3 and cash > 45000 and runway > 8:
-            actions.append({"type": "hire", "params": {"role": "engineer"}})
+        # Lean teams still need market presence once the product is credible.
+        if quality >= 72 and brand < 45 and cash > 12000 and runway > 5 and len(actions) < 3:
+            actions.append({"type": "launch_pr", "params": {}})
 
-        # Research to find opportunities
-        if len(actions) < 2 and turn % 5 == 0 and cash > 10000:
+        # Small team, high skill
+        if team_size < 4 and cash > 50000 and runway > 9 and len(actions) < 3:
+            role = "marketer" if users < 1200 else "engineer"
+            actions.append({"type": "hire", "params": {"role": role}})
+
+        # Periodic governance and research to avoid passive drift.
+        if len(actions) < 3 and turn % 6 == 0:
+            actions.append({"type": "board_sync", "params": {"update_type": "lean_update"}})
+        if len(actions) < 3 and turn % 5 == 0 and cash > 10000:
             actions.append({"type": "research", "params": {}})
         support_backlog = my.get("rich_state", {}).get("operations", {}).get("support_backlog", 0)
         if support_backlog > 36 and len(actions) < 3:
-                actions.append({"type": "support_recovery", "params": {}})
+            actions.append({"type": "support_recovery", "params": {}})
 
         # Cut costs to survive
         if runway < 6 and len(actions) < 3:
