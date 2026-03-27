@@ -405,10 +405,12 @@ def _compute_seven_dimension_scores(startup) -> dict:
             + team_supportability * 0.25
         )
         risk_management = _clamp_score(
-            (100.0 - float(risk.get("regulatory_pressure", 0.0)) * 100.0) * 0.32
-            + (100.0 - float(risk.get("financing_pressure", 0.0)) * 100.0) * 0.28
-            + (100.0 - min(float(risk.get("compliance_backlog", 0.0)) * 12.0, 100.0)) * 0.2
-            + (100.0 - min(float(product.get("major_incidents_open", 0.0)) * 22.0, 100.0)) * 0.2
+            (100.0 - float(risk.get("regulatory_pressure", 0.0)) * 100.0) * 0.24
+            + (100.0 - float(risk.get("financing_pressure", 0.0)) * 100.0) * 0.16
+            + (100.0 - min(float(risk.get("compliance_backlog", 0.0)) * 12.0, 100.0)) * 0.18
+            + (100.0 - min(float(product.get("major_incidents_open", 0.0)) * 22.0, 100.0)) * 0.16
+            + runway_score * 0.16
+            + burn_efficiency * 0.1
         )
         strategic_coherence = _clamp_score(
             float(growth.get("activation_index", 0.0)) * 28.0

@@ -146,6 +146,46 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertGreater(leader_score, follower_score)
         self.assertGreater(leader_score - follower_score, 7.0)
 
+    def test_risk_management_depends_on_operating_resilience(self) -> None:
+        resilient = RichStartupState(
+            agent_name="ResilientBot",
+            startup_name="ResilientCo",
+            sector="ai",
+            motto="Manage downside with real resilience",
+            strategy="balanced",
+            seed=777,
+        )
+        exposed = RichStartupState(
+            agent_name="ExposedBot",
+            startup_name="ExposedCo",
+            sector="ai",
+            motto="Looks clean but cash is weak",
+            strategy="balanced",
+            seed=888,
+        )
+
+        for startup in (resilient, exposed):
+            startup.world_state["risk"]["regulatory_pressure"] = 0.08
+            startup.world_state["risk"]["financing_pressure"] = 0.12
+            startup.world_state["risk"]["compliance_backlog"] = 1.0
+            startup.world_state["product"]["major_incidents_open"] = 0
+
+        resilient.world_state["finance"]["runway_weeks"] = 48
+        resilient.world_state["finance"]["monthly_revenue_usd"] = 120_000
+        resilient.world_state["finance"]["monthly_burn_usd"] = 90_000
+        resilient.world_state["finance"]["net_burn_usd"] = -30_000
+
+        exposed.world_state["finance"]["runway_weeks"] = 8
+        exposed.world_state["finance"]["monthly_revenue_usd"] = 18_000
+        exposed.world_state["finance"]["monthly_burn_usd"] = 120_000
+        exposed.world_state["finance"]["net_burn_usd"] = 102_000
+
+        resilient_score = server._compute_seven_dimension_scores(resilient)["dimensions"]["risk_management"]
+        exposed_score = server._compute_seven_dimension_scores(exposed)["dimensions"]["risk_management"]
+
+        self.assertGreater(resilient_score, exposed_score)
+        self.assertGreater(resilient_score - exposed_score, 12.0)
+
     def test_api_info_separates_ranked_and_legacy_action_surfaces(self) -> None:
         response = self.client.get("/api/info")
 
