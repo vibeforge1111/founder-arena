@@ -351,7 +351,8 @@ python balance_harness.py --seed-count 20 ^
   --max-best-archetype-win-rate 0.45 ^
   --max-best-sector-win-rate 0.45 ^
   --max-best-archetype-score-bias 0.20 ^
-  --max-best-archetype-family-share-gap 0.18
+  --max-best-archetype-family-share-gap 0.18 ^
+  --max-best-archetype-healthy-stabilization-gap 0.25
 ```
 
 The harness reports:
@@ -375,6 +376,7 @@ The repo now includes a GitHub Actions workflow at `.github/workflows/balance-re
 - best sector win rate `<= 0.50`
 - best archetype score bias `<= 0.35`
 - best archetype family share gap `<= 0.20`
+- best archetype healthy stabilization gap `<= 0.30`
 
 These are guardrails for obvious regressions, not final balance policy. The local 20-seed pass should stay tighter than the CI 10-seed pass; tighten the workflow only after collecting a larger baseline from repeated seeded runs.
 

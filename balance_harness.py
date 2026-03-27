@@ -662,6 +662,14 @@ def _threshold_failures(summary: dict, args: argparse.Namespace) -> list[str]:
         ),
         default=0.0,
     )
+    best_archetype_healthy_stabilization_gap = abs(
+        float(
+            summary.get("archetype_profile_deltas", {})
+            .get(best_archetype_name or "", {})
+            .get("pressure_action_family_share", {})
+            .get("healthy_stabilization", 0.0)
+        )
+    )
 
     if args.max_winner_divergence_rate is not None and divergence_rate > args.max_winner_divergence_rate:
         failures.append(
@@ -699,6 +707,14 @@ def _threshold_failures(summary: dict, args: argparse.Namespace) -> list[str]:
     ):
         failures.append(
             f"best archetype family share gap {best_archetype_family_share_gap:.3f} exceeded {args.max_best_archetype_family_share_gap:.3f}"
+        )
+    if (
+        args.max_best_archetype_healthy_stabilization_gap is not None
+        and best_archetype_healthy_stabilization_gap > args.max_best_archetype_healthy_stabilization_gap
+    ):
+        failures.append(
+            "best archetype healthy stabilization gap "
+            f"{best_archetype_healthy_stabilization_gap:.3f} exceeded {args.max_best_archetype_healthy_stabilization_gap:.3f}"
         )
     return failures
 
@@ -782,6 +798,7 @@ def main() -> int:
     parser.add_argument("--max-best-sector-win-rate", type=float, default=None)
     parser.add_argument("--max-best-archetype-score-bias", type=float, default=None)
     parser.add_argument("--max-best-archetype-family-share-gap", type=float, default=None)
+    parser.add_argument("--max-best-archetype-healthy-stabilization-gap", type=float, default=None)
     args = parser.parse_args()
 
     summary = run_seeded_tournament(
