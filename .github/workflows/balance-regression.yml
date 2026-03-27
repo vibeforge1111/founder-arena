@@ -39,6 +39,7 @@ jobs:
           --max-best-archetype-win-rate 0.50
           --max-best-sector-win-rate 0.50
           --max-best-archetype-score-bias 0.35
+          --max-best-archetype-family-share-gap 0.20
 
       - name: Upload balance summary
         uses: actions/upload-artifact@v4

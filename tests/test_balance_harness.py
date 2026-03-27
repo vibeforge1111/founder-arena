@@ -118,6 +118,15 @@ class BalanceHarnessTests(unittest.TestCase):
                 "balanced": {"win_rate": 0.2, "games": 10, "score_wins": 2, "valuation_wins": 1},
                 "chaos": {"win_rate": 0.6, "games": 10, "score_wins": 6, "valuation_wins": 2},
             },
+            "archetype_profile_deltas": {
+                "chaos": {
+                    "action_family_share": {
+                        "commercial": -0.22,
+                        "product": 0.04,
+                        "stabilization": 0.18,
+                    }
+                }
+            },
             "scenario_bias": {
                 "by_sector": {
                     "ai": {"win_rate": 0.25},
@@ -134,17 +143,19 @@ class BalanceHarnessTests(unittest.TestCase):
                 "max_best_archetype_win_rate": 0.5,
                 "max_best_sector_win_rate": 0.6,
                 "max_best_archetype_score_bias": 0.1,
+                "max_best_archetype_family_share_gap": 0.15,
             },
         )()
 
         failures = balance_harness._threshold_failures(summary, args)
 
-        self.assertEqual(len(failures), 5)
+        self.assertEqual(len(failures), 6)
         self.assertIn("winner divergence rate 0.400 exceeded 0.200", failures[0])
         self.assertIn("avg rank delta 0.70 exceeded 0.50", failures[1])
         self.assertIn("best archetype win rate 0.600 exceeded 0.500", failures[2])
         self.assertIn("best sector win rate 0.700 exceeded 0.600", failures[3])
         self.assertIn("best archetype score bias 0.400 exceeded 0.100", failures[4])
+        self.assertIn("best archetype family share gap 0.220 exceeded 0.150", failures[5])
 
 
 if __name__ == "__main__":

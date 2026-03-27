@@ -583,10 +583,22 @@ def _threshold_failures(summary: dict, args: argparse.Namespace) -> list[str]:
     avg_rank_delta = summary["score_valuation_divergence"]["avg_absolute_rank_delta"]
     best_archetype_win_rate = max((bucket["win_rate"] for bucket in summary["archetypes"].values()), default=0.0)
     best_sector_win_rate = max((bucket["win_rate"] for bucket in summary["scenario_bias"]["by_sector"].values()), default=0.0)
+    best_archetype_name = max(summary["archetypes"].items(), key=lambda item: item[1]["win_rate"])[0] if summary["archetypes"] else None
     best_archetype_score_bias = max(
         (
             abs(int(bucket.get("score_wins", 0)) - int(bucket.get("valuation_wins", 0))) / max(1, int(bucket.get("games", 0)))
             for bucket in summary["archetypes"].values()
+        ),
+        default=0.0,
+    )
+    best_archetype_family_share_gap = max(
+        (
+            abs(float(value))
+            for value in dict(
+                summary.get("archetype_profile_deltas", {})
+                .get(best_archetype_name or "", {})
+                .get("action_family_share", {})
+            ).values()
         ),
         default=0.0,
     )
@@ -613,6 +625,13 @@ def _threshold_failures(summary: dict, args: argparse.Namespace) -> list[str]:
     ):
         failures.append(
             f"best archetype score bias {best_archetype_score_bias:.3f} exceeded {args.max_best_archetype_score_bias:.3f}"
+        )
+    if (
+        args.max_best_archetype_family_share_gap is not None
+        and best_archetype_family_share_gap > args.max_best_archetype_family_share_gap
+    ):
+        failures.append(
+            f"best archetype family share gap {best_archetype_family_share_gap:.3f} exceeded {args.max_best_archetype_family_share_gap:.3f}"
         )
     return failures
 
@@ -687,6 +706,7 @@ def main() -> int:
     parser.add_argument("--max-best-archetype-win-rate", type=float, default=None)
     parser.add_argument("--max-best-sector-win-rate", type=float, default=None)
     parser.add_argument("--max-best-archetype-score-bias", type=float, default=None)
+    parser.add_argument("--max-best-archetype-family-share-gap", type=float, default=None)
     args = parser.parse_args()
 
     summary = run_seeded_tournament(
