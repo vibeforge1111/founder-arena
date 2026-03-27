@@ -579,6 +579,49 @@ class FounderAgent:
             filtered.extend(random.sample(replacement_pool, min(len(chosen) - len(filtered), len(replacement_pool))))
         return filtered
 
+    def _chaos_limit_healthy_stabilization_mix(self, chosen, population, *, cash, runway, my):
+        rich_state = my.get("rich_state", {})
+        trust = float(rich_state.get("customers", {}).get("trust_score", 0.7))
+        churn = float(rich_state.get("customers", {}).get("monthly_churn_rate", 0.04))
+        support_backlog = float(rich_state.get("operations", {}).get("support_backlog", 0.0))
+        risk_state = rich_state.get("risk", {})
+        regulatory_pressure = float(risk_state.get("regulatory_pressure", 0.0))
+        financial_risk = float(risk_state.get("financial_risk", 0.0))
+        healthy = (
+            runway >= 8
+            and cash >= 30000
+            and support_backlog < 18
+            and trust >= 0.62
+            and churn < 0.05
+            and regulatory_pressure < 0.35
+            and financial_risk < 0.55
+        )
+        if not healthy:
+            return chosen
+
+        commercial_types = {"acquire_users", "launch_pr", "hire"}
+        stabilization_types = {"fundraise", "support_recovery", "incident_response", "compliance_response", "board_sync", "cut_costs"}
+        if any(action_type in commercial_types for action_type in chosen):
+            return chosen
+        stabilization_index = next((index for index, action_type in enumerate(chosen) if action_type in stabilization_types), None)
+        if stabilization_index is None:
+            return chosen
+
+        viable_replacements = []
+        if "launch_pr" in population and "launch_pr" not in chosen and cash > 12000 and runway > 4:
+            viable_replacements.append("launch_pr")
+        if "acquire_users" in population and "acquire_users" not in chosen and cash > 12000 and runway > 4:
+            viable_replacements.append("acquire_users")
+        if "hire" in population and "hire" not in chosen and cash > 45000 and runway > 7:
+            viable_replacements.append("hire")
+        if not viable_replacements:
+            return chosen
+
+        replacement = viable_replacements[0]
+        adjusted = list(chosen)
+        adjusted[stabilization_index] = replacement
+        return adjusted
+
     def _strategy_chaos(self, cash, users, quality, morale, brand,
                         team_size, runway, revenue, turn, hot_sectors, my, state, visible_actions=None):
         """The Chaotic Agent: unpredictable within the currently available action surface."""
@@ -598,6 +641,7 @@ class FounderAgent:
         # Pick 3 random actions
         chosen = random.sample(population, min(3, len(population)))
         chosen = self._chaos_limit_resilience_stack(chosen, population, cash=cash, runway=runway, my=my)
+        chosen = self._chaos_limit_healthy_stabilization_mix(chosen, population, cash=cash, runway=runway, my=my)
 
         for action_type in chosen:
             if action_type == "build_feature":

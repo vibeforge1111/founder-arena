@@ -329,5 +329,90 @@ class ExampleAgentTests(unittest.TestCase):
 
         self.assertEqual(normalized, chosen)
 
+    def test_chaos_swaps_healthy_stabilization_for_commercial_action(self) -> None:
+        self.agent = FounderAgent(
+            name="Tester",
+            startup_name="ChaosCo",
+            sector="saas",
+            strategy="chaos",
+            server="local://founder-arena",
+        )
+        my = {
+            "rich_state": {
+                "customers": {
+                    "trust_score": 0.72,
+                    "monthly_churn_rate": 0.03,
+                },
+                "operations": {
+                    "support_backlog": 8,
+                },
+                "risk": {
+                    "regulatory_pressure": 0.1,
+                    "financial_risk": 0.2,
+                },
+            },
+        }
+        chosen = ["support_recovery", "build_feature", "research"]
+        population = [
+            "support_recovery",
+            "build_feature",
+            "research",
+            "launch_pr",
+            "acquire_users",
+        ]
+
+        normalized = self.agent._chaos_limit_healthy_stabilization_mix(
+            chosen,
+            population,
+            cash=70000,
+            runway=9,
+            my=my,
+        )
+
+        self.assertNotIn("support_recovery", normalized)
+        self.assertIn("launch_pr", normalized)
+        self.assertIn("build_feature", normalized)
+
+    def test_chaos_keeps_stabilization_when_already_running_commercial_turn(self) -> None:
+        self.agent = FounderAgent(
+            name="Tester",
+            startup_name="ChaosCo",
+            sector="saas",
+            strategy="chaos",
+            server="local://founder-arena",
+        )
+        my = {
+            "rich_state": {
+                "customers": {
+                    "trust_score": 0.72,
+                    "monthly_churn_rate": 0.03,
+                },
+                "operations": {
+                    "support_backlog": 8,
+                },
+                "risk": {
+                    "regulatory_pressure": 0.1,
+                    "financial_risk": 0.2,
+                },
+            },
+        }
+        chosen = ["support_recovery", "launch_pr", "build_feature"]
+        population = [
+            "support_recovery",
+            "launch_pr",
+            "build_feature",
+            "acquire_users",
+        ]
+
+        normalized = self.agent._chaos_limit_healthy_stabilization_mix(
+            chosen,
+            population,
+            cash=70000,
+            runway=9,
+            my=my,
+        )
+
+        self.assertEqual(normalized, chosen)
+
 if __name__ == "__main__":
     unittest.main()
