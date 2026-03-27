@@ -317,6 +317,33 @@ python battle_royale.py --turns 20
 python battle_royale.py --agents 8 --fast --turns 30 --name "Championship"
 ```
 
+## Seeded Balance Harness
+
+Use the local harness to validate ranked balance with deterministic seeded tournaments instead of ad hoc feel tests.
+
+```bash
+# Run 20 seeded competitive matches with the built-in bots
+python balance_harness.py --seed-count 20 --agents 4 --turns 52
+
+# Save machine-readable output for regression tracking
+python balance_harness.py --seed-count 20 --json-out data/balance-summary.json
+
+# Fail CI if ranked score and valuation diverge too often or one profile dominates
+python balance_harness.py --seed-count 20 ^
+  --max-winner-divergence-rate 0.25 ^
+  --max-best-archetype-win-rate 0.45 ^
+  --max-best-sector-win-rate 0.45
+```
+
+The harness reports:
+
+- win rate by archetype and agent
+- average placement
+- bankruptcy timing
+- action usage and failed action usage
+- score vs valuation divergence
+- scenario bias by sector and market segment
+
 ---
 
 ## Architecture
@@ -329,6 +356,7 @@ founder-arena/
     office.png       # Background image
   example_agent.py   # Example agent with 4 strategies (balanced, aggressive, lean, chaos)
   battle_royale.py   # Multi-agent launcher with CLI options
+  balance_harness.py # Deterministic seeded tournament runner for balance validation
   security.py        # Rate limiting, audit logging, token helpers
   action_mapper.py   # Action type definitions and mapping
   world_state.py     # Game world state management
