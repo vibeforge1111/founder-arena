@@ -574,6 +574,14 @@ class Game:
         scorecard = self._scorecard_for(startup)
         return float(scorecard.get("total_score", 0.0))
 
+    def _official_metric_kind(self) -> str:
+        return "score" if self.game_mode == "competitive_mode" else "valuation"
+
+    def _official_metric_value_for(self, startup) -> float:
+        if self.game_mode == "competitive_mode":
+            return self._score_value_for(startup)
+        return float(startup.calc_valuation())
+
     def _ranked_startups(self) -> list:
         if self.game_mode != "competitive_mode":
             return sorted(
@@ -2437,15 +2445,26 @@ async def leaderboard():
 
     for game in games.values():
         if game.phase == GamePhase.FINISHED:
-            for s in game.startups.values():
+            ranked = game._ranked_startups()
+            ranks_by_startup_id = {startup.id: index + 1 for index, startup in enumerate(ranked)}
+            for s in ranked:
                 val = s.calc_valuation()
+                score = game._score_value_for(s)
+                official_metric_kind = game._official_metric_kind()
+                official_metric = game._official_metric_value_for(s)
                 entries.append({
                     "game_id": game.id,
                     "game_name": game.name,
+                    "game_mode": game.game_mode,
+                    "queue": game.queue,
                     "agent_name": s.agent_name,
                     "startup_name": s.startup_name,
                     "sector": s.sector,
+                    "rank": ranks_by_startup_id[s.id],
+                    "score": score,
                     "valuation": val,
+                    "official_metric": official_metric,
+                    "official_metric_kind": official_metric_kind,
                     "users": s.users,
                     "revenue": s.revenue,
                     "survived": s.alive,
@@ -2458,14 +2477,25 @@ async def leaderboard():
                         "games_played": 0,
                         "wins": 0,
                         "survivals": 0,
+                        "competitive_games": 0,
+                        "competitive_wins": 0,
+                        "total_score": 0.0,
+                        "best_score": 0.0,
                         "total_valuation": 0,
                         "best_valuation": 0,
                         "sectors_played": [],
+                        "rank_basis": "valuation",
                     }
                 st = agent_stats[name]
                 st["games_played"] += 1
                 st["wins"] += 1 if game.winner == s.id else 0
                 st["survivals"] += 1 if s.alive else 0
+                if game.game_mode == "competitive_mode":
+                    st["competitive_games"] += 1
+                    st["competitive_wins"] += 1 if game.winner == s.id else 0
+                    st["total_score"] += score
+                    st["best_score"] = max(st["best_score"], score)
+                    st["rank_basis"] = "competitive_score"
                 st["total_valuation"] += val
                 st["best_valuation"] = max(st["best_valuation"], val)
                 if s.sector not in st["sectors_played"]:
@@ -2473,11 +2503,32 @@ async def leaderboard():
 
     for st in agent_stats.values():
         gp = st["games_played"]
+        competitive_games = st["competitive_games"]
         st["avg_valuation"] = int(st["total_valuation"] / gp) if gp else 0
+        st["avg_score"] = round(st["total_score"] / competitive_games, 2) if competitive_games else 0.0
         st["win_rate"] = round(st["wins"] / gp, 2) if gp else 0
 
-    ranked_agents = sorted(agent_stats.values(), key=lambda x: x["best_valuation"], reverse=True)
-    entries.sort(key=lambda x: x["valuation"], reverse=True)
+    ranked_agents = sorted(
+        agent_stats.values(),
+        key=lambda x: (
+            x["competitive_wins"],
+            x["best_score"],
+            x["avg_score"],
+            x["wins"],
+            x["best_valuation"],
+            x["avg_valuation"],
+        ),
+        reverse=True,
+    )
+    entries.sort(
+        key=lambda x: (
+            x["game_mode"] == "competitive_mode",
+            x["was_winner"],
+            x["official_metric"],
+            x["valuation"],
+        ),
+        reverse=True,
+    )
 
     return {
         "leaderboard": entries[:50],

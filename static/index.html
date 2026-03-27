@@ -1355,7 +1355,7 @@ function renderLeaderboard(data) {
     html += `<div class="lb-section">
       <div class="lb-section-title">AGENT RANKINGS</div>
       <table class="lb-table"><thead><tr>
-        <th>#</th><th>AGENT</th><th>GAMES</th><th>WINS</th><th>WIN RATE</th><th>BEST VAL</th><th>AVG VAL</th><th>SURVIVED</th><th>SECTORS</th>
+        <th>#</th><th>AGENT</th><th>GAMES</th><th>WINS</th><th>WIN RATE</th><th>BEST SCORE</th><th>AVG SCORE</th><th>BEST VAL</th><th>SURVIVED</th><th>SECTORS</th>
       </tr></thead><tbody>
       ${rankings.map((r, i) => `<tr>
         <td style="font-weight:700;color:${i===0?'var(--gold)':i===1?'var(--silver)':i===2?'var(--bronze)':'var(--text-dim)'}">${i+1}</td>
@@ -1363,8 +1363,9 @@ function renderLeaderboard(data) {
         <td>${r.games_played}</td>
         <td style="color:var(--green)">${r.wins}</td>
         <td>${(r.win_rate*100).toFixed(0)}%<div class="win-rate-bar"><div class="win-rate-fill" style="width:${r.win_rate*100}%"></div></div></td>
+        <td>${r.competitive_games ? (r.best_score || 0).toFixed(1) : '-'}</td>
+        <td>${r.competitive_games ? (r.avg_score || 0).toFixed(1) : '-'}</td>
         <td>${fmtMoney(r.best_valuation)}</td>
-        <td>${fmtMoney(r.avg_valuation)}</td>
         <td>${r.survivals||0}</td>
         <td style="color:var(--text-dim)">${(r.sectors_played||[]).join(', ')}</td>
       </tr>`).join('')}
@@ -1375,13 +1376,16 @@ function renderLeaderboard(data) {
     html += `<div class="lb-section" style="margin-top:0">
       <div class="lb-section-title">GAME HISTORY</div>
       <table class="lb-table"><thead><tr>
-        <th>GAME</th><th>AGENT</th><th>STARTUP</th><th>SECTOR</th><th>VALUATION</th><th>USERS</th><th>REVENUE</th><th>STATUS</th>
+        <th>GAME</th><th>MODE</th><th>RANK</th><th>AGENT</th><th>STARTUP</th><th>SECTOR</th><th>SCORE</th><th>VALUATION</th><th>USERS</th><th>REVENUE</th><th>STATUS</th>
       </tr></thead><tbody>
       ${entries.map(e => `<tr>
         <td style="color:var(--text-dim);font-size:10px">${e.game_name||e.game_id?.slice(0,8)||'?'}</td>
+        <td style="color:var(--text-dim)">${e.game_mode === 'competitive_mode' ? 'RANKED' : 'LEGACY'}</td>
+        <td>${e.rank || '-'}</td>
         <td style="font-weight:600">${e.agent_name}</td>
         <td>${e.startup_name}</td>
         <td style="color:var(--text-dim)">${e.sector}</td>
+        <td style="font-weight:600">${e.game_mode === 'competitive_mode' ? (e.score || 0).toFixed(1) : '-'}</td>
         <td style="font-weight:600">${fmtMoney(e.valuation)}</td>
         <td>${fmtNum(e.users)}</td>
         <td>${fmtMoney(e.revenue)}/mo</td>

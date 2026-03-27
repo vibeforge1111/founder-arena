@@ -67,6 +67,61 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertIn("join_code", payload)
         self.assertIn("spectator_token", payload)
 
+    def test_leaderboard_uses_score_for_competitive_results(self) -> None:
+        competitive_game = server.Game(
+            name="Competitive Finals",
+            max_players=2,
+            min_players=2,
+            turn_timeout=5,
+            max_turns=4,
+            seed=11,
+            use_rich_state=True,
+            game_mode="competitive_mode",
+        )
+        score_bot = competitive_game.add_startup("ScoreBot", "Alpha", "ai", "m1", "balanced")
+        value_bot = competitive_game.add_startup("ValueBot", "Beta", "saas", "m2", "balanced")
+        competitive_game.phase = server.GamePhase.FINISHED
+        competitive_game.turn = 4
+        competitive_game.winner = score_bot.id
+        score_bot.seven_dimension_scores = {"total_score": 88.0}
+        value_bot.seven_dimension_scores = {"total_score": 71.0}
+        score_bot.calc_valuation = lambda: 300_000
+        value_bot.calc_valuation = lambda: 900_000
+        server.games[competitive_game.id] = competitive_game
+
+        legacy_game = server.Game(
+            name="Legacy Finals",
+            max_players=1,
+            min_players=1,
+            turn_timeout=5,
+            max_turns=4,
+            seed=12,
+            use_rich_state=True,
+            game_mode="legacy_arena",
+        )
+        legacy_bot = legacy_game.add_startup("LegacyBot", "Gamma", "fintech", "m3", "balanced")
+        legacy_game.phase = server.GamePhase.FINISHED
+        legacy_game.turn = 4
+        legacy_game.winner = legacy_bot.id
+        legacy_bot.calc_valuation = lambda: 500_000
+        server.games[legacy_game.id] = legacy_game
+
+        response = self.client.get("/api/leaderboard")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["agent_rankings"][0]["agent_name"], "ScoreBot")
+        self.assertEqual(payload["agent_rankings"][0]["rank_basis"], "competitive_score")
+        self.assertEqual(payload["agent_rankings"][0]["best_score"], 88.0)
+        self.assertEqual(payload["agent_rankings"][0]["best_valuation"], 300_000)
+
+        competitive_entries = [entry for entry in payload["leaderboard"] if entry["game_mode"] == "competitive_mode"]
+        self.assertEqual(competitive_entries[0]["agent_name"], "ScoreBot")
+        self.assertEqual(competitive_entries[0]["rank"], 1)
+        self.assertEqual(competitive_entries[0]["official_metric_kind"], "score")
+        self.assertEqual(competitive_entries[0]["score"], 88.0)
+        self.assertGreater(competitive_entries[1]["valuation"], competitive_entries[0]["valuation"])
+
     def test_competitive_mode_exposes_turn_packet_and_decision_logs(self) -> None:
         create = self.client.post(
             "/api/games",
