@@ -43,6 +43,7 @@ jobs:
           --max-best-archetype-family-share-gap 0.20
           --max-best-archetype-healthy-stabilization-gap 0.30
           --max-best-archetype-pressured-stabilization-gap 0.15
+          --max-best-archetype-pressured-commercial-deficit 0.18
 
       - name: Upload balance summary
         uses: actions/upload-artifact@v4

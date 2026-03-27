@@ -378,6 +378,7 @@ The repo now includes a GitHub Actions workflow at `.github/workflows/balance-re
 - best archetype family share gap `<= 0.20`
 - best archetype healthy stabilization gap `<= 0.30`
 - best archetype pressured stabilization gap `<= 0.15`
+- best archetype pressured commercial deficit `<= 0.18`
 
 These are guardrails for obvious regressions, not final balance policy. The local 20-seed pass should stay tighter than the CI 10-seed pass; tighten the workflow only after collecting a larger baseline from repeated seeded runs.
 

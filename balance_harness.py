@@ -678,6 +678,15 @@ def _threshold_failures(summary: dict, args: argparse.Namespace) -> list[str]:
             .get("pressured_stabilization", 0.0)
         )
     )
+    best_archetype_pressured_commercial_deficit = max(
+        0.0,
+        -float(
+            summary.get("archetype_profile_deltas", {})
+            .get(best_archetype_name or "", {})
+            .get("pressure_action_family_share", {})
+            .get("pressured_commercial", 0.0)
+        ),
+    )
 
     if args.max_winner_divergence_rate is not None and divergence_rate > args.max_winner_divergence_rate:
         failures.append(
@@ -731,6 +740,14 @@ def _threshold_failures(summary: dict, args: argparse.Namespace) -> list[str]:
         failures.append(
             "best archetype pressured stabilization gap "
             f"{best_archetype_pressured_stabilization_gap:.3f} exceeded {args.max_best_archetype_pressured_stabilization_gap:.3f}"
+        )
+    if (
+        args.max_best_archetype_pressured_commercial_deficit is not None
+        and best_archetype_pressured_commercial_deficit > args.max_best_archetype_pressured_commercial_deficit
+    ):
+        failures.append(
+            "best archetype pressured commercial deficit "
+            f"{best_archetype_pressured_commercial_deficit:.3f} exceeded {args.max_best_archetype_pressured_commercial_deficit:.3f}"
         )
     return failures
 
@@ -816,6 +833,7 @@ def main() -> int:
     parser.add_argument("--max-best-archetype-family-share-gap", type=float, default=None)
     parser.add_argument("--max-best-archetype-healthy-stabilization-gap", type=float, default=None)
     parser.add_argument("--max-best-archetype-pressured-stabilization-gap", type=float, default=None)
+    parser.add_argument("--max-best-archetype-pressured-commercial-deficit", type=float, default=None)
     args = parser.parse_args()
 
     summary = run_seeded_tournament(
