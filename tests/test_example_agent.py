@@ -131,6 +131,62 @@ class ExampleAgentTests(unittest.TestCase):
         self.assertEqual(actions[1]["type"], "launch_pr")
         self.assertEqual(actions[2], {"type": "hire", "params": {"role": "marketer"}})
 
+    def test_balanced_scale_phase_does_not_schedule_support_recovery_without_pressure(self) -> None:
+        self.agent = FounderAgent(
+            name="Tester",
+            startup_name="BalancedCo",
+            sector="saas",
+            strategy="balanced",
+            server="local://founder-arena",
+        )
+        state = {
+            "game_mode": "competitive_mode",
+            "turn": 30,
+            "my_startup_id": "s1",
+            "hot_sectors": [],
+            "startups": {
+                "s1": {
+                    "cash": 90000,
+                    "users": 2400,
+                    "product_quality": 66,
+                    "morale": 60,
+                    "brand": 38,
+                    "team_size": 4,
+                    "runway": 8,
+                    "revenue": 18000,
+                    "sector": "saas",
+                    "rich_state": {
+                        "customers": {
+                            "trust_score": 0.74,
+                            "monthly_churn_rate": 0.025,
+                        },
+                        "operations": {
+                            "support_backlog": 10,
+                        },
+                        "risk": {
+                            "regulatory_pressure": 0.1,
+                        },
+                    },
+                }
+            },
+        }
+        turn_packet = {
+            "visible_actions": [
+                "build_feature",
+                "acquire_users",
+                "launch_pr",
+                "support_recovery",
+                "fundraise",
+                "hire",
+            ]
+        }
+
+        actions = self.agent.decide(state, turn_packet=turn_packet)
+        action_types = [action["type"] for action in actions]
+
+        self.assertEqual(action_types, ["acquire_users", "launch_pr", "build_feature"])
+        self.assertNotIn("support_recovery", action_types)
+
 
 if __name__ == "__main__":
     unittest.main()
