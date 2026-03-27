@@ -130,6 +130,7 @@ class BalanceHarnessTests(unittest.TestCase):
                     },
                     "pressure_action_family_share": {
                         "healthy_stabilization": 0.28,
+                        "pressured_stabilization": 0.22,
                     },
                 }
             },
@@ -152,12 +153,13 @@ class BalanceHarnessTests(unittest.TestCase):
                 "max_best_archetype_score_bias": 0.1,
                 "max_best_archetype_family_share_gap": 0.15,
                 "max_best_archetype_healthy_stabilization_gap": 0.2,
+                "max_best_archetype_pressured_stabilization_gap": 0.15,
             },
         )()
 
         failures = balance_harness._threshold_failures(summary, args)
 
-        self.assertEqual(len(failures), 8)
+        self.assertEqual(len(failures), 9)
         self.assertIn("winner divergence rate 0.400 exceeded 0.200", failures[0])
         self.assertIn("avg rank delta 0.70 exceeded 0.50", failures[1])
         self.assertIn("worst archetype avg placement 3.20 exceeded 3.00", failures[2])
@@ -166,6 +168,7 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("best archetype score bias 0.400 exceeded 0.100", failures[5])
         self.assertIn("best archetype family share gap 0.220 exceeded 0.150", failures[6])
         self.assertIn("best archetype healthy stabilization gap 0.280 exceeded 0.200", failures[7])
+        self.assertIn("best archetype pressured stabilization gap 0.220 exceeded 0.150", failures[8])
 
 
 if __name__ == "__main__":
