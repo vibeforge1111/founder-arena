@@ -132,6 +132,8 @@ def _bucket(table: dict, key: str) -> dict:
             "total_score": 0.0,
             "total_valuation": 0.0,
             "score_dimension_totals": {},
+            "action_usage": Counter(),
+            "failed_action_usage": Counter(),
         },
     )
 
@@ -221,6 +223,16 @@ def run_seeded_tournament(
             for entry in logs
             if not entry.get("success", False)
         )
+        action_usage_by_agent = {
+            startup.agent_name: Counter(entry["action_type"] for entry in logs)
+            for startup_id, logs in game.action_log.items()
+            for startup in [game.startups[startup_id]]
+        }
+        failed_usage_by_agent = {
+            startup.agent_name: Counter(entry["action_type"] for entry in logs if not entry.get("success", False))
+            for startup_id, logs in game.action_log.items()
+            for startup in [game.startups[startup_id]]
+        }
         action_usage.update(per_match_action_usage)
         failed_action_usage.update(per_match_failed_usage)
 
@@ -260,6 +272,8 @@ def run_seeded_tournament(
             agent_bucket["rank_deltas"].append(abs(score_rank - valuation_rank))
             agent_bucket["total_score"] += score_value
             agent_bucket["total_valuation"] += valuation_value
+            agent_bucket["action_usage"].update(action_usage_by_agent.get(agent_name, Counter()))
+            agent_bucket["failed_action_usage"].update(failed_usage_by_agent.get(agent_name, Counter()))
             if bankruptcy_turn is not None:
                 agent_bucket["bankruptcy_turns"].append(bankruptcy_turn)
             agent_bucket["strategy"] = config["strategy"]
@@ -279,6 +293,8 @@ def run_seeded_tournament(
             archetype_bucket["rank_deltas"].append(abs(score_rank - valuation_rank))
             archetype_bucket["total_score"] += score_value
             archetype_bucket["total_valuation"] += valuation_value
+            archetype_bucket["action_usage"].update(action_usage_by_agent.get(agent_name, Counter()))
+            archetype_bucket["failed_action_usage"].update(failed_usage_by_agent.get(agent_name, Counter()))
             if bankruptcy_turn is not None:
                 archetype_bucket["bankruptcy_turns"].append(bankruptcy_turn)
             for dimension, value in score_dimensions.items():
@@ -296,6 +312,8 @@ def run_seeded_tournament(
             sector_bucket["rank_deltas"].append(abs(score_rank - valuation_rank))
             sector_bucket["total_score"] += score_value
             sector_bucket["total_valuation"] += valuation_value
+            sector_bucket["action_usage"].update(action_usage_by_agent.get(agent_name, Counter()))
+            sector_bucket["failed_action_usage"].update(failed_usage_by_agent.get(agent_name, Counter()))
             if bankruptcy_turn is not None:
                 sector_bucket["bankruptcy_turns"].append(bankruptcy_turn)
             for dimension, value in score_dimensions.items():
@@ -313,6 +331,8 @@ def run_seeded_tournament(
             segment_bucket["rank_deltas"].append(abs(score_rank - valuation_rank))
             segment_bucket["total_score"] += score_value
             segment_bucket["total_valuation"] += valuation_value
+            segment_bucket["action_usage"].update(action_usage_by_agent.get(agent_name, Counter()))
+            segment_bucket["failed_action_usage"].update(failed_usage_by_agent.get(agent_name, Counter()))
             if bankruptcy_turn is not None:
                 segment_bucket["bankruptcy_turns"].append(bankruptcy_turn)
             for dimension, value in score_dimensions.items():
@@ -334,6 +354,8 @@ def run_seeded_tournament(
                 dimension: round(total / games, 2)
                 for dimension, total in sorted(bucket["score_dimension_totals"].items())
             }
+            bucket["action_usage"] = dict(sorted(bucket["action_usage"].items()))
+            bucket["failed_action_usage"] = dict(sorted(bucket["failed_action_usage"].items()))
             bucket.pop("rank_deltas", None)
             bucket.pop("total_score", None)
             bucket.pop("total_valuation", None)

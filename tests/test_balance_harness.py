@@ -73,6 +73,8 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("score_wins", aggressive)
         self.assertIn("valuation_wins", aggressive)
         self.assertIn("avg_score_dimensions", aggressive)
+        self.assertIn("action_usage", aggressive)
+        self.assertIn("failed_action_usage", aggressive)
         self.assertIn("cash_efficiency", aggressive["avg_score_dimensions"])
 
         score_winners = summary["winner_profiles"]["score_winners"]
