@@ -186,6 +186,42 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertGreater(resilient_score, exposed_score)
         self.assertGreater(resilient_score - exposed_score, 12.0)
 
+    def test_team_health_rewards_supportable_org_scale(self) -> None:
+        compact = RichStartupState(
+            agent_name="CompactBot",
+            startup_name="CompactCo",
+            sector="ai",
+            motto="Small but stable",
+            strategy="balanced",
+            seed=901,
+        )
+        scaled = RichStartupState(
+            agent_name="ScaledBot",
+            startup_name="ScaledCo",
+            sector="ai",
+            motto="Bigger and still stable",
+            strategy="balanced",
+            seed=902,
+        )
+
+        for startup in (compact, scaled):
+            startup.world_state["team"]["morale"] = 0.82
+            startup.world_state["team"]["delivery_capacity_index"] = 0.8
+            startup.world_state["team"]["attrition_risk"] = 0.08
+            startup.world_state["risk"]["financing_pressure"] = 0.1
+            startup.world_state["finance"]["monthly_revenue_usd"] = 140_000
+            startup.world_state["finance"]["monthly_burn_usd"] = 100_000
+            startup.world_state["finance"]["net_burn_usd"] = -40_000
+
+        compact.world_state["team"]["headcount"] = 3
+        scaled.world_state["team"]["headcount"] = 8
+
+        compact_score = server._compute_seven_dimension_scores(compact)["dimensions"]["team_health"]
+        scaled_score = server._compute_seven_dimension_scores(scaled)["dimensions"]["team_health"]
+
+        self.assertGreater(scaled_score, compact_score)
+        self.assertGreater(scaled_score - compact_score, 6.0)
+
     def test_api_info_separates_ranked_and_legacy_action_surfaces(self) -> None:
         response = self.client.get("/api/info")
 

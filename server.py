@@ -398,11 +398,16 @@ def _compute_seven_dimension_scores(startup) -> dict:
             burn_efficiency * 0.55
             + (100.0 - float(risk.get("financing_pressure", 0.0)) * 100.0) * 0.45
         )
+        team_scale_score = min(
+            float(team.get("headcount", len(getattr(startup, "team", [])) or 1)) / 10.0 * 100.0,
+            100.0,
+        )
         team_health = _clamp_score(
-            float(team.get("morale", 0.0)) * 35.0
-            + float(team.get("delivery_capacity_index", 0.0)) * 25.0
-            + (100.0 - float(team.get("attrition_risk", 0.0)) * 100.0) * 0.15
-            + team_supportability * 0.25
+            float(team.get("morale", 0.0)) * 30.0
+            + float(team.get("delivery_capacity_index", 0.0)) * 22.0
+            + (100.0 - float(team.get("attrition_risk", 0.0)) * 100.0) * 0.13
+            + team_supportability * 0.2
+            + team_scale_score * 0.15
         )
         risk_management = _clamp_score(
             (100.0 - float(risk.get("regulatory_pressure", 0.0)) * 100.0) * 0.24
