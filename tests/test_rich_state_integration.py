@@ -125,6 +125,10 @@ class RichStateIntegrationTests(unittest.TestCase):
         packet_payload = turn_packet.json()
         self.assertEqual(packet_payload["schema_version"], "founder-arena.turn-packet.v1")
         self.assertEqual(packet_payload["startup"]["startup_id"], join_1.json()["startup_id"])
+        self.assertIn("board_sync", packet_payload["visible_actions"])
+        self.assertNotIn("pivot", packet_payload["visible_actions"])
+        self.assertNotIn("spy", packet_payload["visible_actions"])
+        self.assertNotIn("poach", packet_payload["visible_actions"])
 
         action_1 = self.client.post(
             f"/api/games/{game_id}/action",
@@ -470,6 +474,7 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertIn("stress_index", startup_payload)
         self.assertIn("challenge_info", startup_payload)
         self.assertIn("seven_dimension_scores", startup_payload)
+        self.assertIn("score", ranking_payload)
         self.assertIn("seven_dimension_scores", ranking_payload)
         self.assertEqual(
             set(ranking_payload["seven_dimension_scores"]["dimensions"].keys()),
@@ -483,6 +488,64 @@ class RichStateIntegrationTests(unittest.TestCase):
                 "strategic_coherence",
             },
         )
+
+    def test_competitive_mode_uses_score_for_turn_rank_leader_winner_and_replay(self) -> None:
+        game = server.Game(
+            name="Ranked Objective Test",
+            max_players=2,
+            min_players=2,
+            turn_timeout=5,
+            max_turns=3,
+            seed=123,
+            use_rich_state=True,
+            game_mode="competitive_mode",
+            queue="github_ranked",
+        )
+        startup_a = game.add_startup("ScoreBot", "Alpha", "ai", "m1", "balanced")
+        startup_b = game.add_startup("ValueBot", "Beta", "fintech", "m2", "aggressive")
+        game.start()
+
+        startup_a.cash = 80_000
+        startup_a.users = 200
+        startup_b.cash = 2_000_000
+        startup_b.users = 12_000
+
+        scorecards = {
+            startup_a.id: {"dimensions": {}, "total_score": 81.5},
+            startup_b.id: {"dimensions": {}, "total_score": 63.2},
+        }
+
+        with mock.patch(
+            "server._compute_seven_dimension_scores",
+            side_effect=lambda startup: scorecards[startup.id],
+        ):
+            turn_packet = game.get_turn_packet(startup_a.agent_token)
+            self.assertEqual(turn_packet["startup"]["rank"], 1)
+            self.assertEqual(turn_packet["rivals"][0]["startup_name"], "Beta")
+            self.assertEqual(turn_packet["rivals"][0]["rank"], 2)
+
+            startup_a.actions_submitted = True
+            startup_b.actions_submitted = True
+            startup_a.pending_actions = []
+            startup_b.pending_actions = []
+
+            with mock.patch.object(game.director, "decide_and_apply", return_value=None), mock.patch.object(
+                game.action_mapper,
+                "advance_week",
+                return_value={"action": "sim.advance", "success": True},
+            ):
+                game._resolve_turn()
+
+            self.assertTrue(any("Leading: Alpha (81.5 score" in entry for entry in game.narrative))
+
+            game._end_game()
+            replay = game.get_replay()
+
+        self.assertEqual(game.winner, startup_a.id)
+        self.assertEqual(replay["rankings"][0]["startup"], "Alpha")
+        self.assertEqual(replay["rankings"][0]["score"], 81.5)
+        self.assertGreater(replay["rankings"][1]["valuation"], replay["rankings"][0]["valuation"])
+        self.assertTrue(any("WINS with 81.5 score" in entry for entry in game.narrative))
 
     def test_low_trust_is_a_recoverable_crisis_not_an_instant_death(self) -> None:
         game = server.Game(
@@ -715,6 +778,106 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertLess(startup.world_state["operations"]["support_backlog"], 30)
         self.assertGreater(startup.world_state["customers"]["trust_score"], 0.35)
 
+    def test_ranked_competitive_mode_rejects_legacy_only_actions(self) -> None:
+        game = server.Game(
+            name="Ranked Legacy Action Test",
+            max_players=2,
+            min_players=2,
+            turn_timeout=5,
+            max_turns=2,
+            seed=123,
+            use_rich_state=True,
+            game_mode="competitive_mode",
+            queue="github_ranked",
+        )
+        startup_a = game.add_startup("A1", "Alpha", "ai", "m1", "balanced")
+        game.add_startup("A2", "Beta", "saas", "m2", "balanced")
+        game.start()
+
+        with self.assertRaises(ValueError) as ctx:
+            game.submit_actions(startup_a.agent_token, [{"type": "pivot", "params": {"sector": "fintech"}}])
+
+        self.assertIn("not available in ranked competitive mode", str(ctx.exception))
+
+    def test_ranked_action_cooldowns_are_deterministic(self) -> None:
+        action_params = {
+            "board_sync": {"update_type": "operating_update"},
+            "research": {},
+            "support_recovery": {},
+            "incident_response": {},
+            "compliance_response": {},
+        }
+        expected_turns = {
+            "board_sync": 5,
+            "research": 4,
+            "support_recovery": 4,
+            "incident_response": 4,
+            "compliance_response": 4,
+        }
+
+        for action_type, params in action_params.items():
+            with self.subTest(action_type=action_type):
+                startup = RichStartupState(
+                    agent_name="Tester",
+                    startup_name="DeepCo",
+                    sector="ai",
+                    motto="Test deeply",
+                    strategy="balanced",
+                    seed=123,
+                )
+                startup.game_mode = "competitive_mode"
+                startup.world_state["operations"]["support_backlog"] = 30
+                startup.world_state["customers"]["trust_score"] = 0.35
+                startup.world_state["product"]["major_incidents_open"] = 1
+                startup.world_state["risk"]["regulatory_pressure"] = 0.8
+                startup.recalculate()
+                mapper = server.ActionMapper(server.random.Random(123))
+
+                first = mapper.execute(startup, {"type": action_type, "params": params}, turn_index=1)
+                second = mapper.execute(startup, {"type": action_type, "params": params}, turn_index=2)
+                third = mapper.execute(
+                    startup,
+                    {"type": action_type, "params": params},
+                    turn_index=expected_turns[action_type],
+                )
+
+                self.assertTrue(first["success"])
+                self.assertFalse(second["success"])
+                self.assertIn("cooldown", second["message"])
+                self.assertTrue(third["success"])
+
+    def test_turn_packet_exposes_ranked_cooldown_state(self) -> None:
+        game = server.Game(
+            name="Ranked Cooldown Packet Test",
+            max_players=2,
+            min_players=2,
+            turn_timeout=5,
+            max_turns=3,
+            seed=123,
+            use_rich_state=True,
+            game_mode="competitive_mode",
+            queue="github_ranked",
+        )
+        startup_a = game.add_startup("A1", "Alpha", "ai", "m1", "balanced")
+        startup_b = game.add_startup("A2", "Beta", "saas", "m2", "balanced")
+        game.start()
+
+        startup_a.pending_actions = [{"type": "board_sync", "params": {"update_type": "opening_update"}}]
+        startup_b.pending_actions = [{"type": "build_feature", "params": {"focus": "core"}}]
+        startup_a.actions_submitted = True
+        startup_b.actions_submitted = True
+
+        with mock.patch.object(game.director, "decide_and_apply", return_value=None), mock.patch.object(
+            game.action_mapper,
+            "advance_week",
+            return_value={"action": "sim.advance", "success": True},
+        ):
+            game._resolve_turn()
+
+        packet = game.get_turn_packet(startup_a.agent_token)
+        self.assertNotIn("board_sync", packet["visible_actions"])
+        self.assertEqual(packet["startup"]["action_cooldowns"]["board_sync"], 3)
+
     def test_fundraise_has_cooldown_and_stage_progression(self) -> None:
         startup = RichStartupState(
             agent_name="Tester",
@@ -731,7 +894,7 @@ class RichStateIntegrationTests(unittest.TestCase):
 
         self.assertTrue(first["success"])
         self.assertFalse(second["success"])
-        self.assertIn("soon", second["message"])
+        self.assertIn("cooldown", second["message"])
 
         startup.total_raised = 400000
         third = mapper.execute(startup, {"type": "fundraise", "params": {"round": "angel"}}, turn_index=5)

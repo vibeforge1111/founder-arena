@@ -14,6 +14,27 @@ from thestartupbench.runtime import execute_tool_call
 
 
 LEGACY_ARENA_ONLY_ACTIONS = {"pivot", "spy", "poach"}
+RANKED_ACTION_TYPES = (
+    "build_feature",
+    "hire",
+    "fundraise",
+    "acquire_users",
+    "launch_pr",
+    "cut_costs",
+    "research",
+    "support_recovery",
+    "incident_response",
+    "compliance_response",
+    "board_sync",
+)
+RANKED_ACTION_COOLDOWNS = {
+    "fundraise": 3,
+    "board_sync": 4,
+    "research": 3,
+    "support_recovery": 3,
+    "incident_response": 3,
+    "compliance_response": 3,
+}
 ROUND_ORDER = ["angel", "seed", "series_a", "series_b"]
 READ_ONLY_EXTENDED_TOOLS = {
     "metrics.report",
@@ -26,11 +47,56 @@ class ActionMapper:
         self.rng = rng
 
     @staticmethod
+    def ranked_actions() -> list[str]:
+        return list(RANKED_ACTION_TYPES)
+
+    @staticmethod
     def _bump_metric(startup, area: str, key: str, delta: float, *, minimum: float = 0.0, maximum: float = 1.0) -> None:
         bucket = startup.world_state.setdefault(area, {})
         current = float(bucket.get(key, 0.0))
         bucket[key] = round(max(minimum, min(maximum, current + delta)), 4)
         startup.recalculate()
+
+    @staticmethod
+    def _cooldown_state(startup) -> dict:
+        state = getattr(startup, "action_cooldowns", None)
+        if state is None:
+            state = {}
+            startup.action_cooldowns = state
+        return state
+
+    def cooldown_remaining(self, startup, action_type: str, turn_index: int) -> int:
+        cooldown_turns = int(RANKED_ACTION_COOLDOWNS.get(action_type, 0))
+        if cooldown_turns <= 0:
+            return 0
+        cooldown_state = self._cooldown_state(startup)
+        last_turn = cooldown_state.get(action_type)
+        if last_turn is None and action_type == "fundraise":
+            legacy_turn = getattr(startup, "last_fundraise_turn", None)
+            if legacy_turn is not None:
+                last_turn = int(legacy_turn)
+        if last_turn is None:
+            return 0
+        return max(0, cooldown_turns - (turn_index - int(last_turn)))
+
+    def current_cooldowns(self, startup, turn_index: int) -> dict[str, int]:
+        return {
+            action_type: remaining
+            for action_type in RANKED_ACTION_COOLDOWNS
+            if (remaining := self.cooldown_remaining(startup, action_type, turn_index)) > 0
+        }
+
+    def ranked_actions_for_turn(self, startup, turn_index: int) -> list[str]:
+        cooldowns = self.current_cooldowns(startup, turn_index)
+        return [action_type for action_type in RANKED_ACTION_TYPES if action_type not in cooldowns]
+
+    def _mark_action_used(self, startup, action_type: str, turn_index: int) -> None:
+        if action_type not in RANKED_ACTION_COOLDOWNS:
+            return
+        cooldown_state = self._cooldown_state(startup)
+        cooldown_state[action_type] = int(turn_index)
+        if action_type == "fundraise":
+            startup.last_fundraise_turn = int(turn_index)
 
     def execute(self, startup, action: dict, turn_index: int) -> dict | None:
         action_type = str(action.get("type", ""))
@@ -48,6 +114,12 @@ class ActionMapper:
             return self._run_tool(startup, tool_name, arguments, action_label=tool_name, turn_index=turn_index)
 
         if action_type in LEGACY_ARENA_ONLY_ACTIONS:
+            if getattr(startup, "game_mode", None) == "competitive_mode":
+                return {
+                    "action": action_type,
+                    "success": False,
+                    "message": f"{action_type} is not available in ranked competitive mode",
+                }
             return None
 
         handler = getattr(self, f"_map_{action_type}", None)
@@ -57,7 +129,18 @@ class ActionMapper:
                 "success": False,
                 "message": f"Unknown action: {action_type}",
             }
-        return handler(startup, params or {}, turn_index)
+        remaining = self.cooldown_remaining(startup, action_type, turn_index)
+        if remaining > 0:
+            return {
+                "action": action_type,
+                "success": False,
+                "message": f"{action_type} is on cooldown for {remaining} more turn(s)",
+                "cooldown_remaining": remaining,
+            }
+        result = handler(startup, params or {}, turn_index)
+        if result.get("success"):
+            self._mark_action_used(startup, action_type, turn_index)
+        return result
 
     def advance_week(self, startup, turn_index: int) -> dict:
         return self._run_tool(
@@ -153,9 +236,6 @@ class ActionMapper:
         if requested_round not in round_terms:
             return {"action": "fundraise", "success": False, "message": "Invalid round"}
         round_type = ROUND_ORDER[max(ROUND_ORDER.index(requested_round), ROUND_ORDER.index(minimum_round))]
-        last_raise_turn = getattr(startup, "last_fundraise_turn", None)
-        if last_raise_turn is not None and turn_index - int(last_raise_turn) < 3:
-            return {"action": "fundraise", "success": False, "message": "Investors will not take another round this soon"}
         config = round_terms.get(round_type)
         if config is None:
             return {"action": "fundraise", "success": False, "message": "Invalid round"}
@@ -171,7 +251,6 @@ class ActionMapper:
             turn_index=turn_index,
         )
         if result["success"]:
-            startup.last_fundraise_turn = turn_index
             startup.total_raised = startup.total_raised + int(config["raise_amount_usd"])
             startup.funding_round = round_type
             startup.dilution = startup.dilution

@@ -1277,12 +1277,18 @@ function renderPostGame() {
 
   const winnerId = gameData.winner;
   const winner = winnerId ? startups[winnerId] : (sorted[0] ? sorted[0][1] : null);
+  const winnerScore = winner ? scoreValueForStartup(winner) : 0;
+  const winnerSummary = !winner ? '' : (
+    gameData.game_mode === 'competitive_mode'
+      ? `${winner.agent_name} wins with ${winnerScore.toFixed(1)} score (${fmtMoney(winner.valuation)} valuation)`
+      : `${winner.agent_name} wins with ${fmtMoney(winner.valuation)} valuation`
+  );
 
   let html = `
     <div class="postgame-banner">
       <div class="postgame-title">GAME OVER</div>
       <div class="postgame-winner">${winner ? winner.startup_name : 'No Winner'}</div>
-      <div class="postgame-sub">${winner ? `${winner.agent_name} wins with ${fmtMoney(winner.valuation)} valuation` : ''}</div>
+      <div class="postgame-sub">${winnerSummary}</div>
     </div>
     <div class="postgame-table-wrap">
       <table class="score-table"><thead><tr>

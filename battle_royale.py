@@ -189,8 +189,9 @@ def main():
     for r in replay["rankings"]:
         status = "ALIVE" if r["alive"] else f"DEAD ({r['death_reason']})"
         winner_mark = " *** WINNER ***" if r["rank"] == 1 and r["alive"] else ""
+        score_text = f"{r['score']:.1f} score | " if replay.get("game_mode") == "competitive_mode" else ""
         print(f"  #{r['rank']} {r['startup']} ({r['agent']}) "
-              f"- ${r['valuation']:,} | {r['users']:,} users | "
+              f"- {score_text}${r['valuation']:,} | {r['users']:,} users | "
               f"${r['revenue']:,}/mo [{status}]{winner_mark}")
 
     print("=" * 60)

@@ -27,7 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
-from action_mapper import ActionMapper
+from action_mapper import ActionMapper, RANKED_ACTION_COOLDOWNS
 from director_adapter import ArenaDirector
 from example_agent import FounderAgent
 from security import AuditLogger, RateLimiter, token_fingerprint
@@ -568,11 +568,25 @@ class Game:
         return float(scorecard.get("total_score", 0.0))
 
     def _ranked_startups(self) -> list:
+        if self.game_mode != "competitive_mode":
+            return sorted(
+                self.startups.values(),
+                key=lambda s: (s.alive, s.calc_valuation()),
+                reverse=True,
+            )
         return sorted(
             self.startups.values(),
             key=lambda s: (s.alive, self._score_value_for(s), s.calc_valuation()),
             reverse=True,
         )
+
+    def _leader_callout(self, startup) -> str:
+        if self.game_mode == "competitive_mode":
+            return (
+                f"📈 Leading: {startup.startup_name} "
+                f"({self._score_value_for(startup):.1f} score, ${startup.calc_valuation():,} valuation)"
+            )
+        return f"📈 Leading: {startup.startup_name} (${startup.calc_valuation():,} valuation)"
 
     def _arc_profile(self, challenge: dict) -> dict:
         family_id = challenge.get("family_id") or challenge.get("base_family_id") or ""
@@ -645,6 +659,15 @@ class Game:
     def _build_turn_packet(self, startup) -> dict:
         ranked = self._ranked_startups()
         my_rank = next((index + 1 for index, item in enumerate(ranked) if item.id == startup.id), len(ranked))
+        visible_actions = (
+            self.action_mapper.ranked_actions_for_turn(startup, self.turn)
+            if self.game_mode == "competitive_mode"
+            else [
+                "build_feature", "hire", "fundraise", "acquire_users", "pivot",
+                "spy", "poach", "launch_pr", "cut_costs", "research",
+                "support_recovery", "incident_response", "compliance_response", "board_sync",
+            ]
+        )
         rivals = []
         for index, rival in enumerate(ranked):
             if rival.id == startup.id:
@@ -685,14 +708,26 @@ class Game:
                 "recent_actions": [entry["action_type"] for entry in self.action_log.get(startup.id, [])[-3:]],
                 "private_notes": self._watch_items_for(startup),
                 "rank": my_rank,
+                "action_cooldowns": self.action_mapper.current_cooldowns(startup, self.turn),
             },
             "rivals": rivals[: max(0, self.max_players - 1)],
-            "visible_actions": [
-                "build_feature", "hire", "fundraise", "acquire_users", "pivot",
-                "spy", "poach", "launch_pr", "cut_costs", "research",
-                "support_recovery", "incident_response", "compliance_response", "board_sync",
-            ],
+            "visible_actions": visible_actions,
         }
+
+    def _validate_ranked_actions(self, startup, actions: list[dict]) -> None:
+        allowed_actions = set(ActionMapper.ranked_actions())
+        seen_cooldown_actions: set[str] = set()
+        for action in actions:
+            action_type = str(action.get("type", ""))
+            if action_type not in allowed_actions:
+                raise ValueError(f"{action_type} is not available in ranked competitive mode")
+            if action_type in RANKED_ACTION_COOLDOWNS:
+                if action_type in seen_cooldown_actions:
+                    raise ValueError(f"{action_type} cannot be used more than once per turn in ranked competitive mode")
+                seen_cooldown_actions.add(action_type)
+                remaining = self.action_mapper.cooldown_remaining(startup, action_type, self.turn)
+                if remaining > 0:
+                    raise ValueError(f"{action_type} is on cooldown for {remaining} more turn(s) in ranked competitive mode")
 
     def get_turn_packet(self, token: str) -> dict:
         startup = self.get_startup_by_token(token)
@@ -773,6 +808,7 @@ class Game:
             strategy,
             seed=self.seed + len(self.startups) + 1,
         )
+        s.game_mode = self.game_mode
         self.startups[s.id] = s
         self.token_map[s.agent_token] = s.id
         self._narrate(f"🏁 {startup_name} ({agent_name}) enters the arena in {sector}! \"{motto}\"")
@@ -816,6 +852,8 @@ class Game:
 
         if len(effective_actions) > MAX_ACTIONS_PER_TURN:
             raise ValueError(f"Max {MAX_ACTIONS_PER_TURN} actions per turn")
+        if self.game_mode == "competitive_mode":
+            self._validate_ranked_actions(startup, effective_actions)
 
         startup.pending_actions = effective_actions
         startup.actions_submitted = True
@@ -954,8 +992,8 @@ class Game:
         # 7. Generate turn narrative
         alive_now = [s for s in self.startups.values() if s.alive]
         if alive_now:
-            leader = max(alive_now, key=lambda s: s.calc_valuation())
-            self._narrate(f"📈 Leading: {leader.startup_name} (${leader.calc_valuation():,} valuation)")
+            leader = self._ranked_startups()[0]
+            self._narrate(self._leader_callout(leader))
 
         # 8. Reset for next turn
         for s in self.startups.values():
@@ -1419,21 +1457,35 @@ class Game:
         self.phase = GamePhase.FINISHED
         for startup in self.startups.values():
             startup.seven_dimension_scores = _compute_seven_dimension_scores(startup)
-        alive = [s for s in self.startups.values() if s.alive]
+        ranked = self._ranked_startups()
+        alive = [s for s in ranked if s.alive]
         if alive:
-            winner = max(alive, key=lambda s: s.calc_valuation())
+            winner = alive[0]
             self.winner = winner.id
-            self._narrate(f"🏆 GAME OVER! {winner.startup_name} ({winner.agent_name}) "
-                          f"WINS with ${winner.calc_valuation():,} valuation!")
+            if self.game_mode == "competitive_mode":
+                self._narrate(
+                    f"🏆 GAME OVER! {winner.startup_name} ({winner.agent_name}) "
+                    f"WINS with {self._score_value_for(winner):.1f} score "
+                    f"(${winner.calc_valuation():,} valuation)."
+                )
+            else:
+                self._narrate(
+                    f"🏆 GAME OVER! {winner.startup_name} ({winner.agent_name}) "
+                    f"WINS with ${winner.calc_valuation():,} valuation!"
+                )
         else:
             self._narrate("💀 GAME OVER! Everyone went bankrupt. No winners.")
 
         # Generate final rankings
-        ranked = sorted(self.startups.values(),
-                        key=lambda s: (s.alive, s.calc_valuation()), reverse=True)
         for i, s in enumerate(ranked):
             status = "ALIVE" if s.alive else f"DEAD ({s.death_reason})"
-            self._narrate(f"#{i+1} {s.startup_name} - ${s.calc_valuation():,} [{status}]")
+            if self.game_mode == "competitive_mode":
+                self._narrate(
+                    f"#{i+1} {s.startup_name} - "
+                    f"{self._score_value_for(s):.1f} score | ${s.calc_valuation():,} [{status}]"
+                )
+            else:
+                self._narrate(f"#{i+1} {s.startup_name} - ${s.calc_valuation():,} [{status}]")
 
     def _scorecard_for(self, startup) -> dict:
         if getattr(startup, "seven_dimension_scores", None) is None:
@@ -1541,8 +1593,7 @@ class Game:
 
     def get_replay(self) -> dict:
         """Full game replay data."""
-        ranked = sorted(self.startups.values(),
-                        key=lambda s: (s.alive, s.calc_valuation()), reverse=True)
+        ranked = self._ranked_startups()
         return {
             "game_id": self.id,
             "name": self.name,
@@ -1555,6 +1606,7 @@ class Game:
             "rankings": [
                 {"rank": i+1, "startup": s.startup_name, "agent": s.agent_name,
                  "sector": s.sector, "valuation": s.calc_valuation(),
+                 "score": self._score_value_for(s),
                  "alive": s.alive, "death_reason": s.death_reason,
                  "users": s.users, "revenue": s.revenue, "cash": s.cash,
                  "total_raised": s.total_raised, "features_built": s.features_built,
@@ -1853,6 +1905,7 @@ async def info():
             "spy", "poach", "launch_pr", "cut_costs", "research",
             "support_recovery", "incident_response", "compliance_response", "board_sync",
         ],
+        "ranked_actions": ActionMapper.ranked_actions(),
         "fundraise_rounds": ["angel", "seed", "series_a", "series_b"],
         "acquire_channels": ["organic", "paid_ads", "viral", "partnerships"],
         "supports_use_rich_state": True,

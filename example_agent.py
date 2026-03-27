@@ -211,7 +211,28 @@ class FounderAgent:
             return "trust_score"
         return "score"
 
-    def decide(self, state: dict) -> list[dict]:
+    def _filter_visible_actions(self, actions: list[dict], visible_actions: set[str] | None) -> list[dict]:
+        if visible_actions is None:
+            return actions
+        return [action for action in actions if action.get("type") in visible_actions]
+
+    def _fallback_actions(self, *, cash: int, visible_actions: set[str] | None) -> list[dict]:
+        fallback_order = [
+            ("acquire_users", {"channel": "organic"}, cash > 8000),
+            ("build_feature", {"focus": "core"}, cash > 20000),
+            ("research", {}, cash > 5000),
+            ("board_sync", {"update_type": "operating_update"}, True),
+            ("cut_costs", {"target": "general"}, True),
+        ]
+        for action_type, params, condition in fallback_order:
+            if not condition:
+                continue
+            if visible_actions is not None and action_type not in visible_actions:
+                continue
+            return [{"type": action_type, "params": params}]
+        return []
+
+    def decide(self, state: dict, turn_packet: dict | None = None) -> list[dict]:
         """
         Core decision engine. This is where the magic happens.
         Replace this with your LLM-powered strategy!
@@ -235,6 +256,12 @@ class FounderAgent:
         churn = float(rich_state.get("customers", {}).get("monthly_churn_rate", 0.04))
         support_backlog = float(rich_state.get("operations", {}).get("support_backlog", 0.0))
         regulatory_pressure = float(rich_state.get("risk", {}).get("regulatory_pressure", 0.0))
+        visible_actions = set((turn_packet or {}).get("visible_actions") or [])
+        active_visible_actions = (
+            visible_actions
+            if state.get("game_mode") == "competitive_mode" and turn_packet is not None
+            else None
+        )
 
         actions = []
 
@@ -246,7 +273,9 @@ class FounderAgent:
             turn=turn,
         )
         if opening_actions:
-            return opening_actions[:3]
+            filtered_opening = self._filter_visible_actions(opening_actions[:3], active_visible_actions)
+            if filtered_opening:
+                return filtered_opening
 
         recovery_actions = self._recovery_actions(
             cash=cash,
@@ -259,7 +288,9 @@ class FounderAgent:
             turn=turn,
         )
         if recovery_actions:
-            return recovery_actions[:3]
+            filtered_recovery = self._filter_visible_actions(recovery_actions[:3], active_visible_actions)
+            if filtered_recovery:
+                return filtered_recovery
 
         # Strategy: Balanced Growth
         if self.strategy == "balanced":
@@ -276,19 +307,19 @@ class FounderAgent:
             )
         elif self.strategy == "chaos":
             actions = self._strategy_chaos(
-                cash, users, quality, morale, brand, team_size, runway, revenue, turn, hot_sectors, my, state
+                cash, users, quality, morale, brand, team_size, runway, revenue, turn, hot_sectors, my, state,
+                active_visible_actions,
             )
         else:
             actions = self._strategy_balanced(
                 cash, users, quality, morale, brand, team_size, runway, revenue, turn, hot_sectors, my
             )
 
+        actions = self._filter_visible_actions(actions[:3], active_visible_actions)
+
         # Fallback: always do at least something
         if not actions:
-            if cash > 8000:
-                actions = [{"type": "acquire_users", "params": {"channel": "organic"}}]
-            else:
-                actions = [{"type": "research", "params": {}}]
+            actions = self._fallback_actions(cash=cash, visible_actions=active_visible_actions)
 
         return actions[:3]
 
@@ -497,16 +528,23 @@ class FounderAgent:
         return actions[:3]
 
     def _strategy_chaos(self, cash, users, quality, morale, brand,
-                        team_size, runway, revenue, turn, hot_sectors, my, state):
-        """The Chaotic Agent: unpredictable, spies, poaches, pivots randomly."""
+                        team_size, runway, revenue, turn, hot_sectors, my, state, visible_actions=None):
+        """The Chaotic Agent: unpredictable within the currently available action surface."""
         actions = []
         all_types = [
             "build_feature", "hire", "fundraise", "acquire_users",
             "pivot", "spy", "poach", "launch_pr", "cut_costs", "research"
         ]
+        extra_types = ["support_recovery", "incident_response", "compliance_response", "board_sync"]
+        if visible_actions is not None:
+            all_types = [action_type for action_type in all_types if action_type in visible_actions]
+            extra_types = [action_type for action_type in extra_types if action_type in visible_actions]
+        population = all_types + extra_types
+        if not population:
+            return []
 
         # Pick 3 random actions
-        chosen = random.sample(all_types + ["support_recovery", "incident_response", "compliance_response", "board_sync"], 3)
+        chosen = random.sample(population, min(3, len(population)))
 
         for action_type in chosen:
             if action_type == "build_feature":
@@ -568,7 +606,7 @@ class FounderAgent:
 
         # Decide and submit
         turn_packet = self._competitive_context(state)
-        actions = self.decide(state)
+        actions = self.decide(state, turn_packet=turn_packet)
         if actions:
             try:
                 decision_packet = self._build_decision_packet(state, turn_packet, actions)
