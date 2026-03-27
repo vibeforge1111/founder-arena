@@ -67,8 +67,11 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("win_rate", aggressive)
         self.assertIn("avg_placement", aggressive)
         self.assertIn("avg_bankruptcy_turn", aggressive)
+        self.assertIn("avg_rank_delta", aggressive)
         self.assertIn("avg_score", aggressive)
         self.assertIn("avg_valuation", aggressive)
+        self.assertIn("score_wins", aggressive)
+        self.assertIn("valuation_wins", aggressive)
         self.assertIn("avg_score_dimensions", aggressive)
         self.assertIn("cash_efficiency", aggressive["avg_score_dimensions"])
 
