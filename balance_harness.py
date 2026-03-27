@@ -167,15 +167,29 @@ def _winner_profile_bucket() -> dict:
         "score_dimension_totals": {},
         "agent_counts": Counter(),
         "strategy_counts": Counter(),
+        "action_usage": Counter(),
+        "intent_usage": Counter(),
+        "watch_metric_usage": Counter(),
     }
 
 
-def _record_winner_profile(bucket: dict, entry: dict, config: dict) -> None:
+def _record_winner_profile(
+    bucket: dict,
+    entry: dict,
+    config: dict,
+    *,
+    action_usage: Counter | None = None,
+    intent_usage: Counter | None = None,
+    watch_metric_usage: Counter | None = None,
+) -> None:
     bucket["count"] += 1
     bucket["total_score"] += float(entry.get("score", 0.0))
     bucket["total_valuation"] += float(entry.get("valuation", 0.0))
     bucket["agent_counts"][entry.get("agent", "")] += 1
     bucket["strategy_counts"][config.get("strategy", "unknown")] += 1
+    bucket["action_usage"].update(action_usage or Counter())
+    bucket["intent_usage"].update(intent_usage or Counter())
+    bucket["watch_metric_usage"].update(watch_metric_usage or Counter())
     for dimension, value in dict((entry.get("seven_dimension_scores") or {}).get("dimensions") or {}).items():
         bucket["score_dimension_totals"][dimension] = round(
             bucket["score_dimension_totals"].get(dimension, 0.0) + float(value),
@@ -195,6 +209,9 @@ def _finalize_winner_profile(bucket: dict) -> dict:
         },
         "agent_counts": dict(bucket.get("agent_counts", {})),
         "strategy_counts": dict(bucket.get("strategy_counts", {})),
+        "action_usage": dict(sorted(bucket.get("action_usage", {}).items())),
+        "intent_usage": dict(sorted(bucket.get("intent_usage", {}).items())),
+        "watch_metric_usage": dict(sorted(bucket.get("watch_metric_usage", {}).items())),
     }
 
 
@@ -230,15 +247,6 @@ def run_seeded_tournament(
         winner_agent = rankings[0]["agent"] if rankings else ""
         valuation_winner = valuation_rankings[0]["agent"] if valuation_rankings else ""
         divergence_winner_count += 1 if winner_agent != valuation_winner else 0
-        if rankings:
-            _record_winner_profile(score_winner_profile, rankings[0], config_by_agent[rankings[0]["agent"]])
-        if valuation_rankings:
-            _record_winner_profile(
-                valuation_winner_profile,
-                valuation_rankings[0],
-                config_by_agent[valuation_rankings[0]["agent"]],
-            )
-
         per_match_action_usage = Counter(entry["action_type"] for logs in game.action_log.values() for entry in logs)
         per_match_failed_usage = Counter(
             entry["action_type"]
@@ -275,6 +283,26 @@ def run_seeded_tournament(
             decision_intent_usage.update(counts)
         for counts in watch_metric_usage_by_agent.values():
             watch_metric_usage.update(counts)
+        if rankings:
+            winner_name = rankings[0]["agent"]
+            _record_winner_profile(
+                score_winner_profile,
+                rankings[0],
+                config_by_agent[winner_name],
+                action_usage=action_usage_by_agent.get(winner_name, Counter()),
+                intent_usage=intent_usage_by_agent.get(winner_name, Counter()),
+                watch_metric_usage=watch_metric_usage_by_agent.get(winner_name, Counter()),
+            )
+        if valuation_rankings:
+            valuation_winner_name = valuation_rankings[0]["agent"]
+            _record_winner_profile(
+                valuation_winner_profile,
+                valuation_rankings[0],
+                config_by_agent[valuation_winner_name],
+                action_usage=action_usage_by_agent.get(valuation_winner_name, Counter()),
+                intent_usage=intent_usage_by_agent.get(valuation_winner_name, Counter()),
+                watch_metric_usage=watch_metric_usage_by_agent.get(valuation_winner_name, Counter()),
+            )
 
         bankruptcy_turns = {startup.agent_name: startup.bankruptcy_turn for startup in game.startups.values()}
         startup_segments = {startup.agent_name: getattr(startup, "market_segment", "unknown:unknown") for startup in game.startups.values()}
