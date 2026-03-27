@@ -138,6 +138,7 @@ def _bucket(table: dict, key: str) -> dict:
             "total_valuation": 0.0,
             "score_dimension_totals": {},
             "action_usage": Counter(),
+            "pressure_action_usage": {"healthy": Counter(), "pressured": Counter()},
             "failed_action_usage": Counter(),
             "intent_usage": Counter(),
             "watch_metric_usage": Counter(),
@@ -243,6 +244,30 @@ def _action_family_summary(action_usage: dict, divisor: int) -> dict:
     }
 
 
+def _pressure_bucket(entry: dict) -> str:
+    snapshot = dict(entry.get("pressure_snapshot") or {})
+    if (
+        float(snapshot.get("runway", 0.0)) >= 8.0
+        and float(snapshot.get("cash", 0.0)) >= 30000.0
+        and float(snapshot.get("support_backlog", 1000.0)) < 18.0
+        and float(snapshot.get("trust_score", 0.0)) >= 0.62
+        and float(snapshot.get("monthly_churn_rate", 1.0)) < 0.05
+        and float(snapshot.get("regulatory_pressure", 1.0)) < 0.35
+        and float(snapshot.get("financial_risk", 1.0)) < 0.55
+    ):
+        return "healthy"
+    return "pressured"
+
+
+def _pressure_action_family_share(pressure_action_usage: dict[str, Counter]) -> dict:
+    flattened = {}
+    for pressure_key in ("healthy", "pressured"):
+        family_summary = _action_family_summary(pressure_action_usage.get(pressure_key, Counter()), 1)
+        for family, value in family_summary["share"].items():
+            flattened[f"{pressure_key}_{family}"] = value
+    return flattened
+
+
 def _profile_delta(score_profile: dict, valuation_profile: dict, field: str) -> dict:
     keys = set(score_profile.get(field, {}).keys()) | set(valuation_profile.get(field, {}).keys())
     return {
@@ -252,7 +277,7 @@ def _profile_delta(score_profile: dict, valuation_profile: dict, field: str) -> 
 
 
 def _archetype_delta_vs_field(archetype_profile: dict, field_profile: dict, field: str) -> dict:
-    if field in {"avg_score_dimensions", "action_family_avg_per_game", "action_family_share"}:
+    if field in {"avg_score_dimensions", "action_family_avg_per_game", "action_family_share", "pressure_action_family_share"}:
         archetype_values = archetype_profile.get(field, {})
         field_values = field_profile.get(field, {})
     else:
@@ -280,6 +305,7 @@ def run_seeded_tournament(
     config_by_agent = {config["name"]: config for config in configs}
     matches = []
     action_usage = Counter()
+    pressure_action_usage = {"healthy": Counter(), "pressured": Counter()}
     failed_action_usage = Counter()
     decision_intent_usage = Counter()
     watch_metric_usage = Counter()
@@ -309,8 +335,27 @@ def run_seeded_tournament(
             for entry in logs
             if not entry.get("success", False)
         )
+        per_match_pressure_action_usage = {
+            pressure_key: Counter(
+                entry["action_type"]
+                for logs in game.action_log.values()
+                for entry in logs
+                if _pressure_bucket(entry) == pressure_key
+            )
+            for pressure_key in ("healthy", "pressured")
+        }
         action_usage_by_agent = {
             startup.agent_name: Counter(entry["action_type"] for entry in logs)
+            for startup_id, logs in game.action_log.items()
+            for startup in [game.startups[startup_id]]
+        }
+        pressure_action_usage_by_agent = {
+            startup.agent_name: {
+                pressure_key: Counter(
+                    entry["action_type"] for entry in logs if _pressure_bucket(entry) == pressure_key
+                )
+                for pressure_key in ("healthy", "pressured")
+            }
             for startup_id, logs in game.action_log.items()
             for startup in [game.startups[startup_id]]
         }
@@ -333,6 +378,8 @@ def run_seeded_tournament(
             for startup in [game.startups[startup_id]]
         }
         action_usage.update(per_match_action_usage)
+        for pressure_key, counts in per_match_pressure_action_usage.items():
+            pressure_action_usage[pressure_key].update(counts)
         failed_action_usage.update(per_match_failed_usage)
         for counts in intent_usage_by_agent.values():
             decision_intent_usage.update(counts)
@@ -401,6 +448,8 @@ def run_seeded_tournament(
             agent_bucket["total_score"] += score_value
             agent_bucket["total_valuation"] += valuation_value
             agent_bucket["action_usage"].update(action_usage_by_agent.get(agent_name, Counter()))
+            for pressure_key, counts in pressure_action_usage_by_agent.get(agent_name, {}).items():
+                agent_bucket["pressure_action_usage"][pressure_key].update(counts)
             agent_bucket["failed_action_usage"].update(failed_usage_by_agent.get(agent_name, Counter()))
             agent_bucket["intent_usage"].update(intent_usage_by_agent.get(agent_name, Counter()))
             agent_bucket["watch_metric_usage"].update(watch_metric_usage_by_agent.get(agent_name, Counter()))
@@ -424,6 +473,8 @@ def run_seeded_tournament(
             archetype_bucket["total_score"] += score_value
             archetype_bucket["total_valuation"] += valuation_value
             archetype_bucket["action_usage"].update(action_usage_by_agent.get(agent_name, Counter()))
+            for pressure_key, counts in pressure_action_usage_by_agent.get(agent_name, {}).items():
+                archetype_bucket["pressure_action_usage"][pressure_key].update(counts)
             archetype_bucket["failed_action_usage"].update(failed_usage_by_agent.get(agent_name, Counter()))
             archetype_bucket["intent_usage"].update(intent_usage_by_agent.get(agent_name, Counter()))
             archetype_bucket["watch_metric_usage"].update(watch_metric_usage_by_agent.get(agent_name, Counter()))
@@ -445,6 +496,8 @@ def run_seeded_tournament(
             sector_bucket["total_score"] += score_value
             sector_bucket["total_valuation"] += valuation_value
             sector_bucket["action_usage"].update(action_usage_by_agent.get(agent_name, Counter()))
+            for pressure_key, counts in pressure_action_usage_by_agent.get(agent_name, {}).items():
+                sector_bucket["pressure_action_usage"][pressure_key].update(counts)
             sector_bucket["failed_action_usage"].update(failed_usage_by_agent.get(agent_name, Counter()))
             sector_bucket["intent_usage"].update(intent_usage_by_agent.get(agent_name, Counter()))
             sector_bucket["watch_metric_usage"].update(watch_metric_usage_by_agent.get(agent_name, Counter()))
@@ -466,6 +519,8 @@ def run_seeded_tournament(
             segment_bucket["total_score"] += score_value
             segment_bucket["total_valuation"] += valuation_value
             segment_bucket["action_usage"].update(action_usage_by_agent.get(agent_name, Counter()))
+            for pressure_key, counts in pressure_action_usage_by_agent.get(agent_name, {}).items():
+                segment_bucket["pressure_action_usage"][pressure_key].update(counts)
             segment_bucket["failed_action_usage"].update(failed_usage_by_agent.get(agent_name, Counter()))
             segment_bucket["intent_usage"].update(intent_usage_by_agent.get(agent_name, Counter()))
             segment_bucket["watch_metric_usage"].update(watch_metric_usage_by_agent.get(agent_name, Counter()))
@@ -497,10 +552,12 @@ def run_seeded_tournament(
             action_family_summary = _action_family_summary(bucket["action_usage"], games)
             bucket["action_family_avg_per_game"] = action_family_summary["avg_per_game"]
             bucket["action_family_share"] = action_family_summary["share"]
+            bucket["pressure_action_family_share"] = _pressure_action_family_share(bucket["pressure_action_usage"])
             bucket.pop("rank_deltas", None)
             bucket.pop("total_score", None)
             bucket.pop("total_valuation", None)
             bucket.pop("score_dimension_totals", None)
+            bucket.pop("pressure_action_usage", None)
 
     summary = {
         "seed_start": seed_start,
@@ -540,6 +597,7 @@ def run_seeded_tournament(
     field_action_family_summary = _action_family_summary(summary["action_usage"], total_entries)
     field_profile["action_family_avg_per_game"] = field_action_family_summary["avg_per_game"]
     field_profile["action_family_share"] = field_action_family_summary["share"]
+    field_profile["pressure_action_family_share"] = _pressure_action_family_share(pressure_action_usage)
     summary["field_profile"] = field_profile
     score_winners = summary["winner_profiles"]["score_winners"]
     valuation_winners = summary["winner_profiles"]["valuation_winners"]
@@ -569,6 +627,7 @@ def run_seeded_tournament(
             "avg_action_usage_per_game": _archetype_delta_vs_field(bucket, field_profile, "action_usage"),
             "action_family_avg_per_game": _archetype_delta_vs_field(bucket, field_profile, "action_family_avg_per_game"),
             "action_family_share": _archetype_delta_vs_field(bucket, field_profile, "action_family_share"),
+            "pressure_action_family_share": _archetype_delta_vs_field(bucket, field_profile, "pressure_action_family_share"),
             "avg_intent_usage_per_game": _archetype_delta_vs_field(bucket, field_profile, "intent_usage"),
             "avg_watch_metric_usage_per_game": _archetype_delta_vs_field(bucket, field_profile, "watch_metric_usage"),
         }
@@ -692,6 +751,11 @@ def _print_human_summary(summary: dict) -> None:
             family_share_deltas.items(),
             key=lambda item: (-abs(item[1]), item[0]),
         )[:3]
+        pressure_family_deltas = dict(deltas.get("pressure_action_family_share", {}))
+        top_pressure_family_deltas = sorted(
+            pressure_family_deltas.items(),
+            key=lambda item: (-abs(item[1]), item[0]),
+        )[:3]
         print(f"Best archetype vs field: {best_archetype}")
         for key, value in top_dimension_deltas:
             print(f"  score_delta[{key}]={value:+.2f}")
@@ -699,6 +763,8 @@ def _print_human_summary(summary: dict) -> None:
             print(f"  action_delta[{key}]={value:+.2f}")
         for key, value in top_family_deltas:
             print(f"  family_share_delta[{key}]={value:+.3f}")
+        for key, value in top_pressure_family_deltas:
+            print(f"  pressure_family_share_delta[{key}]={value:+.3f}")
 
 
 def main() -> int:

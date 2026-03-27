@@ -1161,6 +1161,10 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertLess(first["users_gained"] + second["users_gained"], 280)
         self.assertGreater(second["channel_crowding"], 0.0)
         self.assertLess(second["demand_consumed"], 140)
+        log_entry = game.action_log[startup_a.id][0]
+        self.assertIn("pressure_snapshot", log_entry)
+        self.assertIn("runway", log_entry["pressure_snapshot"])
+        self.assertIn("support_backlog", log_entry["pressure_snapshot"])
 
     def test_shared_market_switching_can_displace_incumbent_users(self) -> None:
         game = server.Game(

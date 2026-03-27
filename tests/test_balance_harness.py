@@ -80,6 +80,7 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("avg_score_dimensions", aggressive)
         self.assertIn("action_family_avg_per_game", aggressive)
         self.assertIn("action_family_share", aggressive)
+        self.assertIn("pressure_action_family_share", aggressive)
         self.assertIn("action_usage", aggressive)
         self.assertIn("failed_action_usage", aggressive)
         self.assertIn("intent_usage", aggressive)
@@ -108,8 +109,10 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("avg_action_usage_per_game", summary["field_profile"])
         self.assertIn("action_family_avg_per_game", summary["field_profile"])
         self.assertIn("action_family_share", summary["field_profile"])
+        self.assertIn("pressure_action_family_share", summary["field_profile"])
         self.assertIn("aggressive", summary["archetype_profile_deltas"])
         self.assertIn("action_family_share", summary["archetype_profile_deltas"]["aggressive"])
+        self.assertIn("pressure_action_family_share", summary["archetype_profile_deltas"]["aggressive"])
 
     def test_threshold_failures_trigger_when_metrics_exceed_limits(self) -> None:
         summary = {

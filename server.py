@@ -1025,6 +1025,22 @@ class Game:
             "decision_packet_received": decision is not None,
         }
 
+    def _action_pressure_snapshot(self, startup) -> dict:
+        world_state = getattr(startup, "world_state", {}) or {}
+        customers = world_state.get("customers", {})
+        operations = world_state.get("operations", {})
+        risk = world_state.get("risk", {})
+        return {
+            "cash": int(getattr(startup, "cash", 0)),
+            "runway": round(float(getattr(startup, "runway", 0.0)), 2),
+            "product_quality": int(getattr(startup, "product_quality", 0)),
+            "trust_score": round(float(customers.get("trust_score", 0.7)), 4),
+            "monthly_churn_rate": round(float(customers.get("monthly_churn_rate", 0.04)), 4),
+            "support_backlog": round(float(operations.get("support_backlog", 0.0)), 2),
+            "regulatory_pressure": round(float(risk.get("regulatory_pressure", 0.0)), 4),
+            "financial_risk": round(float(risk.get("financial_risk", 0.0)), 4),
+        }
+
     def check_timeout(self):
         """Call periodically to auto-resolve turns on timeout."""
         if self.phase != GamePhase.PLAYING:
@@ -1045,7 +1061,9 @@ class Game:
         # 2. Process each startup's actions
         for startup in alive_startups:
             results = []
+            action_snapshots = []
             for action in startup.pending_actions:
+                action_snapshots.append(self._action_pressure_snapshot(startup))
                 result = self._execute_action(startup, action, alive_startups)
                 results.append(result)
             startup.turn_results = results
@@ -1062,6 +1080,7 @@ class Game:
                     "params": params,
                     "success": result.get("success", False),
                     "message": result.get("message", ""),
+                    "pressure_snapshot": action_snapshots[i] if i < len(action_snapshots) else {},
                 })
 
         # 3. Apply simulation progression
