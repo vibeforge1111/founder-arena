@@ -64,6 +64,8 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("win_rate", aggressive)
         self.assertIn("avg_placement", aggressive)
         self.assertIn("avg_bankruptcy_turn", aggressive)
+        self.assertIn("avg_score_dimensions", aggressive)
+        self.assertIn("cash_efficiency", aggressive["avg_score_dimensions"])
 
     def test_threshold_failures_trigger_when_metrics_exceed_limits(self) -> None:
         summary = {
