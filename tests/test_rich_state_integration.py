@@ -67,6 +67,19 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertIn("join_code", payload)
         self.assertIn("spectator_token", payload)
 
+    def test_api_info_separates_ranked_and_legacy_action_surfaces(self) -> None:
+        response = self.client.get("/api/info")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("ranked_actions", payload)
+        self.assertIn("legacy_arena_actions", payload)
+        self.assertIn("board_sync", payload["ranked_actions"])
+        self.assertNotIn("pivot", payload["ranked_actions"])
+        self.assertEqual(payload["legacy_arena_actions"], ["pivot", "spy", "poach"])
+        self.assertIn("pivot", payload["actions"])
+        self.assertIn("support_recovery", payload["actions"])
+
     def test_leaderboard_uses_score_for_competitive_results(self) -> None:
         competitive_game = server.Game(
             name="Competitive Finals",

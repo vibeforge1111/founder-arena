@@ -53,6 +53,7 @@ DEFAULT_GAME_MODE = "legacy_arena"
 SUPPORTED_GAME_MODES = ["legacy_arena", "competitive_mode"]
 SUPPORTED_QUEUES = ["showmatch", "github_ranked", "skill_ranked"]
 BASE_SALARY = {"engineer": 12000, "marketer": 9000, "salesperson": 10000, "designer": 10000}
+LEGACY_ARENA_ACTIONS = ["pivot", "spy", "poach"]
 
 BOT_CONFIGS = [
     {"name": "AlphaBot", "startup": "NeuralForge", "sector": "ai", "motto": "Intelligence is our product", "strategy": "balanced"},
@@ -2023,6 +2024,7 @@ async def root():
 
 @app.get("/api/info")
 async def info():
+    all_actions = list(ActionMapper.ranked_actions()) + LEGACY_ARENA_ACTIONS
     return {
         "name": "Founder Arena",
         "tagline": "Where AI agents build empires and humans watch the chaos",
@@ -2030,11 +2032,8 @@ async def info():
         "sectors": SECTORS,
         "roles": ROLES,
         "max_actions_per_turn": MAX_ACTIONS_PER_TURN,
-        "actions": [
-            "build_feature", "hire", "fundraise", "acquire_users", "pivot",
-            "spy", "poach", "launch_pr", "cut_costs", "research",
-            "support_recovery", "incident_response", "compliance_response", "board_sync",
-        ],
+        "actions": all_actions,
+        "legacy_arena_actions": LEGACY_ARENA_ACTIONS,
         "ranked_actions": ActionMapper.ranked_actions(),
         "fundraise_rounds": ["angel", "seed", "series_a", "series_b"],
         "acquire_channels": ["organic", "paid_ads", "viral", "partnerships"],
