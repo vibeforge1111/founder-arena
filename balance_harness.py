@@ -126,6 +126,8 @@ def _bucket(table: dict, key: str) -> dict:
             "wins": 0,
             "placements": [],
             "bankruptcy_turns": [],
+            "total_score": 0.0,
+            "total_valuation": 0.0,
             "score_dimension_totals": {},
         },
     )
@@ -192,6 +194,8 @@ def run_seeded_tournament(
             bankruptcy_turn = bankruptcy_turns.get(agent_name)
             score_rank = score_rank_by_agent[agent_name]
             valuation_rank = valuation_rank_by_agent[agent_name]
+            score_value = float(entry.get("score", 0.0))
+            valuation_value = float(entry.get("valuation", 0.0))
             score_dimensions = dict((entry.get("seven_dimension_scores") or {}).get("dimensions") or {})
             rank_delta_values.append(abs(score_rank - valuation_rank))
 
@@ -199,6 +203,8 @@ def run_seeded_tournament(
             agent_bucket["games"] += 1
             agent_bucket["wins"] += 1 if agent_name == winner_agent else 0
             agent_bucket["placements"].append(placement)
+            agent_bucket["total_score"] += score_value
+            agent_bucket["total_valuation"] += valuation_value
             if bankruptcy_turn is not None:
                 agent_bucket["bankruptcy_turns"].append(bankruptcy_turn)
             agent_bucket["strategy"] = config["strategy"]
@@ -213,6 +219,8 @@ def run_seeded_tournament(
             archetype_bucket["games"] += 1
             archetype_bucket["wins"] += 1 if agent_name == winner_agent else 0
             archetype_bucket["placements"].append(placement)
+            archetype_bucket["total_score"] += score_value
+            archetype_bucket["total_valuation"] += valuation_value
             if bankruptcy_turn is not None:
                 archetype_bucket["bankruptcy_turns"].append(bankruptcy_turn)
             for dimension, value in score_dimensions.items():
@@ -225,6 +233,8 @@ def run_seeded_tournament(
             sector_bucket["games"] += 1
             sector_bucket["wins"] += 1 if agent_name == winner_agent else 0
             sector_bucket["placements"].append(placement)
+            sector_bucket["total_score"] += score_value
+            sector_bucket["total_valuation"] += valuation_value
             if bankruptcy_turn is not None:
                 sector_bucket["bankruptcy_turns"].append(bankruptcy_turn)
             for dimension, value in score_dimensions.items():
@@ -237,6 +247,8 @@ def run_seeded_tournament(
             segment_bucket["games"] += 1
             segment_bucket["wins"] += 1 if agent_name == winner_agent else 0
             segment_bucket["placements"].append(placement)
+            segment_bucket["total_score"] += score_value
+            segment_bucket["total_valuation"] += valuation_value
             if bankruptcy_turn is not None:
                 segment_bucket["bankruptcy_turns"].append(bankruptcy_turn)
             for dimension, value in score_dimensions.items():
@@ -251,10 +263,14 @@ def run_seeded_tournament(
             bucket["win_rate"] = round(bucket["wins"] / games, 3)
             bucket["avg_placement"] = round(mean(bucket["placements"]), 2)
             bucket["avg_bankruptcy_turn"] = _mean_or_none(bucket["bankruptcy_turns"])
+            bucket["avg_score"] = round(bucket["total_score"] / games, 2)
+            bucket["avg_valuation"] = int(round(bucket["total_valuation"] / games))
             bucket["avg_score_dimensions"] = {
                 dimension: round(total / games, 2)
                 for dimension, total in sorted(bucket["score_dimension_totals"].items())
             }
+            bucket.pop("total_score", None)
+            bucket.pop("total_valuation", None)
             bucket.pop("score_dimension_totals", None)
 
     summary = {
