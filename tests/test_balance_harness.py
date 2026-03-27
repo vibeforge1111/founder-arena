@@ -52,6 +52,8 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("avg_absolute_rank_delta", summary["score_valuation_divergence"])
         self.assertIn("winner_profiles", summary)
         self.assertIn("winner_profile_deltas", summary)
+        self.assertIn("field_profile", summary)
+        self.assertIn("archetype_profile_deltas", summary)
         self.assertIn("score_winners", summary["winner_profiles"])
         self.assertIn("valuation_winners", summary["winner_profiles"])
         self.assertIn("by_sector", summary["scenario_bias"])
@@ -95,6 +97,9 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("avg_watch_metric_usage_per_winner", score_winners)
         self.assertIn("avg_score_dimensions", summary["winner_profile_deltas"])
         self.assertIn("avg_action_usage_per_winner", summary["winner_profile_deltas"])
+        self.assertIn("avg_score_dimensions", summary["field_profile"])
+        self.assertIn("avg_action_usage_per_game", summary["field_profile"])
+        self.assertIn("aggressive", summary["archetype_profile_deltas"])
 
     def test_threshold_failures_trigger_when_metrics_exceed_limits(self) -> None:
         summary = {

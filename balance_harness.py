@@ -231,6 +231,24 @@ def _profile_delta(score_profile: dict, valuation_profile: dict, field: str) -> 
     }
 
 
+def _archetype_delta_vs_field(archetype_profile: dict, field_profile: dict, field: str) -> dict:
+    if field == "avg_score_dimensions":
+        archetype_values = archetype_profile.get(field, {})
+        field_values = field_profile.get(field, {})
+    else:
+        games = max(1, int(archetype_profile.get("games", 0)))
+        archetype_values = {
+            key: round(float(value) / games, 2)
+            for key, value in sorted(dict(archetype_profile.get(field, {})).items())
+        }
+        field_values = field_profile.get(field, {})
+    keys = set(archetype_values.keys()) | set(field_values.keys())
+    return {
+        key: round(float(archetype_values.get(key, 0.0)) - float(field_values.get(key, 0.0)), 2)
+        for key in sorted(keys)
+    }
+
+
 def run_seeded_tournament(
     *,
     seed_start: int = 1,
@@ -245,6 +263,7 @@ def run_seeded_tournament(
     failed_action_usage = Counter()
     decision_intent_usage = Counter()
     watch_metric_usage = Counter()
+    field_score_dimension_totals: dict[str, float] = {}
     archetypes: dict[str, dict] = {}
     agents: dict[str, dict] = {}
     sectors: dict[str, dict] = {}
@@ -346,6 +365,11 @@ def run_seeded_tournament(
             valuation_value = float(entry.get("valuation", 0.0))
             score_dimensions = dict((entry.get("seven_dimension_scores") or {}).get("dimensions") or {})
             rank_delta_values.append(abs(score_rank - valuation_rank))
+            for dimension, value in score_dimensions.items():
+                field_score_dimension_totals[dimension] = round(
+                    field_score_dimension_totals.get(dimension, 0.0) + float(value),
+                    4,
+                )
 
             agent_bucket = _bucket(agents, agent_name)
             agent_bucket["games"] += 1
@@ -480,6 +504,17 @@ def run_seeded_tournament(
         },
         "matches": matches,
     }
+    total_entries = max(1, len(configs) * seed_count)
+    field_profile = {
+        "avg_score_dimensions": {
+            dimension: round(total / total_entries, 2)
+            for dimension, total in sorted(field_score_dimension_totals.items())
+        },
+        "avg_action_usage_per_game": _average_counter(summary["action_usage"], total_entries),
+        "avg_intent_usage_per_game": _average_counter(summary["decision_intent_usage"], total_entries),
+        "avg_watch_metric_usage_per_game": _average_counter(summary["watch_metric_usage"], total_entries),
+    }
+    summary["field_profile"] = field_profile
     score_winners = summary["winner_profiles"]["score_winners"]
     valuation_winners = summary["winner_profiles"]["valuation_winners"]
     score_winners["avg_action_usage_per_winner"] = _average_counter(score_winners["action_usage"], score_winners["count"])
@@ -493,6 +528,15 @@ def run_seeded_tournament(
         "avg_action_usage_per_winner": _profile_delta(score_winners, valuation_winners, "avg_action_usage_per_winner"),
         "avg_intent_usage_per_winner": _profile_delta(score_winners, valuation_winners, "avg_intent_usage_per_winner"),
         "avg_watch_metric_usage_per_winner": _profile_delta(score_winners, valuation_winners, "avg_watch_metric_usage_per_winner"),
+    }
+    summary["archetype_profile_deltas"] = {
+        archetype: {
+            "avg_score_dimensions": _archetype_delta_vs_field(bucket, field_profile, "avg_score_dimensions"),
+            "avg_action_usage_per_game": _archetype_delta_vs_field(bucket, field_profile, "action_usage"),
+            "avg_intent_usage_per_game": _archetype_delta_vs_field(bucket, field_profile, "intent_usage"),
+            "avg_watch_metric_usage_per_game": _archetype_delta_vs_field(bucket, field_profile, "watch_metric_usage"),
+        }
+        for archetype, bucket in summary["archetypes"].items()
     }
     return summary
 
