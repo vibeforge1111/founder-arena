@@ -366,6 +366,17 @@ def _compute_seven_dimension_scores(startup) -> dict:
             100.0,
             (float(finance.get("monthly_revenue_usd", 0.0)) / max(float(finance.get("monthly_burn_usd", 1.0)), 1.0)) * 100.0,
         )
+        customer_scale_score = min(float(customers.get("user_count_estimate", 0.0)) / 18000.0 * 100.0, 100.0)
+        shared_market = getattr(startup, "shared_market", None)
+        if isinstance(shared_market, dict):
+            segment_key = getattr(startup, "market_segment", "")
+            segment = (shared_market.get("segments") or {}).get(segment_key)
+            if isinstance(segment, dict):
+                segment_capture_score = min(
+                    float(customers.get("user_count_estimate", 0.0)) / max(float(segment.get("captured_users", 0.0)), 1.0) * 100.0,
+                    100.0,
+                )
+                customer_scale_score = _clamp_score(customer_scale_score * 0.4 + segment_capture_score * 0.6)
         cash_efficiency = _clamp_score(runway_score * 0.5 + burn_efficiency * 0.3 + (100.0 - startup.dilution * 100.0) * 0.2)
         revenue_quality = _clamp_score(
             burn_efficiency * 0.45
@@ -373,9 +384,10 @@ def _compute_seven_dimension_scores(startup) -> dict:
             + (100.0 - min(float(customers.get("monthly_churn_rate", 0.0)) * 1000.0, 100.0)) * 0.25
         )
         customer_health = _clamp_score(
-            float(customers.get("health_index", 0.0)) * 55.0
-            + float(customers.get("trust_score", 0.0)) * 30.0
+            float(customers.get("health_index", 0.0)) * 45.0
+            + float(customers.get("trust_score", 0.0)) * 25.0
             + (100.0 - min(float(customers.get("monthly_churn_rate", 0.0)) * 1200.0, 100.0)) * 0.15
+            + customer_scale_score * 0.15
         )
         product_health = _clamp_score(
             float(product.get("onboarding_quality", 0.0)) * 70.0

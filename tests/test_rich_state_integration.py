@@ -106,6 +106,46 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertGreater(supported_score, unsupported_score)
         self.assertLess(unsupported_score, 75.0)
 
+    def test_customer_health_rewards_shared_market_capture(self) -> None:
+        leader = RichStartupState(
+            agent_name="LeaderBot",
+            startup_name="LeaderCo",
+            sector="ai",
+            motto="Capture the segment",
+            strategy="balanced",
+            seed=321,
+        )
+        follower = RichStartupState(
+            agent_name="FollowerBot",
+            startup_name="FollowerCo",
+            sector="ai",
+            motto="Trail the segment",
+            strategy="balanced",
+            seed=654,
+        )
+
+        for startup in (leader, follower):
+            startup.world_state["customers"]["health_index"] = 0.82
+            startup.world_state["customers"]["trust_score"] = 0.78
+            startup.world_state["customers"]["monthly_churn_rate"] = 0.012
+            segment_key = startup.market_segment
+            startup.shared_market = {
+                "segments": {
+                    segment_key: {
+                        "captured_users": 6_500,
+                    }
+                }
+            }
+
+        leader.world_state["customers"]["user_count_estimate"] = 5_400
+        follower.world_state["customers"]["user_count_estimate"] = 1_100
+
+        leader_score = server._compute_seven_dimension_scores(leader)["dimensions"]["customer_health"]
+        follower_score = server._compute_seven_dimension_scores(follower)["dimensions"]["customer_health"]
+
+        self.assertGreater(leader_score, follower_score)
+        self.assertGreater(leader_score - follower_score, 7.0)
+
     def test_api_info_separates_ranked_and_legacy_action_surfaces(self) -> None:
         response = self.client.get("/api/info")
 
