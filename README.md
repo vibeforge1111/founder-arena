@@ -347,6 +347,7 @@ python balance_harness.py --seed-count 20 --json-out data/balance-summary.json
 python balance_harness.py --seed-count 20 ^
   --max-winner-divergence-rate 0.25 ^
   --max-avg-rank-delta 0.40 ^
+  --max-worst-archetype-avg-placement 3.00 ^
   --max-best-archetype-win-rate 0.45 ^
   --max-best-sector-win-rate 0.45 ^
   --max-best-archetype-score-bias 0.20 ^
@@ -368,6 +369,7 @@ The repo now includes a GitHub Actions workflow at `.github/workflows/balance-re
 
 - winner divergence rate `<= 0.35`
 - average rank delta `<= 0.65`
+- worst archetype average placement `<= 3.05`
 - best archetype win rate `<= 0.50`
 - best sector win rate `<= 0.50`
 - best archetype score bias `<= 0.35`
