@@ -382,10 +382,15 @@ def _compute_seven_dimension_scores(startup) -> dict:
             + min(float(product.get("launch_count", 0.0)) * 6.0, 20.0)
             + max(0.0, 10.0 - float(product.get("major_incidents_open", 0.0)) * 10.0)
         )
+        team_supportability = _clamp_score(
+            burn_efficiency * 0.55
+            + (100.0 - float(risk.get("financing_pressure", 0.0)) * 100.0) * 0.45
+        )
         team_health = _clamp_score(
-            float(team.get("morale", 0.0)) * 45.0
-            + float(team.get("delivery_capacity_index", 0.0)) * 35.0
-            + (100.0 - float(team.get("attrition_risk", 0.0)) * 100.0) * 0.2
+            float(team.get("morale", 0.0)) * 35.0
+            + float(team.get("delivery_capacity_index", 0.0)) * 25.0
+            + (100.0 - float(team.get("attrition_risk", 0.0)) * 100.0) * 0.15
+            + team_supportability * 0.25
         )
         risk_management = _clamp_score(
             (100.0 - float(risk.get("regulatory_pressure", 0.0)) * 100.0) * 0.32
@@ -405,7 +410,8 @@ def _compute_seven_dimension_scores(startup) -> dict:
         revenue_quality = _clamp_score(revenue_to_burn * 0.7 + min(startup.users / 40.0, 100.0) * 0.3)
         customer_health = _clamp_score(min(startup.users / 50.0, 100.0) * 0.55 + startup.brand * 0.25 + startup.morale * 0.2)
         product_health = _clamp_score(startup.product_quality * 0.8 + min(startup.features_built * 4.0, 20.0))
-        team_health = _clamp_score(startup.morale * 0.7 + min(len(startup.team) * 8.0, 30.0))
+        team_supportability = _clamp_score(revenue_to_burn * 0.55 + min(startup.runway * 12.5, 100.0) * 0.45)
+        team_health = _clamp_score(startup.morale * 0.5 + min(len(startup.team) * 5.0, 15.0) + team_supportability * 0.35)
         risk_management = _clamp_score(min(startup.runway * 10.0, 100.0) * 0.65 + (100.0 - startup.dilution * 100.0) * 0.35)
         strategic_coherence = _clamp_score(product_health * 0.35 + revenue_quality * 0.35 + customer_health * 0.3)
 

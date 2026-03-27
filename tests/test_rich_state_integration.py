@@ -67,6 +67,45 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertIn("join_code", payload)
         self.assertIn("spectator_token", payload)
 
+    def test_team_health_depends_on_financial_supportability(self) -> None:
+        supported = RichStartupState(
+            agent_name="SupportedBot",
+            startup_name="SupportCo",
+            sector="ai",
+            motto="Sustain the team",
+            strategy="balanced",
+            seed=123,
+        )
+        unsupported = RichStartupState(
+            agent_name="UnsupportedBot",
+            startup_name="StretchCo",
+            sector="ai",
+            motto="Overspend the team",
+            strategy="balanced",
+            seed=456,
+        )
+
+        for startup in (supported, unsupported):
+            startup.world_state["team"]["morale"] = 0.9
+            startup.world_state["team"]["delivery_capacity_index"] = 0.9
+            startup.world_state["team"]["attrition_risk"] = 0.05
+
+        supported.world_state["finance"]["monthly_revenue_usd"] = 120_000
+        supported.world_state["finance"]["monthly_burn_usd"] = 100_000
+        supported.world_state["finance"]["net_burn_usd"] = -20_000
+        supported.world_state["risk"]["financing_pressure"] = 0.08
+
+        unsupported.world_state["finance"]["monthly_revenue_usd"] = 10_000
+        unsupported.world_state["finance"]["monthly_burn_usd"] = 220_000
+        unsupported.world_state["finance"]["net_burn_usd"] = 210_000
+        unsupported.world_state["risk"]["financing_pressure"] = 0.82
+
+        supported_score = server._compute_seven_dimension_scores(supported)["dimensions"]["team_health"]
+        unsupported_score = server._compute_seven_dimension_scores(unsupported)["dimensions"]["team_health"]
+
+        self.assertGreater(supported_score, unsupported_score)
+        self.assertLess(unsupported_score, 75.0)
+
     def test_api_info_separates_ranked_and_legacy_action_surfaces(self) -> None:
         response = self.client.get("/api/info")
 
