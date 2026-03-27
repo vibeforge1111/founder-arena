@@ -215,6 +215,22 @@ def _finalize_winner_profile(bucket: dict) -> dict:
     }
 
 
+def _average_counter(counter_map: dict, count: int) -> dict:
+    divisor = max(1, int(count))
+    return {
+        key: round(float(value) / divisor, 2)
+        for key, value in sorted(dict(counter_map).items())
+    }
+
+
+def _profile_delta(score_profile: dict, valuation_profile: dict, field: str) -> dict:
+    keys = set(score_profile.get(field, {}).keys()) | set(valuation_profile.get(field, {}).keys())
+    return {
+        key: round(float(score_profile.get(field, {}).get(key, 0.0)) - float(valuation_profile.get(field, {}).get(key, 0.0)), 2)
+        for key in sorted(keys)
+    }
+
+
 def run_seeded_tournament(
     *,
     seed_start: int = 1,
@@ -463,6 +479,20 @@ def run_seeded_tournament(
             "by_market_segment": segments,
         },
         "matches": matches,
+    }
+    score_winners = summary["winner_profiles"]["score_winners"]
+    valuation_winners = summary["winner_profiles"]["valuation_winners"]
+    score_winners["avg_action_usage_per_winner"] = _average_counter(score_winners["action_usage"], score_winners["count"])
+    score_winners["avg_intent_usage_per_winner"] = _average_counter(score_winners["intent_usage"], score_winners["count"])
+    score_winners["avg_watch_metric_usage_per_winner"] = _average_counter(score_winners["watch_metric_usage"], score_winners["count"])
+    valuation_winners["avg_action_usage_per_winner"] = _average_counter(valuation_winners["action_usage"], valuation_winners["count"])
+    valuation_winners["avg_intent_usage_per_winner"] = _average_counter(valuation_winners["intent_usage"], valuation_winners["count"])
+    valuation_winners["avg_watch_metric_usage_per_winner"] = _average_counter(valuation_winners["watch_metric_usage"], valuation_winners["count"])
+    summary["winner_profile_deltas"] = {
+        "avg_score_dimensions": _profile_delta(score_winners, valuation_winners, "avg_score_dimensions"),
+        "avg_action_usage_per_winner": _profile_delta(score_winners, valuation_winners, "avg_action_usage_per_winner"),
+        "avg_intent_usage_per_winner": _profile_delta(score_winners, valuation_winners, "avg_intent_usage_per_winner"),
+        "avg_watch_metric_usage_per_winner": _profile_delta(score_winners, valuation_winners, "avg_watch_metric_usage_per_winner"),
     }
     return summary
 
