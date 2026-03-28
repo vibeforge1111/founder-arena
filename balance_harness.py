@@ -23,6 +23,21 @@ ACTION_FAMILIES = {
     "commercial": {"acquire_users", "launch_pr", "hire"},
     "product": {"build_feature", "research"},
 }
+PHASE_WINDOWS = (
+    ("opening", 1, 10),
+    ("growth", 11, 25),
+    ("scale", 26, 40),
+    ("endgame", 41, None),
+)
+PHASE_DELTA_FIELDS = (
+    ("score", "avg_score_delta"),
+    ("valuation", "avg_valuation_delta"),
+    ("cash", "avg_cash_delta"),
+    ("users", "avg_users_delta"),
+    ("product_quality", "avg_product_quality_delta"),
+    ("brand", "avg_brand_delta"),
+    ("team_size", "avg_team_size_delta"),
+)
 
 
 def _selected_configs(agent_count: int) -> list[dict]:
@@ -163,6 +178,108 @@ def _mean_or_none(values: list[float | int | None]) -> float | None:
     if not cleaned:
         return None
     return round(mean(cleaned), 2)
+
+
+def _phase_for_turn(turn: int) -> str:
+    for phase_key, start_turn, end_turn in PHASE_WINDOWS:
+        if turn < start_turn:
+            continue
+        if end_turn is None or turn <= end_turn:
+            return phase_key
+    return PHASE_WINDOWS[-1][0]
+
+
+def _phase_bucket_template() -> dict:
+    return {
+        "samples": 0,
+        "action_usage": Counter(),
+        "metric_totals": {field: 0.0 for field, _ in PHASE_DELTA_FIELDS},
+    }
+
+
+def _phase_table_template() -> dict[str, dict]:
+    return {phase_key: _phase_bucket_template() for phase_key, _, _ in PHASE_WINDOWS}
+
+
+def _phase_metric_deltas(history: list[dict]) -> dict[str, dict[str, float]]:
+    ordered = sorted((dict(point) for point in history), key=lambda item: int(item.get("turn", 0)))
+    if not ordered:
+        return {}
+
+    deltas: dict[str, dict[str, float]] = {}
+    for phase_key, start_turn, end_turn in PHASE_WINDOWS:
+        phase_points = [
+            point
+            for point in ordered
+            if int(point.get("turn", 0)) >= start_turn and (end_turn is None or int(point.get("turn", 0)) <= end_turn)
+        ]
+        if not phase_points:
+            continue
+        baseline_candidates = [point for point in ordered if int(point.get("turn", 0)) < start_turn]
+        baseline = baseline_candidates[-1] if baseline_candidates else phase_points[0]
+        last = phase_points[-1]
+        deltas[phase_key] = {
+            field: round(float(last.get(field, 0.0)) - float(baseline.get(field, 0.0)), 2)
+            for field, _ in PHASE_DELTA_FIELDS
+        }
+    return deltas
+
+
+def _phase_action_usage(logs: list[dict]) -> dict[str, Counter]:
+    usage = {phase_key: Counter() for phase_key, _, _ in PHASE_WINDOWS}
+    for entry in logs:
+        phase_key = _phase_for_turn(int(entry.get("turn", 0)))
+        usage[phase_key][str(entry.get("action_type", "unknown"))] += 1
+    return usage
+
+
+def _record_phase_bucket(bucket: dict, *, metrics: dict[str, float], action_usage: Counter | None = None) -> None:
+    bucket["samples"] += 1
+    for field, _ in PHASE_DELTA_FIELDS:
+        bucket["metric_totals"][field] = round(
+            float(bucket["metric_totals"].get(field, 0.0)) + float(metrics.get(field, 0.0)),
+            4,
+        )
+    bucket["action_usage"].update(action_usage or Counter())
+
+
+def _finalize_phase_table(table: dict[str, dict]) -> dict[str, dict]:
+    finalized: dict[str, dict] = {}
+    for phase_key, _, _ in PHASE_WINDOWS:
+        bucket = table.get(phase_key)
+        if not bucket or int(bucket.get("samples", 0)) <= 0:
+            continue
+        samples = max(1, int(bucket.get("samples", 0)))
+        action_usage = dict(sorted(dict(bucket.get("action_usage", {})).items()))
+        action_family_summary = _action_family_summary(action_usage, samples)
+        entry = {
+            "samples": int(bucket.get("samples", 0)),
+            "action_usage": action_usage,
+            "avg_action_usage_per_phase": _average_counter(action_usage, samples),
+            "action_family_avg_per_phase": action_family_summary["avg_per_game"],
+            "action_family_share": action_family_summary["share"],
+        }
+        for field, label in PHASE_DELTA_FIELDS:
+            entry[label] = round(float(bucket["metric_totals"].get(field, 0.0)) / samples, 2)
+        finalized[phase_key] = entry
+    return finalized
+
+
+def _phase_profile_delta(archetype_phases: dict[str, dict], field_phases: dict[str, dict]) -> dict[str, dict]:
+    deltas: dict[str, dict] = {}
+    for phase_key, _, _ in PHASE_WINDOWS:
+        archetype_bucket = dict(archetype_phases.get(phase_key) or {})
+        field_bucket = dict(field_phases.get(phase_key) or {})
+        if not archetype_bucket or not field_bucket:
+            continue
+        phase_delta = {
+            label: round(float(archetype_bucket.get(label, 0.0)) - float(field_bucket.get(label, 0.0)), 2)
+            for _, label in PHASE_DELTA_FIELDS
+        }
+        phase_delta["action_family_share"] = _profile_delta(archetype_bucket, field_bucket, "action_family_share")
+        phase_delta["action_family_avg_per_phase"] = _profile_delta(archetype_bucket, field_bucket, "action_family_avg_per_phase")
+        deltas[phase_key] = phase_delta
+    return deltas
 
 
 def _bucket(table: dict, key: str) -> dict:
@@ -492,6 +609,8 @@ def run_seeded_tournament(
     rank_delta_values: list[float] = []
     score_winner_profile = _winner_profile_bucket()
     valuation_winner_profile = _winner_profile_bucket()
+    field_phase_table = _phase_table_template()
+    archetype_phase_tables: dict[str, dict[str, dict]] = {}
 
     for seed in range(seed_start, seed_start + seed_count):
         game, replay = run_local_match(seed, configs, max_turns=max_turns)
@@ -523,6 +642,11 @@ def run_seeded_tournament(
             for startup_id, logs in game.action_log.items()
             for startup in [game.startups[startup_id]]
         }
+        phase_action_usage_by_agent = {
+            startup.agent_name: _phase_action_usage(logs)
+            for startup_id, logs in game.action_log.items()
+            for startup in [game.startups[startup_id]]
+        }
         pressure_action_usage_by_agent = {
             startup.agent_name: {
                 pressure_key: Counter(
@@ -550,6 +674,10 @@ def run_seeded_tournament(
             )
             for startup_id, decisions in game.decision_log.items()
             for startup in [game.startups[startup_id]]
+        }
+        phase_metrics_by_agent = {
+            startup.agent_name: _phase_metric_deltas(startup.history)
+            for startup in game.startups.values()
         }
         action_usage.update(per_match_action_usage)
         for pressure_key, counts in per_match_pressure_action_usage.items():
@@ -659,6 +787,11 @@ def run_seeded_tournament(
                     archetype_bucket["score_dimension_totals"].get(dimension, 0.0) + float(value),
                     4,
                 )
+            archetype_phase_table = archetype_phase_tables.setdefault(config["strategy"], _phase_table_template())
+            for phase_key, metrics in phase_metrics_by_agent.get(agent_name, {}).items():
+                phase_action_usage = phase_action_usage_by_agent.get(agent_name, {}).get(phase_key, Counter())
+                _record_phase_bucket(field_phase_table[phase_key], metrics=metrics, action_usage=phase_action_usage)
+                _record_phase_bucket(archetype_phase_table[phase_key], metrics=metrics, action_usage=phase_action_usage)
 
             sector_bucket = _bucket(sectors, config["sector"])
             sector_bucket["games"] += 1
@@ -806,6 +939,20 @@ def run_seeded_tournament(
             "avg_watch_metric_usage_per_game": _archetype_delta_vs_field(bucket, field_profile, "watch_metric_usage"),
         }
         for archetype, bucket in summary["archetypes"].items()
+    }
+    summary["phase_profiles"] = {
+        "field": _finalize_phase_table(field_phase_table),
+        "archetypes": {
+            archetype: _finalize_phase_table(table)
+            for archetype, table in sorted(archetype_phase_tables.items())
+        },
+    }
+    summary["phase_profile_deltas"] = {
+        archetype: _phase_profile_delta(
+            summary["phase_profiles"]["archetypes"].get(archetype, {}),
+            summary["phase_profiles"]["field"],
+        )
+        for archetype in summary["phase_profiles"]["archetypes"]
     }
     summary["benchmark_ladder"] = _benchmark_ladder_summary(
         seed_start=seed_start,
@@ -1024,6 +1171,26 @@ def _print_human_summary(summary: dict) -> None:
             print(f"  family_share_delta[{key}]={value:+.3f}")
         for key, value in top_pressure_family_deltas:
             print(f"  pressure_family_share_delta[{key}]={value:+.3f}")
+        phase_deltas = summary.get("phase_profile_deltas", {}).get(best_archetype, {})
+        if phase_deltas:
+            print(f"{best_archetype.title()} phase profile vs field:")
+            for phase_key, _, _ in PHASE_WINDOWS:
+                phase_entry = dict(phase_deltas.get(phase_key) or {})
+                if not phase_entry:
+                    continue
+                score_delta = float(phase_entry.get("avg_score_delta", 0.0))
+                users_delta = float(phase_entry.get("avg_users_delta", 0.0))
+                quality_delta = float(phase_entry.get("avg_product_quality_delta", 0.0))
+                top_phase_families = sorted(
+                    dict(phase_entry.get("action_family_share", {})).items(),
+                    key=lambda item: (-abs(item[1]), item[0]),
+                )[:2]
+                family_bits = ", ".join(f"{name}={value:+.3f}" for name, value in top_phase_families) or "none"
+                print(
+                    f"  {phase_key}: score_delta={score_delta:+.2f} "
+                    f"users_delta={users_delta:+.2f} quality_delta={quality_delta:+.2f} "
+                    f"families[{family_bits}]"
+                )
     benchmark_ladder = summary.get("benchmark_ladder", {})
     if benchmark_ladder:
         print("Benchmark ladder:")
