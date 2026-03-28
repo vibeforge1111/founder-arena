@@ -675,6 +675,12 @@
     word-break: break-word;
     border: 1px solid var(--border);
   }
+  .compare-line {
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-top: 6px;
+  }
 
   /* ─── SCROLLBAR ─── */
   ::-webkit-scrollbar { width: 4px; }
@@ -991,6 +997,13 @@ Protect trust, preserve runway, and keep the board aligned before scaling too ag
         <div class="preview-empty">Validation not loaded yet.</div>
       </div>
     </div>
+    <div class="launch-section">
+      <div class="conn-section-title">VERSION COMPARE</div>
+      <div class="launch-meta">See what changed from the previous registered version before you send this entrant back into practice or ranked play.</div>
+      <div class="validation-panel" id="launchComparePanel">
+        <div class="preview-empty">No version comparison loaded yet.</div>
+      </div>
+    </div>
     <div class="launch-status" id="launchStatus"></div>
     <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end">
       <button class="btn" onclick="closeLaunchModal()">CANCEL</button>
@@ -1024,6 +1037,7 @@ let entrantRegistryCache = [];
 let entrantQueueBusy = {};
 let launchEntrantState = null;
 let launchValidationState = null;
+let launchCompareState = null;
 const LAUNCH_PRESET_STORAGE_KEY = 'founder-arena.launch-presets.v1';
 const FOUNDER_DUEL_DEFAULTS = {
   name: 'Founder Duel',
@@ -1909,6 +1923,57 @@ function renderLaunchValidation(validation) {
   `;
 }
 
+function renderLaunchCompare(comparePayload) {
+  const panel = document.getElementById('launchComparePanel');
+  if (!panel) return;
+  if (!comparePayload) {
+    panel.innerHTML = '<div class="preview-empty">No version comparison loaded yet.</div>';
+    return;
+  }
+  const compare = comparePayload.compare || {};
+  const current = compare.current_version || {};
+  const previous = compare.previous_version || null;
+  const performance = compare.performance || {};
+  const currentPerf = performance.current || {};
+  const previousPerf = performance.previous || null;
+  panel.innerHTML = `
+    <div class="detail-tags">
+      <div class="detail-tag">${comparePayload.version_count || 1} versions</div>
+      <div class="detail-tag">current ${current.version_hash || '-'}</div>
+      ${previous ? `<div class="detail-tag">previous ${previous.version_hash || '-'}</div>` : ''}
+    </div>
+    <div class="compare-line" style="margin-top:8px">${compare.headline || 'No compare summary available.'}</div>
+    ${(compare.change_lines || []).map(item => `<div class="compare-line">${item}</div>`).join('')}
+    <div class="detail-tags" style="margin-top:10px">
+      <div class="detail-tag">current games ${currentPerf.games_played || 0}</div>
+      <div class="detail-tag">current wins ${currentPerf.wins || 0}</div>
+      <div class="detail-tag">current avg ${(currentPerf.avg_score || 0).toFixed ? currentPerf.avg_score.toFixed(1) : currentPerf.avg_score || 0}</div>
+      ${previousPerf ? `<div class="detail-tag">previous avg ${(previousPerf.avg_score || 0).toFixed ? previousPerf.avg_score.toFixed(1) : previousPerf.avg_score || 0}</div>` : ''}
+    </div>
+  `;
+}
+
+async function fetchEntrantCompare(entrantId) {
+  const panel = document.getElementById('launchComparePanel');
+  if (panel) {
+    panel.innerHTML = '<div class="preview-empty">Loading version comparison...</div>';
+  }
+  try {
+    const resp = await fetch(`/api/entrants/${entrantId}/compare`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Failed to compare versions');
+    launchCompareState = data;
+    renderLaunchCompare(data);
+    return data;
+  } catch (e) {
+    launchCompareState = null;
+    if (panel) {
+      panel.innerHTML = `<div class="validation-line error">${e.message}</div>`;
+    }
+    return null;
+  }
+}
+
 async function fetchEntrantValidation(entrantId) {
   const panel = document.getElementById('launchValidationPanel');
   if (panel) {
@@ -1981,6 +2046,7 @@ async function openLaunchModal(entrantId) {
   }
   launchEntrantState = entrant;
   launchValidationState = null;
+  launchCompareState = null;
   const defaults = defaultEntrantConfig(entrant);
   const preset = launchPresetFor(entrant.entrant_id);
   const queueOptions = queueOptionsForEntrant(entrant);
@@ -2013,13 +2079,18 @@ async function openLaunchModal(entrantId) {
   updateLaunchPresetNote();
   updateLaunchLobbyHint();
   renderLaunchValidation(null);
+  renderLaunchCompare(null);
   document.getElementById('launchModalBackdrop').classList.add('open');
-  await fetchEntrantValidation(entrant.entrant_id);
+  await Promise.all([
+    fetchEntrantValidation(entrant.entrant_id),
+    fetchEntrantCompare(entrant.entrant_id),
+  ]);
 }
 
 function closeLaunchModal() {
   launchEntrantState = null;
   launchValidationState = null;
+  launchCompareState = null;
   document.getElementById('launchModalBackdrop').classList.remove('open');
 }
 
@@ -2089,7 +2160,10 @@ async function submitEntrantLaunch() {
 
     await pollLobby();
     await fetchLeaderboard();
-    await fetchEntrantValidation(entrant.entrant_id);
+    await Promise.all([
+      fetchEntrantValidation(entrant.entrant_id),
+      fetchEntrantCompare(entrant.entrant_id),
+    ]);
     saveLaunchPresetFromModal(false);
     statusEl.className = 'launch-status success';
     statusEl.textContent = 'Entrant queued. Launch preset saved. Switching to lobby...';
@@ -2158,6 +2232,7 @@ function renderEntrantCard(entrant) {
       <div class="detail-tags">
         <div class="detail-tag">${entrant.entrant_type}</div>
         <div class="detail-tag">v ${entrant.version_hash}</div>
+        ${entrant.version_count > 1 ? `<div class="detail-tag">${entrant.version_count} versions</div>` : ''}
         ${preset ? `<div class="detail-tag">preset saved</div>` : ''}
       </div>
     </div>

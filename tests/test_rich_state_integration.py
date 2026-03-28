@@ -838,6 +838,68 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertFalse(payload["ready"])
         self.assertTrue(any("Workspace is missing or invalid" in item for item in payload["errors"]))
 
+    def test_skill_entrant_compare_tracks_versions_and_skill_content_changes(self) -> None:
+        first = self.client.post(
+            "/api/entrants",
+            json={
+                "manifest": {
+                    "schema_version": "founder-arena.entrant.v1",
+                    "entrant_id": "skill-compare",
+                    "display_name": "Skill Compare",
+                    "entrant_type": "skill_package",
+                    "queue_targets": ["skill_ranked"],
+                    "skill": {"entry_file": "SKILL.md"},
+                    "runtime": {"timeout_seconds": 10, "max_actions_per_turn": 3},
+                },
+                "inline_files": {
+                    "SKILL.md": "# Skill Compare\nprimary_style: lean\nrisk_posture: low\npreferred_foci: governance resilience\n"
+                },
+            },
+        )
+        self.assertEqual(first.status_code, 200)
+        first_hash = first.json()["version_hash"]
+
+        second = self.client.post(
+            "/api/entrants",
+            json={
+                "manifest": {
+                    "schema_version": "founder-arena.entrant.v1",
+                    "entrant_id": "skill-compare",
+                    "display_name": "Skill Compare",
+                    "entrant_type": "skill_package",
+                    "queue_targets": ["skill_ranked"],
+                    "skill": {"entry_file": "SKILL.md"},
+                    "runtime": {"timeout_seconds": 10, "max_actions_per_turn": 3},
+                },
+                "inline_files": {
+                    "SKILL.md": "# Skill Compare\nprimary_style: aggressive\nrisk_posture: high\npreferred_foci: growth intelligence\n"
+                },
+            },
+        )
+        self.assertEqual(second.status_code, 200)
+        second_hash = second.json()["version_hash"]
+        self.assertNotEqual(first_hash, second_hash)
+
+        compare = self.client.get("/api/entrants/skill-compare/compare")
+        self.assertEqual(compare.status_code, 200)
+        compare_payload = compare.json()
+        self.assertEqual(compare_payload["version_count"], 2)
+        self.assertEqual(compare_payload["version_hashes"], [first_hash, second_hash])
+        self.assertIn("primary_style: lean -> aggressive", compare_payload["compare"]["change_lines"])
+        self.assertIn("risk_posture: low -> high", compare_payload["compare"]["change_lines"])
+
+        detail = self.client.get("/api/entrants/skill-compare")
+        self.assertEqual(detail.status_code, 200)
+        detail_payload = detail.json()
+        self.assertEqual(detail_payload["version_count"], 2)
+        self.assertEqual(len(detail_payload["version_history"]), 1)
+        self.assertEqual(detail_payload["version_history"][0]["version_hash"], first_hash)
+
+        listing = self.client.get("/api/entrants")
+        self.assertEqual(listing.status_code, 200)
+        listed = next(item for item in listing.json()["entrants"] if item["entrant_id"] == "skill-compare")
+        self.assertEqual(listed["version_count"], 2)
+
     def test_add_registered_entrant_returns_400_for_missing_workspace(self) -> None:
         missing_workspace = server.ENTRANT_ROOT / "missing-skill" / "deadbeef"
         server.ENTRANTS["missing-skill"] = {

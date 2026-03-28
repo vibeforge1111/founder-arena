@@ -16,6 +16,7 @@ import subprocess
 import threading
 import time
 import uuid
+from copy import deepcopy
 from urllib.parse import urlparse
 from datetime import datetime, timezone
 from enum import Enum
@@ -2048,8 +2049,11 @@ def _safe_relative_path(path_value: str) -> Path:
     return candidate
 
 
-def _manifest_hash(manifest: dict) -> str:
-    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+def _manifest_hash(manifest: dict, inline_files: dict[str, str] | None = None) -> str:
+    payload = {"manifest": manifest}
+    if manifest.get("entrant_type") == "skill_package":
+        payload["inline_files"] = inline_files or {}
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()[:12]
 
 
@@ -2170,6 +2174,129 @@ def _diagnose_launch_log(last_launch: dict) -> dict:
         "level": "info",
         "label": "no log signal",
         "message": "No retained stdout or stderr output for the last launch yet.",
+    }
+
+
+def _entrant_version_snapshot(record: dict) -> dict:
+    return {
+        "entrant_id": record.get("entrant_id"),
+        "display_name": record.get("display_name"),
+        "entrant_type": record.get("entrant_type"),
+        "version_hash": record.get("version_hash"),
+        "workspace": record.get("workspace"),
+        "registered_at": record.get("registered_at"),
+        "manifest": deepcopy(record.get("manifest") or {}),
+        "compiled_doctrine": deepcopy(record.get("compiled_doctrine")),
+        "last_launch": deepcopy(record.get("last_launch")),
+    }
+
+
+def _version_history_for(entrant: dict) -> list[dict]:
+    current = _entrant_version_snapshot(entrant)
+    history = [deepcopy(item) for item in (entrant.get("version_history") or [])]
+    combined = history + [current]
+    deduped: list[dict] = []
+    seen: set[str] = set()
+    for item in sorted(combined, key=lambda entry: entry.get("registered_at") or ""):
+        version_hash = item.get("version_hash")
+        if not version_hash or version_hash in seen:
+            continue
+        seen.add(version_hash)
+        deduped.append(item)
+    return deduped
+
+
+def _version_performance_summary(entrant_id: str, version_hash: str) -> dict:
+    games_played = 0
+    wins = 0
+    total_score = 0.0
+    best_score = 0.0
+    for game in games.values():
+        if game.phase != GamePhase.FINISHED:
+            continue
+        for startup in game.startups.values():
+            if getattr(startup, "entrant_id", None) != entrant_id:
+                continue
+            if getattr(startup, "entrant_version_hash", None) != version_hash:
+                continue
+            games_played += 1
+            score = game._score_value_for(startup)
+            total_score += score
+            best_score = max(best_score, score)
+            wins += 1 if game.winner == startup.id else 0
+    return {
+        "games_played": games_played,
+        "wins": wins,
+        "avg_score": round(total_score / games_played, 2) if games_played else 0.0,
+        "best_score": round(best_score, 2),
+    }
+
+
+def _change_line(label: str, old_value, new_value) -> str | None:
+    if old_value == new_value:
+        return None
+    return f"{label}: {old_value} -> {new_value}"
+
+
+def _compare_entrant_versions(current: dict, previous: dict | None) -> dict:
+    current_snapshot = _entrant_version_snapshot(current)
+    current_manifest = current_snapshot.get("manifest") or {}
+    current_runtime = current_manifest.get("runtime") or {}
+    current_queue_targets = list(current_manifest.get("queue_targets") or [])
+    current_doctrine = (current_snapshot.get("compiled_doctrine") or {}).get("doctrine") or {}
+    current_performance = _version_performance_summary(current_snapshot["entrant_id"], current_snapshot["version_hash"])
+
+    if previous is None:
+        return {
+            "current_version": current_snapshot,
+            "previous_version": None,
+            "headline": "First registered version for this entrant.",
+            "change_lines": [],
+            "performance": {
+                "current": current_performance,
+                "previous": None,
+            },
+        }
+
+    previous_manifest = previous.get("manifest") or {}
+    previous_runtime = previous_manifest.get("runtime") or {}
+    previous_queue_targets = list(previous_manifest.get("queue_targets") or [])
+    previous_doctrine = (previous.get("compiled_doctrine") or {}).get("doctrine") or {}
+    previous_performance = _version_performance_summary(previous["entrant_id"], previous["version_hash"])
+
+    change_lines = [
+        _change_line("queue_targets", previous_queue_targets or ["showmatch"], current_queue_targets or ["showmatch"]),
+        _change_line("entry_command", previous_runtime.get("entry_command"), current_runtime.get("entry_command")),
+        _change_line("timeout_seconds", previous_runtime.get("timeout_seconds"), current_runtime.get("timeout_seconds")),
+        _change_line("max_actions_per_turn", previous_runtime.get("max_actions_per_turn"), current_runtime.get("max_actions_per_turn")),
+        _change_line("primary_style", previous_doctrine.get("primary_style"), current_doctrine.get("primary_style")),
+        _change_line("risk_posture", previous_doctrine.get("risk_posture"), current_doctrine.get("risk_posture")),
+        _change_line("decision_style", previous_doctrine.get("decision_style"), current_doctrine.get("decision_style")),
+        _change_line("preferred_foci", previous_doctrine.get("preferred_foci"), current_doctrine.get("preferred_foci")),
+        _change_line("recovery_order", previous_doctrine.get("recovery_order"), current_doctrine.get("recovery_order")),
+    ]
+    if current_snapshot.get("entrant_type") == "github_repo":
+        previous_repo = previous_manifest.get("repo") or {}
+        current_repo = current_manifest.get("repo") or {}
+        change_lines.extend(
+            [
+                _change_line("repo.ref", previous_repo.get("ref"), current_repo.get("ref")),
+                _change_line("repo.subdir", previous_repo.get("subdir"), current_repo.get("subdir")),
+            ]
+        )
+    change_lines = [line for line in change_lines if line]
+    if not change_lines:
+        change_lines = ["No bounded contract changes detected between these versions."]
+
+    return {
+        "current_version": current_snapshot,
+        "previous_version": previous,
+        "headline": f"Comparing {previous['version_hash']} -> {current_snapshot['version_hash']}",
+        "change_lines": change_lines,
+        "performance": {
+            "current": current_performance,
+            "previous": previous_performance,
+        },
     }
 
 
@@ -2353,13 +2480,25 @@ def _register_github_workspace(manifest: dict, workspace: Path) -> None:
 
 def _register_entrant(manifest: dict, inline_files: dict[str, str]) -> dict:
     validated = _validate_entrant_manifest(manifest)
-    version_hash = _manifest_hash(validated)
+    version_hash = _manifest_hash(validated, inline_files=inline_files)
     workspace = _entrant_workspace(validated["entrant_id"], version_hash)
     if validated["entrant_type"] == "skill_package":
         _register_skill_workspace(validated, inline_files, workspace)
     else:
         _register_github_workspace(validated, workspace)
     compiled_doctrine = _compile_skill_doctrine_preview(validated, inline_files=inline_files, workspace=workspace)
+    existing = ENTRANTS.get(validated["entrant_id"])
+    version_history = [deepcopy(item) for item in (existing or {}).get("version_history", [])]
+    if existing and existing.get("version_hash") != version_hash:
+        version_history.append(_entrant_version_snapshot(existing))
+    deduped_history: list[dict] = []
+    seen_hashes: set[str] = set()
+    for item in sorted(version_history, key=lambda entry: entry.get("registered_at") or ""):
+        item_hash = item.get("version_hash")
+        if not item_hash or item_hash in seen_hashes:
+            continue
+        seen_hashes.add(item_hash)
+        deduped_history.append(item)
     record = {
         "entrant_id": validated["entrant_id"],
         "display_name": validated["display_name"],
@@ -2369,6 +2508,7 @@ def _register_entrant(manifest: dict, inline_files: dict[str, str]) -> dict:
         "workspace": str(workspace),
         "registered_at": _utc_now_iso(),
         "compiled_doctrine": compiled_doctrine,
+        "version_history": deduped_history[-12:],
     }
     ENTRANTS[validated["entrant_id"]] = record
     _save_entrant_registry(ENTRANTS)
@@ -2575,6 +2715,28 @@ async def validate_entrant(entrant_id: str):
     return _validate_registered_entrant(entrant)
 
 
+@app.get("/api/entrants/{entrant_id}/compare")
+async def compare_entrant_versions(entrant_id: str, base_version_hash: Optional[str] = None):
+    entrant = ENTRANTS.get(entrant_id)
+    if not entrant:
+        raise HTTPException(404, "Entrant not found")
+    history = _version_history_for(entrant)
+    current = history[-1] if history else _entrant_version_snapshot(entrant)
+    previous = None
+    if base_version_hash:
+        previous = next((item for item in history if item.get("version_hash") == base_version_hash), None)
+        if previous is None:
+            raise HTTPException(404, "base_version_hash not found for entrant")
+    elif len(history) >= 2:
+        previous = history[-2]
+    return {
+        "entrant_id": entrant_id,
+        "version_count": len(history),
+        "compare": _compare_entrant_versions(entrant, previous),
+        "version_hashes": [item.get("version_hash") for item in history],
+    }
+
+
 @app.get("/api/entrants")
 async def list_entrants():
     return {
@@ -2588,6 +2750,7 @@ async def list_entrants():
                 "queue_targets": list((entrant.get("manifest") or {}).get("queue_targets") or []),
                 "compiled_doctrine": entrant.get("compiled_doctrine"),
                 "last_launch": _with_launch_diagnostics(entrant).get("last_launch"),
+                "version_count": len(_version_history_for(entrant)),
             }
             for entrant in ENTRANTS.values()
         ]
@@ -2605,7 +2768,10 @@ async def get_entrant(entrant_id: str):
             entrant.get("manifest") or {},
             workspace=workspace,
         )
-    return _with_launch_diagnostics(entrant)
+    enriched = _with_launch_diagnostics(entrant)
+    enriched["version_history"] = _version_history_for(entrant)[:-1]
+    enriched["version_count"] = len(_version_history_for(entrant))
+    return enriched
 
 
 # ─── Game CRUD ───────────────────────────────────────────────────────────────
