@@ -63,6 +63,10 @@ class RichStateIntegrationTests(unittest.TestCase):
         payload = response.json()
         self.assertTrue(payload["use_rich_state"])
         self.assertEqual(payload["game_mode"], "legacy_arena")
+        self.assertEqual(payload["max_players"], 2)
+        self.assertEqual(payload["min_players"], 2)
+        self.assertEqual(payload["turn_timeout"], 5)
+        self.assertEqual(payload["max_turns"], 2)
         self.assertIn("admin_token", payload)
         self.assertIn("join_code", payload)
         self.assertIn("spectator_token", payload)
@@ -227,6 +231,12 @@ class RichStateIntegrationTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
+        self.assertIn("primary_mode", payload)
+        self.assertEqual(payload["primary_mode"]["id"], "founder_duel")
+        self.assertEqual(payload["primary_mode"]["game_mode"], "competitive_mode")
+        self.assertEqual(payload["primary_mode"]["max_players"], 2)
+        self.assertEqual(payload["primary_mode"]["max_turns"], 32)
+        self.assertEqual(payload["primary_mode"]["practice_queue"], "showmatch")
         self.assertIn("ranked_actions", payload)
         self.assertIn("legacy_arena_actions", payload)
         self.assertIn("board_sync", payload["ranked_actions"])
@@ -451,6 +461,32 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertIn("capital", spectator["arc_feed"][0]["theme"])
 
     def test_skill_entrant_registration_and_queue_enforcement(self) -> None:
+        preview = self.client.post(
+            "/api/entrants/preview",
+            json={
+                "manifest": {
+                    "schema_version": "founder-arena.entrant.v1",
+                    "entrant_id": "skill-test",
+                    "display_name": "Skill Test",
+                    "entrant_type": "skill_package",
+                    "queue_targets": ["skill_ranked"],
+                    "skill": {"entry_file": "SKILL.md"},
+                    "runtime": {
+                        "timeout_seconds": 10,
+                        "max_actions_per_turn": 3,
+                    },
+                },
+                "inline_files": {
+                    "SKILL.md": "# Skill Test\nprimary_style: lean\nrisk_posture: low\nfocus: governance trust\n"
+                },
+            },
+        )
+        self.assertEqual(preview.status_code, 200)
+        preview_payload = preview.json()
+        self.assertTrue(preview_payload["preview_available"])
+        self.assertEqual(preview_payload["compiled_doctrine"]["doctrine"]["primary_style"], "lean")
+        self.assertEqual(preview_payload["compiled_doctrine"]["doctrine"]["risk_posture"], "low")
+
         register = self.client.post(
             "/api/entrants",
             json={
@@ -459,6 +495,7 @@ class RichStateIntegrationTests(unittest.TestCase):
                     "entrant_id": "skill-test",
                     "display_name": "Skill Test",
                     "entrant_type": "skill_package",
+                    "queue_targets": ["skill_ranked"],
                     "skill": {"entry_file": "SKILL.md"},
                     "runtime": {
                         "timeout_seconds": 10,
@@ -466,7 +503,7 @@ class RichStateIntegrationTests(unittest.TestCase):
                     },
                 },
                 "inline_files": {
-                    "SKILL.md": "# Skill Test\n"
+                    "SKILL.md": "# Skill Test\nprimary_style: lean\nrisk_posture: low\nfocus: governance trust\n"
                 },
             },
         )
@@ -474,13 +511,24 @@ class RichStateIntegrationTests(unittest.TestCase):
         entrant_payload = register.json()
         self.assertEqual(entrant_payload["entrant_type"], "skill_package")
         self.assertTrue(Path(entrant_payload["workspace"]).exists())
+        self.assertEqual(entrant_payload["compiled_doctrine"]["doctrine"]["primary_style"], "lean")
         entrant_detail = self.client.get("/api/entrants/skill-test")
         self.assertEqual(entrant_detail.status_code, 200)
         self.assertEqual(
             entrant_detail.json()["manifest"]["runtime"]["entry_command"],
             ["python", "skill_runner.py"],
         )
+        self.assertEqual(
+            entrant_detail.json()["compiled_doctrine"]["doctrine"]["risk_posture"],
+            "low",
+        )
+        entrant_listing = self.client.get("/api/entrants")
+        self.assertEqual(entrant_listing.status_code, 200)
+        listed_entrant = next(item for item in entrant_listing.json()["entrants"] if item["entrant_id"] == "skill-test")
+        self.assertEqual(listed_entrant["queue_targets"], ["skill_ranked"])
+        self.assertEqual(listed_entrant["compiled_doctrine"]["doctrine"]["primary_style"], "lean")
         self.assertTrue((Path(entrant_payload["workspace"]) / "skill_runner.py").exists())
+        self.assertTrue((Path(entrant_payload["workspace"]) / "example_agent.py").exists())
 
         create = self.client.post(
             "/api/games",
@@ -538,6 +586,107 @@ class RichStateIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(accepted.status_code, 200)
         self.assertEqual(accepted.json()["queue"], "skill_ranked")
+
+    def test_skill_entrant_metadata_flows_into_public_state_and_replay(self) -> None:
+        register = self.client.post(
+            "/api/entrants",
+            json={
+                "manifest": {
+                    "schema_version": "founder-arena.entrant.v1",
+                    "entrant_id": "skill-replay",
+                    "display_name": "Skill Replay",
+                    "entrant_type": "skill_package",
+                    "skill": {"entry_file": "SKILL.md"},
+                    "runtime": {
+                        "timeout_seconds": 10,
+                        "max_actions_per_turn": 3,
+                    },
+                },
+                "inline_files": {
+                    "SKILL.md": "# Skill Replay\nprimary_style: lean\nrisk_posture: low\npreferred_foci: governance resilience growth\n"
+                },
+            },
+        )
+        self.assertEqual(register.status_code, 200)
+        entrant_payload = register.json()
+
+        create = self.client.post(
+            "/api/games",
+            json={
+                "name": "Doctrine Replay",
+                "max_players": 2,
+                "min_players": 2,
+                "turn_timeout": 5,
+                "max_turns": 1,
+                "game_mode": "competitive_mode",
+                "queue": "skill_ranked",
+            },
+        )
+        self.assertEqual(create.status_code, 200)
+        game_payload = create.json()
+        game_id = game_payload["game_id"]
+
+        join_1 = self.client.post(
+            f"/api/games/{game_id}/join",
+            json={
+                "agent_name": "SkillOne",
+                "startup_name": "DoctrineCo",
+                "sector": "saas",
+                "motto": "m1",
+                "strategy_description": "lean",
+                "join_code": game_payload["join_code"],
+                "entrant_id": "skill-replay",
+                "entrant_version_hash": entrant_payload["version_hash"],
+                "entrant_type": "skill_package",
+            },
+        )
+        self.assertEqual(join_1.status_code, 200)
+        startup_1_id = join_1.json()["startup_id"]
+
+        join_2 = self.client.post(
+            f"/api/games/{game_id}/join",
+            json={
+                "agent_name": "SkillTwo",
+                "startup_name": "BaselineCo",
+                "sector": "ai",
+                "motto": "m2",
+                "strategy_description": "balanced",
+                "join_code": game_payload["join_code"],
+            },
+        )
+        self.assertEqual(join_2.status_code, 200)
+
+        public_state = self.client.get(f"/api/games/{game_id}")
+        self.assertEqual(public_state.status_code, 200)
+        startup_payload = public_state.json()["startups"][startup_1_id]
+        self.assertEqual(startup_payload["entrant_id"], "skill-replay")
+        self.assertEqual(startup_payload["entrant_type"], "skill_package")
+        self.assertEqual(startup_payload["compiled_doctrine"]["doctrine"]["primary_style"], "lean")
+
+        start = self.client.post(
+            f"/api/games/{game_id}/start",
+            headers={"X-Admin-Token": game_payload["admin_token"]},
+        )
+        self.assertEqual(start.status_code, 200)
+
+        action_1 = self.client.post(
+            f"/api/games/{game_id}/action",
+            headers={"X-Agent-Token": join_1.json()["agent_token"]},
+            json={"actions": [{"type": "build_feature", "params": {"focus": "core"}}]},
+        )
+        self.assertEqual(action_1.status_code, 200)
+        action_2 = self.client.post(
+            f"/api/games/{game_id}/action",
+            headers={"X-Agent-Token": join_2.json()["agent_token"]},
+            json={"actions": [{"type": "build_feature", "params": {"focus": "core"}}]},
+        )
+        self.assertEqual(action_2.status_code, 200)
+
+        replay = self.client.get(f"/api/games/{game_id}/replay")
+        self.assertEqual(replay.status_code, 200)
+        replay_entry = next(item for item in replay.json()["rankings"] if item["startup"] == "DoctrineCo")
+        self.assertEqual(replay_entry["entrant_id"], "skill-replay")
+        self.assertEqual(replay_entry["compiled_doctrine"]["doctrine"]["risk_posture"], "low")
 
     def test_github_manifest_validation_rejects_non_github_urls(self) -> None:
         with self.assertRaises(ValueError):
@@ -610,6 +759,56 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertEqual(command[:2], ["python", "agent.py"])
         self.assertEqual(server.ENTRANTS["gh-test"]["last_launch"]["pid"], 4242)
         self.assertTrue(server.ENTRANTS["gh-test"]["last_launch"]["cwd"].endswith("arena"))
+
+    def test_add_registered_entrant_returns_400_for_missing_workspace(self) -> None:
+        missing_workspace = server.ENTRANT_ROOT / "missing-skill" / "deadbeef"
+        server.ENTRANTS["missing-skill"] = {
+            "entrant_id": "missing-skill",
+            "display_name": "Missing Skill",
+            "entrant_type": "skill_package",
+            "manifest": {
+                "schema_version": "founder-arena.entrant.v1",
+                "entrant_id": "missing-skill",
+                "display_name": "Missing Skill",
+                "entrant_type": "skill_package",
+                "queue_targets": ["showmatch"],
+                "skill": {"entry_file": "SKILL.md"},
+                "runtime": {"entry_command": ["python", "skill_runner.py"], "timeout_seconds": 10, "max_actions_per_turn": 3},
+            },
+            "version_hash": "deadbeef",
+            "workspace": str(missing_workspace),
+            "registered_at": server._utc_now_iso(),
+            "compiled_doctrine": None,
+        }
+
+        create = self.client.post(
+            "/api/games",
+            json={
+                "name": "Missing Workspace Queue Test",
+                "max_players": 2,
+                "min_players": 2,
+                "turn_timeout": 5,
+                "max_turns": 2,
+                "game_mode": "competitive_mode",
+                "queue": "showmatch",
+            },
+        )
+        self.assertEqual(create.status_code, 200)
+        game_payload = create.json()
+
+        queued = self.client.post(
+            f"/api/games/{game_payload['game_id']}/add-entrant",
+            headers={"X-Admin-Token": game_payload["admin_token"]},
+            json={
+                "entrant_id": "missing-skill",
+                "agent_name": "MissingRunner",
+                "startup_name": "MissingCo",
+                "sector": "ai",
+                "launch": True,
+            },
+        )
+        self.assertEqual(queued.status_code, 400)
+        self.assertIn("workspace is missing", queued.json()["detail"])
 
     def test_rich_game_replay_exposes_scores_and_director_fields(self) -> None:
         create = self.client.post(

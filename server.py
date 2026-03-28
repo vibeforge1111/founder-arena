@@ -31,6 +31,7 @@ from action_mapper import ActionMapper, RANKED_ACTION_COOLDOWNS
 from director_adapter import ArenaDirector
 from example_agent import FounderAgent
 from security import AuditLogger, RateLimiter, token_fingerprint
+from skill_runner import compile_skill_doctrine
 from world_state import RichStartupState
 
 # ─── Constants ───────────────────────────────────────────────────────────────
@@ -52,6 +53,20 @@ TURN_TIMEOUT_SECONDS = 30
 DEFAULT_GAME_MODE = "legacy_arena"
 SUPPORTED_GAME_MODES = ["legacy_arena", "competitive_mode"]
 SUPPORTED_QUEUES = ["showmatch", "github_ranked", "skill_ranked"]
+FOUNDER_DUEL_DEFAULTS = {
+    "id": "founder_duel",
+    "label": "Founder Duel",
+    "description": "Official production wedge: 1v1 simultaneous-turn startup duel with a score winner at horizon.",
+    "game_mode": "competitive_mode",
+    "max_players": 2,
+    "min_players": 2,
+    "max_turns": 32,
+    "turn_timeout": 5,
+    "practice_queue": "showmatch",
+    "ranked_queues": ["github_ranked", "skill_ranked"],
+    "entrant_contract": "SKILL.md changes style, not raw power.",
+    "replay_focus": "turning points, score deltas, and loss diagnosis",
+}
 BASE_SALARY = {"engineer": 12000, "marketer": 9000, "salesperson": 10000, "designer": 10000}
 LEGACY_ARENA_ACTIONS = ["pivot", "spy", "poach"]
 
@@ -85,6 +100,9 @@ class JoinGameRequest(BaseModel):
     motto: str = ""
     strategy_description: str = ""
     join_code: str = ""
+    entrant_id: Optional[str] = None
+    entrant_version_hash: Optional[str] = None
+    entrant_type: Optional[str] = None
 
 class ActionRequest(BaseModel):
     agent_token: Optional[str] = None
@@ -132,6 +150,10 @@ class Startup:
         self.sector = sector
         self.motto = motto
         self.strategy = strategy
+        self.entrant_id: Optional[str] = None
+        self.entrant_type: Optional[str] = None
+        self.entrant_version_hash: Optional[str] = None
+        self.compiled_doctrine: Optional[dict] = None
         self.alive = True
         self.death_reason = ""
         # Financials
@@ -190,6 +212,9 @@ class Startup:
             "id": self.id, "agent_name": self.agent_name,
             "startup_name": self.startup_name, "sector": self.sector,
             "motto": self.motto, "strategy": self.strategy, "alive": self.alive,
+            "entrant_id": self.entrant_id, "entrant_type": self.entrant_type,
+            "entrant_version_hash": self.entrant_version_hash,
+            "compiled_doctrine": self.compiled_doctrine,
             "death_reason": self.death_reason,
             "cash": self.cash, "monthly_burn": self.monthly_burn,
             "revenue": self.revenue, "runway": self.runway,
@@ -1781,6 +1806,10 @@ class Game:
                 {"rank": i+1, "startup": s.startup_name, "agent": s.agent_name,
                  "sector": s.sector, "valuation": s.calc_valuation(),
                  "score": self._score_value_for(s),
+                 "entrant_id": getattr(s, "entrant_id", None),
+                 "entrant_type": getattr(s, "entrant_type", None),
+                 "entrant_version_hash": getattr(s, "entrant_version_hash", None),
+                 "compiled_doctrine": getattr(s, "compiled_doctrine", None),
                  "alive": s.alive, "death_reason": s.death_reason,
                  "users": s.users, "revenue": s.revenue, "cash": s.cash,
                  "total_raised": s.total_raised, "features_built": s.features_built,
@@ -1910,8 +1939,58 @@ def _register_skill_workspace(manifest: dict, inline_files: dict[str, str], work
         target = workspace / _safe_relative_path(relative_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(contents, encoding="utf-8")
-    runner_source = Path(__file__).parent / "skill_runner.py"
-    shutil.copy2(runner_source, workspace / "skill_runner.py")
+
+    _sync_skill_runtime_files(workspace)
+
+
+def _sync_skill_runtime_files(workspace: Path) -> None:
+    workspace.mkdir(parents=True, exist_ok=True)
+    root = Path(__file__).parent
+    shutil.copy2(root / "skill_runner.py", workspace / "skill_runner.py")
+    shutil.copy2(root / "example_agent.py", workspace / "example_agent.py")
+
+
+def _compile_skill_doctrine_preview(
+    manifest: dict,
+    inline_files: dict[str, str] | None = None,
+    workspace: Path | None = None,
+) -> dict | None:
+    if manifest.get("entrant_type") != "skill_package":
+        return None
+    entry_file = ((manifest.get("skill") or {}).get("entry_file") or "").strip()
+    if not entry_file:
+        return None
+
+    skill_text = None
+    if inline_files and entry_file in inline_files:
+        skill_text = inline_files[entry_file]
+    elif workspace is not None:
+        candidate = workspace / _safe_relative_path(entry_file)
+        if candidate.exists():
+            skill_text = candidate.read_text(encoding="utf-8")
+
+    if skill_text is None:
+        return None
+
+    runtime = manifest.get("runtime") or {}
+    fallback = str(runtime.get("strategy") or "balanced")
+    return {
+        "entry_file": entry_file,
+        "doctrine": compile_skill_doctrine(skill_text, fallback=fallback),
+    }
+
+
+def _attach_entrant_metadata(startup, entrant: dict | None, *, entrant_id: str | None = None, entrant_type: str | None = None, entrant_version_hash: str | None = None) -> None:
+    if entrant is not None:
+        startup.entrant_id = entrant.get("entrant_id")
+        startup.entrant_type = entrant.get("entrant_type")
+        startup.entrant_version_hash = entrant.get("version_hash")
+        startup.compiled_doctrine = entrant.get("compiled_doctrine")
+        return
+    startup.entrant_id = entrant_id
+    startup.entrant_type = entrant_type
+    startup.entrant_version_hash = entrant_version_hash
+    startup.compiled_doctrine = None
 
 
 def _register_github_workspace(manifest: dict, workspace: Path) -> None:
@@ -1952,6 +2031,7 @@ def _register_entrant(manifest: dict, inline_files: dict[str, str]) -> dict:
         _register_skill_workspace(validated, inline_files, workspace)
     else:
         _register_github_workspace(validated, workspace)
+    compiled_doctrine = _compile_skill_doctrine_preview(validated, inline_files=inline_files, workspace=workspace)
     record = {
         "entrant_id": validated["entrant_id"],
         "display_name": validated["display_name"],
@@ -1960,6 +2040,7 @@ def _register_entrant(manifest: dict, inline_files: dict[str, str]) -> dict:
         "version_hash": version_hash,
         "workspace": str(workspace),
         "registered_at": _utc_now_iso(),
+        "compiled_doctrine": compiled_doctrine,
     }
     ENTRANTS[validated["entrant_id"]] = record
     _save_entrant_registry(ENTRANTS)
@@ -1984,10 +2065,15 @@ def _launch_registered_entrant(game: Game, entrant: dict, add_req: AddEntrantReq
     manifest = entrant["manifest"]
     runtime = manifest["runtime"]
     workspace = Path(entrant["workspace"])
+    if not workspace.exists() or not workspace.is_dir():
+        raise ValueError(f"Entrant workspace is missing or invalid: {workspace}")
     launch_cwd = workspace
     command = list(runtime["entry_command"])
     if entrant["entrant_type"] == "skill_package":
         skill_entry = ((manifest.get("skill") or {}).get("entry_file") or "SKILL.md").strip()
+        _sync_skill_runtime_files(workspace)
+        if not (workspace / _safe_relative_path(skill_entry)).exists():
+            raise ValueError(f"Skill entrant entry file is missing from workspace: {skill_entry}")
         command = ["python", "skill_runner.py", "--skill-file", skill_entry]
     elif entrant["entrant_type"] == "github_repo":
         subdir = ((manifest.get("repo") or {}).get("subdir") or "").strip()
@@ -2005,6 +2091,12 @@ def _launch_registered_entrant(game: Game, entrant: dict, add_req: AddEntrantReq
         "--strategy", add_req.strategy_description,
         "--server", _server_base_url(request),
     ])
+    if entrant.get("entrant_type") == "skill_package":
+        if entrant.get("entrant_id"):
+            command.extend(["--entrant-id", entrant["entrant_id"]])
+        if entrant.get("version_hash"):
+            command.extend(["--entrant-version-hash", entrant["version_hash"]])
+        command.extend(["--entrant-type", entrant["entrant_type"]])
     process = subprocess.Popen(
         command,
         cwd=str(launch_cwd),
@@ -2073,6 +2165,7 @@ async def info():
         "name": "Founder Arena",
         "tagline": "Where AI agents build empires and humans watch the chaos",
         "version": "1.3.0",
+        "primary_mode": FOUNDER_DUEL_DEFAULTS,
         "sectors": SECTORS,
         "roles": ROLES,
         "max_actions_per_turn": MAX_ACTIONS_PER_TURN,
@@ -2109,6 +2202,24 @@ async def register_entrant(req: EntrantRegisterRequest, request: Request):
         "version_hash": entrant["version_hash"],
         "workspace": entrant["workspace"],
         "registered_at": entrant["registered_at"],
+        "compiled_doctrine": entrant.get("compiled_doctrine"),
+    }
+
+
+@app.post("/api/entrants/preview")
+async def preview_entrant(req: EntrantRegisterRequest, request: Request):
+    _enforce_rate_limit(request, scope="preview_entrant", identity=_client_ip(request), limit=40, window_seconds=60)
+    try:
+        manifest = _validate_entrant_manifest(dict(req.manifest))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    compiled_doctrine = _compile_skill_doctrine_preview(manifest, inline_files=req.inline_files)
+    return {
+        "entrant_id": manifest["entrant_id"],
+        "entrant_type": manifest["entrant_type"],
+        "preview_available": compiled_doctrine is not None,
+        "compiled_doctrine": compiled_doctrine,
     }
 
 
@@ -2122,6 +2233,9 @@ async def list_entrants():
                 "entrant_type": entrant["entrant_type"],
                 "version_hash": entrant["version_hash"],
                 "registered_at": entrant["registered_at"],
+                "queue_targets": list((entrant.get("manifest") or {}).get("queue_targets") or []),
+                "compiled_doctrine": entrant.get("compiled_doctrine"),
+                "last_launch": entrant.get("last_launch"),
             }
             for entrant in ENTRANTS.values()
         ]
@@ -2133,6 +2247,12 @@ async def get_entrant(entrant_id: str):
     entrant = ENTRANTS.get(entrant_id)
     if not entrant:
         raise HTTPException(404, "Entrant not found")
+    if entrant.get("entrant_type") == "skill_package" and entrant.get("compiled_doctrine") is None:
+        workspace = Path(entrant["workspace"])
+        entrant["compiled_doctrine"] = _compile_skill_doctrine_preview(
+            entrant.get("manifest") or {},
+            workspace=workspace,
+        )
     return entrant
 
 
@@ -2148,6 +2268,10 @@ async def create_game(req: CreateGameRequest, request: Request):
         "game_id": game.id,
         "name": game.name,
         "seed": game.seed,
+        "max_players": game.max_players,
+        "min_players": game.min_players,
+        "turn_timeout": game.turn_timeout,
+        "max_turns": game.max_turns,
         "game_mode": game.game_mode,
         "queue": game.queue,
         "use_rich_state": game.use_rich_state,
@@ -2206,6 +2330,20 @@ async def join_game(game_id: str, req: JoinGameRequest, request: Request):
             req.agent_name, req.startup_name, req.sector,
             req.motto, req.strategy_description,
         )
+        entrant = None
+        if req.entrant_id:
+            entrant = ENTRANTS.get(req.entrant_id)
+            if entrant is None:
+                raise HTTPException(400, "Unknown entrant_id supplied at join time")
+            if req.entrant_version_hash and req.entrant_version_hash != entrant.get("version_hash"):
+                raise HTTPException(400, "entrant_version_hash does not match the registered entrant")
+        _attach_entrant_metadata(
+            startup,
+            entrant,
+            entrant_id=req.entrant_id,
+            entrant_type=req.entrant_type,
+            entrant_version_hash=req.entrant_version_hash,
+        )
         payload = {
             "startup_id": startup.id,
             "agent_token": startup.agent_token,
@@ -2248,6 +2386,8 @@ async def add_registered_entrant(
     if req.launch:
         try:
             launch_command = _launch_registered_entrant(game, entrant, req, request)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
         except FileNotFoundError as exc:
             raise HTTPException(400, f"Entrant runtime command not found: {exc}")
 

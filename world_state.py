@@ -250,6 +250,10 @@ class RichStartupState:
         self.sector = sector
         self.motto = motto
         self.strategy = strategy
+        self.entrant_id: str | None = None
+        self.entrant_type: str | None = None
+        self.entrant_version_hash: str | None = None
+        self.compiled_doctrine: dict | None = None
         self.seed = seed
         self.rng = random.Random(seed)
         self.alive = True
@@ -513,6 +517,10 @@ class RichStartupState:
             "motto": self.motto,
             "strategy": self.strategy,
             "alive": self.alive,
+            "entrant_id": self.entrant_id,
+            "entrant_type": self.entrant_type,
+            "entrant_version_hash": self.entrant_version_hash,
+            "compiled_doctrine": deepcopy(self.compiled_doctrine),
             "death_reason": self.death_reason,
             "cash": self.cash,
             "monthly_burn": self.monthly_burn,

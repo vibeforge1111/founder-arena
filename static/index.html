@@ -417,6 +417,23 @@
   .lb-table th:hover { color: var(--text-dim); }
   .lb-table td { padding: 9px 12px; font-size: 11px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
   .lb-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .entrant-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .entrant-card {
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015));
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .entrant-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .entrant-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .entrant-id { font-size: 10px; color: var(--text-muted); margin-top: 3px; font-family: 'JetBrains Mono', monospace; overflow-wrap: anywhere; }
+  .entrant-meta { font-size: 10px; color: var(--text-muted); margin-top: 10px; display: grid; gap: 5px; }
+  .entrant-label { color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; font-size: 9px; }
+  .entrant-doctrine { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .entrant-empty { font-size: 11px; color: var(--text-muted); padding: 10px 0; }
+  .entrant-actions { margin-top: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .entrant-hint { font-size: 10px; color: var(--text-muted); line-height: 1.4; }
+  .lb-subnote { font-size: 10px; color: var(--text-muted); margin: -4px 0 12px; }
 
   .win-rate-bar { width: 50px; height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 5px; }
   .win-rate-fill { height: 100%; background: var(--green); border-radius: 2px; opacity: 0.8; }
@@ -511,6 +528,103 @@
   .agent-list-empty { font-size: 11px; color: var(--text-muted); padding: 10px 0; }
   .lobby-count { font-size: 11px; color: var(--text-dim); margin-bottom: 8px; font-weight: 400; }
   .lobby-actions { margin-top: 24px; display: flex; gap: 10px; justify-content: flex-end; }
+  .preview-editor {
+    min-height: 120px;
+    resize: vertical;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    line-height: 1.5;
+  }
+  .preview-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .preview-status { font-size: 10px; color: var(--text-muted); }
+  .preview-output {
+    margin-top: 10px;
+    min-height: 84px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+  }
+  .preview-empty { font-size: 11px; color: var(--text-muted); }
+  .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .preview-pill {
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+  }
+  .preview-pill strong { color: var(--text); font-weight: 600; }
+  .preview-list { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .preview-chip {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.4px;
+    color: var(--text-dim);
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+  }
+  .preview-error {
+    color: #fca5a5;
+    font-size: 11px;
+    white-space: pre-wrap;
+  }
+  .launch-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.62);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 20px;
+  }
+  .launch-modal-backdrop.open { display: flex; }
+  .launch-modal {
+    width: min(680px, 100%);
+    max-height: 90vh;
+    overflow-y: auto;
+    background: var(--panel-solid);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+    padding: 28px;
+  }
+  .launch-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-bottom: 18px;
+  }
+  .launch-section {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .launch-status {
+    margin-top: 14px;
+    font-size: 10px;
+    color: var(--text-muted);
+    min-height: 14px;
+  }
+  .launch-status.error { color: #fca5a5; }
+  .launch-status.success { color: #86efac; }
+  .launch-preset-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: -4px 0 14px;
+  }
+  .launch-preset-note {
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
 
   /* ─── SCROLLBAR ─── */
   ::-webkit-scrollbar { width: 4px; }
@@ -646,19 +760,20 @@
 <!-- CREATE GAME VIEW -->
 <div id="view-create" class="view">
   <div class="solo-panel">
-    <div class="solo-title">CREATE GAME</div>
+    <div class="solo-title">CREATE FOUNDER DUEL</div>
+    <div class="launch-meta" style="margin-bottom:16px">Official mode: 1v1, simultaneous turns, 32-turn score race. You can still change the fields below for local testing.</div>
     <div class="form-group">
       <label class="form-label">GAME NAME</label>
-      <input class="form-input" id="createName" value="Solo Battle" />
+      <input class="form-input" id="createName" value="Founder Duel" />
     </div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">PLAYERS (2-8)</label>
-        <input class="form-input" id="createPlayers" type="number" min="2" max="8" value="4" />
+        <input class="form-input" id="createPlayers" type="number" min="2" max="8" value="2" />
       </div>
       <div class="form-group">
         <label class="form-label">TURNS</label>
-        <input class="form-input" id="createTurns" type="number" min="5" max="100" value="30" />
+        <input class="form-input" id="createTurns" type="number" min="5" max="100" value="32" />
       </div>
     </div>
     <div class="form-group">
@@ -721,9 +836,108 @@ agent.play()</div>
       </div>
     </div>
 
+    <div class="conn-section">
+      <div class="conn-section-title">SKILL PREVIEW</div>
+      <label class="form-label">PASTE SKILL.MD</label>
+      <textarea class="form-input preview-editor" id="skillPreviewText"># Skill Entrant
+primary_style: lean
+risk_posture: low
+decision_style: analytical
+preferred_foci: governance resilience growth
+recovery_order: support_recovery board_sync
+
+Protect trust, preserve runway, and keep the board aligned before scaling too aggressively.</textarea>
+      <div class="preview-actions">
+        <button class="btn btn-sm" id="skillPreviewBtn" onclick="previewSkillDoctrine()">PREVIEW DOCTRINE</button>
+        <span class="preview-status" id="skillPreviewStatus">See how Founder Arena will interpret your skill package before you queue.</span>
+      </div>
+      <div class="preview-output" id="skillPreviewOutput">
+        <div class="preview-empty">No preview yet.</div>
+      </div>
+    </div>
+
     <div class="lobby-actions">
       <button class="btn" onclick="cancelLobby()">CANCEL</button>
       <button class="btn btn-primary" id="fillBotsBtn" onclick="fillBotsAndStart()">FILL BOTS &amp; START</button>
+    </div>
+  </div>
+</div>
+
+<div class="launch-modal-backdrop" id="launchModalBackdrop">
+  <div class="launch-modal">
+    <div class="solo-title">LAUNCH ENTRANT</div>
+    <div class="launch-meta" id="launchModalMeta">Configure how this entrant will join the next match.</div>
+    <div class="launch-preset-row">
+      <button class="btn btn-sm" id="launchSavePresetBtn" onclick="saveLaunchPresetFromModal()">SAVE PRESET</button>
+      <button class="btn btn-sm" id="launchResetPresetBtn" onclick="resetLaunchPresetFromModal()">RESET PRESET</button>
+      <div class="launch-preset-note" id="launchPresetNote">No saved preset for this entrant yet.</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">AGENT NAME</label>
+        <input class="form-input" id="launchAgentName" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">STARTUP NAME</label>
+        <input class="form-input" id="launchStartupName" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">SECTOR</label>
+        <select class="form-select" id="launchSector">
+          <option value="ai">ai</option>
+          <option value="saas">saas</option>
+          <option value="consumer">consumer</option>
+          <option value="fintech">fintech</option>
+          <option value="crypto">crypto</option>
+          <option value="healthtech">healthtech</option>
+          <option value="edtech">edtech</option>
+          <option value="climate">climate</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">QUEUE</label>
+        <select class="form-select" id="launchQueue"></select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">MOTTO</label>
+      <input class="form-input" id="launchMotto" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">STRATEGY DESCRIPTION</label>
+      <input class="form-input" id="launchStrategy" />
+    </div>
+    <div class="launch-section">
+      <div class="conn-section-title">LOBBY SETUP</div>
+      <div class="launch-meta" id="launchLobbyHint">Founder Arena defaults new launches to Founder Duel practice: 1v1, 32 turns, benchmark-bot friendly.</div>
+      <div class="form-group">
+        <label class="form-label">GAME NAME</label>
+        <input class="form-input" id="launchGameName" value="Entrant Match" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">PLAYERS</label>
+          <input class="form-input" id="launchPlayers" type="number" min="2" max="8" value="2" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">TURNS</label>
+          <input class="form-input" id="launchTurns" type="number" min="5" max="100" value="32" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">SPEED</label>
+          <select class="form-select" id="launchSpeed">
+            <option value="5">FAST (5s)</option>
+            <option value="30">NORMAL (30s)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="launch-status" id="launchStatus"></div>
+    <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end">
+      <button class="btn" onclick="closeLaunchModal()">CANCEL</button>
+      <button class="btn btn-primary" id="launchSubmitBtn" onclick="submitEntrantLaunch()">QUEUE ENTRANT</button>
     </div>
   </div>
 </div>
@@ -747,6 +961,18 @@ let joinCode = null;
 let spectatorToken = null;
 let lobbyInterval = null;
 let selectedSpeed = 5;
+let currentLobbyData = null;
+let leaderboardDataCache = null;
+let entrantRegistryCache = [];
+let entrantQueueBusy = {};
+let launchEntrantState = null;
+const LAUNCH_PRESET_STORAGE_KEY = 'founder-arena.launch-presets.v1';
+const FOUNDER_DUEL_DEFAULTS = {
+  name: 'Founder Duel',
+  max_players: 2,
+  max_turns: 32,
+  practice_queue: 'showmatch',
+};
 
 function getAgentColor(startupId) {
   if (!(startupId in agentColorMap)) {
@@ -777,6 +1003,11 @@ document.querySelectorAll('.center-tab').forEach(tab => {
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
     if (tab.dataset.tab === 'chart') drawChart();
   });
+});
+
+document.getElementById('launchQueue').addEventListener('change', updateLaunchLobbyHint);
+document.getElementById('launchModalBackdrop').addEventListener('click', (event) => {
+  if (event.target.id === 'launchModalBackdrop') closeLaunchModal();
 });
 
 // ──────────────────────────────────────────────────
@@ -843,9 +1074,15 @@ async function fetchState() {
 
 async function fetchLeaderboard() {
   try {
-    const resp = await fetch('/api/leaderboard');
-    const data = await resp.json();
-    renderLeaderboard(data);
+    const [leaderboardResp, entrantsResp] = await Promise.all([
+      fetch('/api/leaderboard'),
+      fetch('/api/entrants'),
+    ]);
+    const data = leaderboardResp.ok ? await leaderboardResp.json() : {};
+    const entrantsData = entrantsResp.ok ? await entrantsResp.json() : { entrants: [] };
+    leaderboardDataCache = data;
+    entrantRegistryCache = entrantsData.entrants || [];
+    renderLeaderboard(leaderboardDataCache, entrantRegistryCache);
   } catch (e) { console.error('Leaderboard error:', e); }
 }
 
@@ -1158,6 +1395,7 @@ function renderAgentDetail(sid) {
   const currentArc = s.current_arc || null;
   const recentActions = actions.slice(-15).reverse();
   const dims = s.seven_dimension_scores?.dimensions || {};
+  const doctrine = s.compiled_doctrine?.doctrine || null;
 
   let html = `<div class="agent-detail">
     <div class="detail-header">
@@ -1168,6 +1406,7 @@ function renderAgentDetail(sid) {
         <div class="detail-tag">${s.strategy || 'unknown'}</div>
         <div class="detail-tag">${s.sector || 'unknown'}</div>
         <div class="detail-tag">${s.alive ? 'ALIVE' : 'DEAD'}</div>
+        ${s.entrant_type ? `<div class="detail-tag">${s.entrant_type}</div>` : ''}
         ${s.funding_round ? `<div class="detail-tag">${s.funding_round}</div>` : ''}
       </div>
     </div>
@@ -1190,6 +1429,20 @@ function renderAgentDetail(sid) {
       ${makeProgressBar('Brand', s.brand || 0, '--pink')}
       ${makeProgressBar('Morale', s.morale || 0, '--cyan')}
     </div>`;
+
+  if (doctrine) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">ENTRANT DOCTRINE</div>
+      <div class="detail-tags">
+        <div class="detail-tag">style ${doctrine.primary_style || 'balanced'}</div>
+        <div class="detail-tag">risk ${doctrine.risk_posture || 'medium'}</div>
+        <div class="detail-tag">${doctrine.decision_style || 'concise'}</div>
+        ${s.entrant_version_hash ? `<div class="detail-tag">v ${s.entrant_version_hash}</div>` : ''}
+      </div>
+      ${(doctrine.preferred_foci || []).length ? `<div class="hint" style="margin-top:8px">Focus: ${doctrine.preferred_foci.join(', ')}</div>` : ''}
+      ${(doctrine.recovery_order || []).length ? `<div class="hint" style="margin-top:6px">Recovery: ${doctrine.recovery_order.join(' -> ')}</div>` : ''}
+    </div>`;
+  }
 
   if (decision) {
     html += `<div class="detail-section">
@@ -1301,6 +1554,7 @@ function renderPostGame() {
     const isWinner = sid === winnerId || (rank === 1 && s.alive);
     const actions = logs[sid] || [];
     const decision = latestDecisionFor(sid);
+    const doctrine = s.compiled_doctrine?.doctrine || null;
 
     html += `<tr class="${isWinner ? 'winner-row' : ''}">
       <td class="rank-cell" style="color:${rank===1?'var(--gold)':rank===2?'var(--silver)':rank===3?'var(--bronze)':'var(--text-dim)'}">${rank}</td>
@@ -1326,6 +1580,13 @@ function renderPostGame() {
         <div class="expand-stat"><div class="stat-label">STRATEGY</div><div class="stat-value">${s.strategy||'unknown'}</div></div>
         <div class="expand-stat"><div class="stat-label">ROUND</div><div class="stat-value">${s.funding_round||'pre-seed'}</div></div>
       </div>
+      ${doctrine ? `<div class="expand-actions-title">ENTRANT DOCTRINE</div>
+      <div class="detail-tags" style="margin-bottom:10px">
+        <div class="detail-tag">style ${doctrine.primary_style || 'balanced'}</div>
+        <div class="detail-tag">risk ${doctrine.risk_posture || 'medium'}</div>
+        <div class="detail-tag">${doctrine.decision_style || 'concise'}</div>
+        ${(doctrine.preferred_foci || []).map(item => `<div class="detail-tag">${item}</div>`).join('')}
+      </div>` : ''}
       ${decision ? `<div class="expand-actions-title">LAST PLAN</div>
       <div class="recent-action"><div class="recent-turn">${decision.confidence || 'mid'}</div><div class="recent-type">${decision.intent || 'No intent'}</div><div class="recent-msg">${decision.reasoning_summary || decision.expected_outcome || ''}</div><div class="recent-ok">${decision.watch_metric || '-'}</div></div>` : ''}
       ${actions.length ? `<div class="expand-actions-title">ACTION HISTORY (${actions.length} actions)</div>
@@ -1345,10 +1606,393 @@ function toggleExpand(id) {
 // ──────────────────────────────────────────────────
 // LEADERBOARD
 // ──────────────────────────────────────────────────
-function renderLeaderboard(data) {
+function lobbyAcceptsEntrant(entrantType, queue) {
+  if (queue === 'showmatch') return true;
+  if (queue === 'skill_ranked') return entrantType === 'skill_package';
+  if (queue === 'github_ranked') return entrantType === 'github_repo';
+  return false;
+}
+
+function currentLobbyMeta() {
+  const startups = currentLobbyData?.startups || {};
+  return {
+    active: !!soloGameId && !!adminToken && currentLobbyData?.phase === 'lobby',
+    phase: currentLobbyData?.phase || null,
+    queue: currentLobbyData?.queue || 'showmatch',
+    count: Object.keys(startups).length,
+    max: currentLobbyData?.max_players || 0,
+    startups,
+  };
+}
+
+function queueOptionsForEntrant(entrant) {
+  if (entrant.entrant_type === 'skill_package') return ['showmatch', 'skill_ranked'];
+  if (entrant.entrant_type === 'github_repo') return ['showmatch', 'github_ranked'];
+  return ['showmatch'];
+}
+
+function queueLabel(queue) {
+  if (queue === 'showmatch') return 'Practice Duel';
+  if (queue === 'skill_ranked') return 'Ranked Duel (SKILL.md)';
+  if (queue === 'github_ranked') return 'Ranked Duel (GitHub)';
+  return queue;
+}
+
+function loadLaunchPresets() {
+  try {
+    return JSON.parse(localStorage.getItem(LAUNCH_PRESET_STORAGE_KEY) || '{}');
+  } catch (e) {
+    console.warn('Failed to load launch presets', e);
+    return {};
+  }
+}
+
+function saveLaunchPresets(presets) {
+  try {
+    localStorage.setItem(LAUNCH_PRESET_STORAGE_KEY, JSON.stringify(presets));
+  } catch (e) {
+    console.warn('Failed to save launch presets', e);
+  }
+}
+
+function launchPresetFor(entrantId) {
+  const presets = loadLaunchPresets();
+  return presets[entrantId] || null;
+}
+
+function defaultEntrantConfig(entrant) {
+  const doctrine = entrant.compiled_doctrine?.doctrine || {};
+  const baseName = (entrant.display_name || entrant.entrant_id || 'Entrant').trim();
+  const startupBase = baseName.replace(/\b(bot|agent)\b/ig, '').replace(/\s+/g, ' ').trim() || baseName;
+  return {
+    agent_name: baseName.slice(0, 32),
+    startup_name: startupBase.slice(0, 32),
+    sector: 'ai',
+    motto: doctrine.primary_style ? `${doctrine.primary_style} doctrine entrant` : 'registered entrant',
+    strategy_description: doctrine.primary_style || 'competitive',
+  };
+}
+
+function collectLaunchFormValues() {
+  return {
+    agent_name: document.getElementById('launchAgentName').value.trim(),
+    startup_name: document.getElementById('launchStartupName').value.trim(),
+    sector: document.getElementById('launchSector').value,
+    queue: document.getElementById('launchQueue').value,
+    motto: document.getElementById('launchMotto').value.trim(),
+    strategy_description: document.getElementById('launchStrategy').value.trim(),
+    game_name: document.getElementById('launchGameName').value.trim(),
+    max_players: Math.min(8, Math.max(2, parseInt(document.getElementById('launchPlayers').value, 10) || FOUNDER_DUEL_DEFAULTS.max_players)),
+    max_turns: parseInt(document.getElementById('launchTurns').value, 10) || FOUNDER_DUEL_DEFAULTS.max_turns,
+    turn_timeout: parseInt(document.getElementById('launchSpeed').value, 10) || 5,
+    saved_at: new Date().toISOString(),
+  };
+}
+
+function updateLaunchPresetNote() {
+  const note = document.getElementById('launchPresetNote');
+  const resetBtn = document.getElementById('launchResetPresetBtn');
+  if (!launchEntrantState) {
+    note.textContent = 'No entrant selected.';
+    resetBtn.disabled = true;
+    return;
+  }
+  const preset = launchPresetFor(launchEntrantState.entrant_id);
+  if (!preset) {
+    note.textContent = 'No saved preset for this entrant yet.';
+    resetBtn.disabled = true;
+    return;
+  }
+  const stamp = preset.saved_at ? new Date(preset.saved_at).toLocaleString() : 'saved';
+  note.textContent = `Saved preset: ${preset.agent_name || '-'} / ${preset.startup_name || '-'} / ${queueLabel(preset.queue || FOUNDER_DUEL_DEFAULTS.practice_queue)} (${stamp})`;
+  resetBtn.disabled = false;
+}
+
+function saveLaunchPresetFromModal(showStatus = true) {
+  if (!launchEntrantState) return;
+  const presets = loadLaunchPresets();
+  presets[launchEntrantState.entrant_id] = collectLaunchFormValues();
+  saveLaunchPresets(presets);
+  updateLaunchPresetNote();
+  rerenderLeaderboardIfVisible();
+  if (showStatus) {
+    const statusEl = document.getElementById('launchStatus');
+    statusEl.className = 'launch-status success';
+    statusEl.textContent = 'Launch preset saved for this entrant.';
+  }
+}
+
+function resetLaunchPresetFromModal() {
+  if (!launchEntrantState) return;
+  const presets = loadLaunchPresets();
+  delete presets[launchEntrantState.entrant_id];
+  saveLaunchPresets(presets);
+  updateLaunchPresetNote();
+  rerenderLeaderboardIfVisible();
+  const statusEl = document.getElementById('launchStatus');
+  statusEl.className = 'launch-status';
+  statusEl.textContent = 'Saved preset cleared.';
+}
+
+function updateLaunchLobbyHint() {
+  if (!launchEntrantState) return;
+  const hint = document.getElementById('launchLobbyHint');
+  const btn = document.getElementById('launchSubmitBtn');
+  const lobby = currentLobbyMeta();
+  const queue = document.getElementById('launchQueue').value;
+  if (lobby.active && lobby.queue === queue) {
+    hint.textContent = `Current lobby ${soloGameId} matches ${queueLabel(queue)}. Founder Arena will reuse it if there is room.`;
+    btn.textContent = (!lobby.max || lobby.count < lobby.max) ? 'QUEUE TO CURRENT LOBBY' : 'CREATE NEW LOBBY & QUEUE';
+  } else if (lobby.active) {
+    hint.textContent = `Current lobby uses ${queueLabel(lobby.queue)}. Founder Arena will create a new ${queueLabel(queue)} lobby with the settings below, then queue this entrant.`;
+    btn.textContent = 'CREATE NEW LOBBY & QUEUE';
+  } else {
+    hint.textContent = `No active lobby. Founder Arena will create a new ${queueLabel(queue)} lobby with the settings below, then queue this entrant.`;
+    btn.textContent = 'CREATE LOBBY & QUEUE';
+  }
+}
+
+function applyLobbyState(data, playerCountHint = null) {
+  soloGameId = data.game_id;
+  adminToken = data.admin_token;
+  joinCode = data.join_code;
+  spectatorToken = data.spectator_token;
+  gameId = soloGameId;
+  currentLobbyData = {
+    phase: 'lobby',
+    queue: data.queue || FOUNDER_DUEL_DEFAULTS.practice_queue,
+    max_players: playerCountHint || data.max_players || FOUNDER_DUEL_DEFAULTS.max_players,
+    max_turns: data.max_turns || FOUNDER_DUEL_DEFAULTS.max_turns,
+    turn_timeout: data.turn_timeout || selectedSpeed || 5,
+    startups: {},
+  };
+
+  document.getElementById('lobbyGameId').textContent = soloGameId;
+  document.getElementById('lobbyJoinCode').textContent = joinCode;
+  document.getElementById('lobbyCount').textContent = `Waiting for agents (0/${currentLobbyData.max_players})`;
+
+  const codeEl = document.getElementById('lobbyCode');
+  codeEl.innerHTML = `<button class="copy-btn" onclick="copyCode()">copy</button>from example_agent import FounderAgent
+agent = FounderAgent(
+    name="MyAgent",
+    startup_name="MyCo",
+    sector="ai",
+    strategy="balanced",
+)
+agent.join_game("${soloGameId}", "${joinCode}")
+agent.play()`;
+}
+
+function rerenderLeaderboardIfVisible() {
+  if (document.getElementById('view-leaderboard').classList.contains('active')) {
+    renderLeaderboard(leaderboardDataCache || {}, entrantRegistryCache || []);
+  }
+}
+
+function openLaunchModal(entrantId) {
+  const entrant = (entrantRegistryCache || []).find(item => item.entrant_id === entrantId);
+  if (!entrant) {
+    alert('Entrant not found in registry.');
+    return;
+  }
+  launchEntrantState = entrant;
+  const defaults = defaultEntrantConfig(entrant);
+  const preset = launchPresetFor(entrant.entrant_id);
+  const queueOptions = queueOptionsForEntrant(entrant);
+  const lobby = currentLobbyMeta();
+  const selectedQueue = (
+    preset?.queue && queueOptions.includes(preset.queue)
+      ? preset.queue
+      : (lobby.active && queueOptions.includes(lobby.queue) ? lobby.queue : queueOptions[0])
+  );
+
+  document.getElementById('launchModalMeta').textContent = `${entrant.display_name} (${entrant.entrant_id}) can be launched into practice or ranked queues from here.`;
+  document.getElementById('launchAgentName').value = preset?.agent_name || defaults.agent_name;
+  document.getElementById('launchStartupName').value = preset?.startup_name || defaults.startup_name;
+  document.getElementById('launchSector').value = preset?.sector || defaults.sector;
+  document.getElementById('launchMotto').value = preset?.motto || defaults.motto;
+  document.getElementById('launchStrategy').value = preset?.strategy_description || defaults.strategy_description;
+  document.getElementById('launchGameName').value = preset?.game_name || `${entrant.display_name} Founder Duel`;
+  document.getElementById('launchPlayers').value = preset?.max_players || lobby.max || FOUNDER_DUEL_DEFAULTS.max_players;
+  document.getElementById('launchTurns').value = preset?.max_turns || currentLobbyData?.max_turns || FOUNDER_DUEL_DEFAULTS.max_turns;
+  document.getElementById('launchSpeed').value = String(preset?.turn_timeout || selectedSpeed || 5);
+
+  const queueSelect = document.getElementById('launchQueue');
+  queueSelect.innerHTML = queueOptions.map(queue => `<option value="${queue}">${queueLabel(queue)}</option>`).join('');
+  queueSelect.value = selectedQueue;
+
+  document.getElementById('launchStatus').className = 'launch-status';
+  document.getElementById('launchStatus').textContent = '';
+  document.getElementById('launchSubmitBtn').textContent = 'QUEUE ENTRANT';
+  document.getElementById('launchSubmitBtn').disabled = false;
+  updateLaunchPresetNote();
+  updateLaunchLobbyHint();
+  document.getElementById('launchModalBackdrop').classList.add('open');
+}
+
+function closeLaunchModal() {
+  launchEntrantState = null;
+  document.getElementById('launchModalBackdrop').classList.remove('open');
+}
+
+async function submitEntrantLaunch() {
+  if (!launchEntrantState) return;
+  const entrant = launchEntrantState;
+  const queue = document.getElementById('launchQueue').value;
+  const lobby = currentLobbyMeta();
+  const statusEl = document.getElementById('launchStatus');
+  const btn = document.getElementById('launchSubmitBtn');
+
+  entrantQueueBusy[entrant.entrant_id] = true;
+  btn.disabled = true;
+  btn.textContent = 'QUEUEING...';
+  statusEl.className = 'launch-status';
+  statusEl.textContent = 'Preparing launch...';
+  rerenderLeaderboardIfVisible();
+
+  try {
+    const formValues = collectLaunchFormValues();
+    if (!(lobby.active && lobby.queue === queue && (!lobby.max || lobby.count < lobby.max))) {
+      statusEl.textContent = 'Creating a matching lobby...';
+      const createResp = await fetch('/api/games', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formValues.game_name || 'Entrant Match',
+          max_players: formValues.max_players,
+          min_players: 2,
+          turn_timeout: formValues.turn_timeout,
+          max_turns: formValues.max_turns,
+          game_mode: 'competitive_mode',
+          use_rich_state: true,
+          queue,
+        }),
+      });
+      const createData = await createResp.json().catch(() => ({}));
+      if (!createResp.ok) throw new Error(createData.detail || 'Failed to create lobby');
+      applyLobbyState(createData, formValues.max_players);
+      startLobbyPoll();
+    }
+
+    statusEl.textContent = 'Queueing entrant into lobby...';
+    const payload = {
+      entrant_id: entrant.entrant_id,
+      agent_name: formValues.agent_name || defaultEntrantConfig(entrant).agent_name,
+      startup_name: formValues.startup_name || defaultEntrantConfig(entrant).startup_name,
+      sector: formValues.sector,
+      motto: formValues.motto,
+      strategy_description: formValues.strategy_description || defaultEntrantConfig(entrant).strategy_description,
+      launch: true,
+    };
+    const resp = await fetch(`/api/games/${soloGameId}/add-entrant`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken,
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Failed to queue entrant');
+
+    await pollLobby();
+    await fetchLeaderboard();
+    saveLaunchPresetFromModal(false);
+    statusEl.className = 'launch-status success';
+    statusEl.textContent = 'Entrant queued. Launch preset saved. Switching to lobby...';
+    switchView('lobby');
+    setTimeout(() => closeLaunchModal(), 250);
+  } catch (e) {
+    console.error('Queue entrant error:', e);
+    statusEl.className = 'launch-status error';
+    statusEl.textContent = e.message;
+    btn.disabled = false;
+    btn.textContent = 'QUEUE ENTRANT';
+  } finally {
+    delete entrantQueueBusy[entrant.entrant_id];
+    rerenderLeaderboardIfVisible();
+  }
+}
+
+function renderEntrantCard(entrant) {
+  const doctrine = entrant.compiled_doctrine?.doctrine || null;
+  const preset = launchPresetFor(entrant.entrant_id);
+  const queueTargets = entrant.queue_targets || [];
+  const lastLaunch = entrant.last_launch || null;
+  const lobby = currentLobbyMeta();
+  const existingStartup = Object.values(lobby.startups).find(item => item.entrant_id === entrant.entrant_id);
+  let actionLabel = 'CREATE LOBBY';
+  let actionDisabled = false;
+  let actionHandler = `openLaunchModal('${entrant.entrant_id}')`;
+  let actionHint = 'Open launch setup to choose names, sector, and queue before joining a match.';
+
+  if (entrantQueueBusy[entrant.entrant_id]) {
+    actionLabel = 'QUEUEING...';
+    actionDisabled = true;
+    actionHandler = '';
+    actionHint = 'Submitting this entrant to the current lobby.';
+  } else if (lobby.active) {
+    if (existingStartup) {
+      actionLabel = 'ALREADY QUEUED';
+      actionDisabled = true;
+      actionHandler = '';
+      actionHint = `${existingStartup.startup_name || entrant.display_name} is already in the current lobby.`;
+    } else if (lobby.max && lobby.count >= lobby.max) {
+      actionLabel = 'LOBBY FULL';
+      actionDisabled = true;
+      actionHandler = '';
+      actionHint = `Current lobby is full (${lobby.count}/${lobby.max}).`;
+    } else if (!lobbyAcceptsEntrant(entrant.entrant_type, lobby.queue)) {
+      actionLabel = 'CONFIGURE LAUNCH';
+      actionDisabled = false;
+      actionHandler = `openLaunchModal('${entrant.entrant_id}')`;
+      actionHint = `Current lobby queue ${lobby.queue} does not accept ${entrant.entrant_type}. Choose a different queue or create a new lobby.`;
+    } else {
+      actionLabel = 'CONFIGURE & QUEUE';
+      actionDisabled = false;
+      actionHandler = `openLaunchModal('${entrant.entrant_id}')`;
+      actionHint = `Current ${lobby.queue} lobby is ready (${lobby.count}/${lobby.max}). Review launch settings, then queue this entrant.`;
+    }
+  }
+
+  return `<div class="entrant-card">
+    <div class="entrant-card-header">
+      <div>
+        <div class="entrant-name">${entrant.display_name}</div>
+        <div class="entrant-id">${entrant.entrant_id}</div>
+      </div>
+      <div class="detail-tags">
+        <div class="detail-tag">${entrant.entrant_type}</div>
+        <div class="detail-tag">v ${entrant.version_hash}</div>
+        ${preset ? `<div class="detail-tag">preset saved</div>` : ''}
+      </div>
+    </div>
+    <div class="entrant-meta">
+      <div><span class="entrant-label">Queues</span> ${queueTargets.length ? queueTargets.join(', ') : 'showmatch'}</div>
+      <div><span class="entrant-label">Registered</span> ${new Date(entrant.registered_at).toLocaleString()}</div>
+      ${lastLaunch?.game_id ? `<div><span class="entrant-label">Last launch</span> ${lastLaunch.game_id.slice(0, 8)} in ${lastLaunch.queue || 'unknown'}</div>` : ''}
+    </div>
+    ${doctrine ? `<div class="entrant-doctrine">
+      <div class="detail-tags">
+        <div class="detail-tag">style ${doctrine.primary_style || 'balanced'}</div>
+        <div class="detail-tag">risk ${doctrine.risk_posture || 'medium'}</div>
+        <div class="detail-tag">${doctrine.decision_style || 'concise'}</div>
+        ${(doctrine.preferred_foci || []).map(item => `<div class="detail-tag">${item}</div>`).join('')}
+      </div>
+      ${(doctrine.recovery_order || []).length ? `<div class="hint" style="margin-top:8px">Recovery: ${doctrine.recovery_order.join(' -> ')}</div>` : ''}
+    </div>` : `<div class="entrant-doctrine"><div class="hint">No compiled doctrine available.</div></div>`}
+    <div class="entrant-actions">
+      <button class="btn btn-sm" ${actionDisabled ? 'disabled' : ''} ${actionHandler ? `onclick="${actionHandler}"` : ''}>${actionLabel}</button>
+      <div class="entrant-hint">${actionHint}</div>
+    </div>
+  </div>`;
+}
+
+function renderLeaderboard(data, entrants = []) {
   const container = document.getElementById('leaderboardContent');
   const rankings = data.agent_rankings || [];
   const entries = data.leaderboard || [];
+  const entrantList = [...entrants].sort((a, b) => (b.registered_at || '').localeCompare(a.registered_at || ''));
   let html = '';
 
   if (rankings.length > 0) {
@@ -1394,8 +2038,19 @@ function renderLeaderboard(data) {
       </tbody></table></div>`;
   }
 
-  if (!rankings.length && !entries.length) {
-    html = '<div class="no-game"><div class="no-game-title">No Games Yet</div><div class="no-game-sub">Play a game to see the leaderboard</div></div>';
+  if (entrantList.length > 0) {
+    const lobby = currentLobbyMeta();
+    html += `<div class="lb-section" style="margin-top:0">
+      <div class="lb-section-title">REGISTERED ENTRANTS</div>
+      <div class="lb-subnote">${lobby.active ? `Current lobby ${soloGameId} is active (${lobby.count}/${lobby.max}, ${lobby.queue}). Open launch setup on any entrant to reuse it or create a new queue-specific lobby.` : 'No active lobby. Open launch setup on any entrant to create a match and queue it directly from this registry.'}</div>
+      <div class="entrant-grid">
+        ${entrantList.map(renderEntrantCard).join('')}
+      </div>
+    </div>`;
+  }
+
+  if (!rankings.length && !entries.length && !entrantList.length) {
+    html = '<div class="no-game"><div class="no-game-title">No Games Yet</div><div class="no-game-sub">Register an entrant or play a game to populate the ladder.</div></div>';
   }
   container.innerHTML = html;
 }
@@ -1427,9 +2082,9 @@ function setSpeed(el) {
 }
 
 async function createGame() {
-  const name = document.getElementById('createName').value || 'Solo Battle';
-  const players = parseInt(document.getElementById('createPlayers').value) || 4;
-  const turns = parseInt(document.getElementById('createTurns').value) || 30;
+  const name = document.getElementById('createName').value || FOUNDER_DUEL_DEFAULTS.name;
+  const players = parseInt(document.getElementById('createPlayers').value) || FOUNDER_DUEL_DEFAULTS.max_players;
+  const turns = parseInt(document.getElementById('createTurns').value) || FOUNDER_DUEL_DEFAULTS.max_turns;
 
   try {
     const resp = await fetch('/api/games', {
@@ -1442,36 +2097,16 @@ async function createGame() {
         turn_timeout: selectedSpeed,
         max_turns: turns,
         game_mode: 'competitive_mode',
+        queue: FOUNDER_DUEL_DEFAULTS.practice_queue,
         use_rich_state: true,
       }),
     });
     if (!resp.ok) throw new Error('Failed to create game');
     const data = await resp.json();
-
-    soloGameId = data.game_id;
-    adminToken = data.admin_token;
-    joinCode = data.join_code;
-    spectatorToken = data.spectator_token;
-    gameId = soloGameId;
-
-    // Update lobby UI
-    document.getElementById('lobbyGameId').textContent = soloGameId;
-    document.getElementById('lobbyJoinCode').textContent = joinCode;
-    document.getElementById('lobbyCount').textContent = `Waiting for agents (0/${players})`;
-
-    // Update code snippet
-    const codeEl = document.getElementById('lobbyCode');
-    codeEl.innerHTML = `<button class="copy-btn" onclick="copyCode()">copy</button>from example_agent import FounderAgent
-agent = FounderAgent(
-    name="MyAgent",
-    startup_name="MyCo",
-    sector="ai",
-    strategy="balanced",
-)
-agent.join_game("${soloGameId}", "${joinCode}")
-agent.play()`;
+    applyLobbyState(data, Math.min(8, Math.max(2, players)));
 
     switchView('lobby');
+    rerenderLeaderboardIfVisible();
     startLobbyPoll();
   } catch (e) {
     console.error('Create game error:', e);
@@ -1491,6 +2126,7 @@ async function pollLobby() {
     const resp = await fetch(`/api/games/${soloGameId}`);
     if (!resp.ok) return;
     const data = await resp.json();
+    currentLobbyData = data;
 
     if (data.phase === 'playing' || data.phase === 'finished') {
       // Game started (maybe by fill-bots or externally)
@@ -1498,6 +2134,7 @@ async function pollLobby() {
       lobbyInterval = null;
       gameId = soloGameId;
       postGameShown = false;
+      rerenderLeaderboardIfVisible();
       switchView('live');
       return;
     }
@@ -1515,6 +2152,7 @@ async function pollLobby() {
         `<div class="agent-list-item"><div class="dot"></div><span style="font-weight:600">${s.agent_name || s.startup_name}</span><span style="color:var(--text-dim);font-size:10px;margin-left:auto">${s.startup_name} / ${s.sector}</span></div>`
       ).join('');
     }
+    rerenderLeaderboardIfVisible();
   } catch (e) { console.error('Lobby poll error:', e); }
 }
 
@@ -1554,6 +2192,8 @@ function cancelLobby() {
   soloGameId = null;
   adminToken = null;
   joinCode = null;
+  currentLobbyData = null;
+  rerenderLeaderboardIfVisible();
   switchView('live');
 }
 
@@ -1572,6 +2212,77 @@ function copyCode() {
     const btn = codeEl.querySelector('.copy-btn');
     if (btn) { btn.textContent = 'copied!'; setTimeout(() => btn.textContent = 'copy', 1500); }
   });
+}
+
+function renderDoctrinePreview(compiled) {
+  if (!compiled || !compiled.doctrine) {
+    return '<div class="preview-empty">No doctrine preview available for this entrant.</div>';
+  }
+  const doctrine = compiled.doctrine;
+  const preferredFoci = (doctrine.preferred_foci || []).map(item => `<span class="preview-chip">${item}</span>`).join('');
+  const recoveryOrder = (doctrine.recovery_order || []).map(item => `<span class="preview-chip">${item}</span>`).join('');
+  return `
+    <div class="preview-grid">
+      <div class="preview-pill"><strong>Style</strong><br>${doctrine.primary_style || 'balanced'}</div>
+      <div class="preview-pill"><strong>Risk</strong><br>${doctrine.risk_posture || 'medium'}</div>
+      <div class="preview-pill"><strong>Decision Style</strong><br>${doctrine.decision_style || 'concise'}</div>
+      <div class="preview-pill"><strong>Entry File</strong><br>${compiled.entry_file || 'SKILL.md'}</div>
+    </div>
+    <div class="preview-status" style="margin-top:10px">Preferred focus classes</div>
+    <div class="preview-list">${preferredFoci || '<span class="preview-chip">none</span>'}</div>
+    <div class="preview-status" style="margin-top:10px">Recovery order</div>
+    <div class="preview-list">${recoveryOrder || '<span class="preview-chip">none</span>'}</div>
+  `;
+}
+
+async function previewSkillDoctrine() {
+  const btn = document.getElementById('skillPreviewBtn');
+  const status = document.getElementById('skillPreviewStatus');
+  const output = document.getElementById('skillPreviewOutput');
+  const skillText = document.getElementById('skillPreviewText').value.trim();
+
+  if (!skillText) {
+    status.textContent = 'Paste a SKILL.md body first.';
+    output.innerHTML = '<div class="preview-error">Skill preview requires SKILL.md content.</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'PREVIEWING...';
+  status.textContent = 'Compiling doctrine preview...';
+
+  try {
+    const resp = await fetch('/api/entrants/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        manifest: {
+          schema_version: 'founder-arena.entrant.v1',
+          entrant_id: 'preview-skill',
+          display_name: 'Preview Skill',
+          entrant_type: 'skill_package',
+          skill: { entry_file: 'SKILL.md' },
+          runtime: {
+            timeout_seconds: 10,
+            max_actions_per_turn: 3,
+          },
+        },
+        inline_files: {
+          'SKILL.md': skillText,
+        },
+      }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Failed to preview doctrine');
+    output.innerHTML = renderDoctrinePreview(data.compiled_doctrine);
+    status.textContent = 'Preview ready. This is the bounded doctrine Founder Arena will use.';
+  } catch (e) {
+    output.innerHTML = `<div class="preview-error">${e.message}</div>`;
+    status.textContent = 'Preview failed.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'PREVIEW DOCTRINE';
+  }
 }
 
 // ──────────────────────────────────────────────────

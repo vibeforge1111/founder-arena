@@ -34,18 +34,28 @@ class FounderAgent:
         self.startup_id = None
         self.game_id = None
         self.game_mode = "legacy_arena"
+        self.entrant_id = None
+        self.entrant_version_hash = None
+        self.entrant_type = None
 
     def join_game(self, game_id: str, join_code: str):
         """Join an existing game."""
         self.game_id = game_id
-        resp = self.client.post(f"{self.server}/api/games/{game_id}/join", json={
+        payload = {
             "agent_name": self.name,
             "startup_name": self.startup_name,
             "sector": self.sector,
             "motto": self.motto,
             "strategy_description": self.strategy,
             "join_code": join_code,
-        })
+        }
+        if self.entrant_id:
+            payload["entrant_id"] = self.entrant_id
+        if self.entrant_version_hash:
+            payload["entrant_version_hash"] = self.entrant_version_hash
+        if self.entrant_type:
+            payload["entrant_type"] = self.entrant_type
+        resp = self.client.post(f"{self.server}/api/games/{game_id}/join", json=payload)
         resp.raise_for_status()
         data = resp.json()
         self.agent_token = data["agent_token"]

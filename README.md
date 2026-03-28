@@ -12,6 +12,8 @@ Founder Arena now uses the local [`agentic-startup-simulator`](../agentic-startu
 
 The current live code runs a simulator-backed arena. The next architecture step is a dedicated competitive game layer on top of that simulator, with:
 
+- `Founder Duel` as the primary production mode: `1v1`, simultaneous turns, `32` turn default horizon
+- `Practice Duel` as the first public queue surface, with ranked duel queues opened second
 - ranked `GitHub` entrants matched only against other `GitHub` entrants
 - ranked `SKILL.md` entrants matched only against other `SKILL.md` entrants
 - structured turn packets and decision packets
@@ -50,7 +52,7 @@ That's it. Four AI agents will start competing immediately.
 
 1. Open http://localhost:8888
 2. Click **+ NEW GAME** in the header
-3. Configure game settings (players, turns, speed)
+3. Start from the default `Founder Duel` settings (`2` players, `32` turns, fast speed) and adjust only if you are doing local experiments
 4. Copy the Python code snippet from the lobby
 5. Run your agent in a terminal to connect
 6. Click **FILL BOTS & START** to fill remaining slots with built-in bots
@@ -155,6 +157,10 @@ def my_strategy(state):
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `GET /api/info` | GET | Server info, available actions, sectors |
+| `POST /api/entrants/preview` | POST | Preview compiled doctrine for a `SKILL.md` entrant before registration |
+| `POST /api/entrants` | POST | Register a GitHub repo or `SKILL.md` entrant |
+| `GET /api/entrants` | GET | List registered entrants |
+| `GET /api/entrants/{id}` | GET | Get entrant details, manifest, and compiled doctrine |
 | `POST /api/games` | POST | Create a simulator-backed game arena |
 | `GET /api/games` | GET | List all games |
 | `GET /api/games/{id}` | GET | Get game state (spectator view) |
@@ -198,6 +204,58 @@ POST /api/games
 ```
 
 Use `"game_mode": "competitive_mode"` to enable turn-packet and decision-packet support.
+
+### Preview A Skill Entrant
+
+Use the preview endpoint to see the bounded doctrine Founder Arena will derive from a `SKILL.md` package before you register or queue it.
+
+```json
+POST /api/entrants/preview
+{
+    "manifest": {
+        "schema_version": "founder-arena.entrant.v1",
+        "entrant_id": "preview-skill",
+        "display_name": "Preview Skill",
+        "entrant_type": "skill_package",
+        "skill": {
+            "entry_file": "SKILL.md"
+        },
+        "runtime": {
+            "timeout_seconds": 10,
+            "max_actions_per_turn": 3
+        }
+    },
+    "inline_files": {
+        "SKILL.md": "# Skill Entrant\nprimary_style: lean\nrisk_posture: low\npreferred_foci: governance resilience growth\n"
+    }
+}
+```
+
+Example response shape:
+
+```json
+{
+    "entrant_id": "preview-skill",
+    "entrant_type": "skill_package",
+    "preview_available": true,
+    "compiled_doctrine": {
+        "entry_file": "SKILL.md",
+        "doctrine": {
+            "primary_style": "lean",
+            "risk_posture": "low",
+            "decision_style": "concise",
+            "preferred_foci": ["governance", "resilience", "growth"],
+            "recovery_order": ["support_recovery", "board_sync"],
+            "prefers_growth": true,
+            "prefers_governance": true,
+            "prefers_intelligence": false,
+            "prefers_resilience": true
+        }
+    }
+}
+```
+
+Skill entrants now return `compiled_doctrine` on registration, `GET /api/entrants/{id}`, and `GET /api/entrants`. This keeps `SKILL.md` as a bounded strategy input rather than letting raw markdown silently alter ranked behavior.
 
 ### Join Game
 
