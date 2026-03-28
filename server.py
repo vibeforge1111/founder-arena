@@ -23,7 +23,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import Body, FastAPI, Header, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
@@ -87,6 +87,13 @@ BENCHMARK_TIER_BY_STRATEGY = {
     "lean": "discipline",
     "chaos": "wildcard",
 }
+PRACTICE_BENCHMARK_TIERS = {
+    "baseline": ["balanced"],
+    "pressure": ["aggressive"],
+    "discipline": ["lean"],
+    "wildcard": ["chaos"],
+    "gauntlet": ["balanced", "aggressive", "lean", "chaos"],
+}
 PRACTICE_FAILURE_KINDS = {"timeout", "illegal_action", "launch_error", "crash", "submission_error"}
 
 # ─── Pydantic Models (API) ──────────────────────────────────────────────────
@@ -101,6 +108,7 @@ class CreateGameRequest(BaseModel):
     game_mode: str = DEFAULT_GAME_MODE
     queue: str = "showmatch"
     use_rich_state: bool = True
+    benchmark_tier: str = "baseline"
 
 class JoinGameRequest(BaseModel):
     agent_name: str
@@ -132,6 +140,10 @@ class AddEntrantRequest(BaseModel):
     motto: str = ""
     strategy_description: str = "competitive"
     launch: bool = True
+
+
+class FillBotsRequest(BaseModel):
+    benchmark_tier: Optional[str] = None
 
 # ─── Game State Models ───────────────────────────────────────────────────────
 
@@ -411,6 +423,25 @@ def _benchmark_profile_for_config(config: dict) -> dict:
     }
 
 
+def _normalize_benchmark_tier(tier: Optional[str]) -> str:
+    normalized = (tier or "baseline").strip().lower()
+    if normalized not in PRACTICE_BENCHMARK_TIERS:
+        raise ValueError(f"Invalid benchmark_tier. Choose from: {list(PRACTICE_BENCHMARK_TIERS)}")
+    return normalized
+
+
+def _bot_configs_for_tier(tier: str, slots: int) -> list[dict]:
+    normalized = _normalize_benchmark_tier(tier)
+    allowed_strategies = PRACTICE_BENCHMARK_TIERS[normalized]
+    matching = [cfg for cfg in BOT_CONFIGS if cfg["strategy"] in allowed_strategies]
+    if not matching:
+        matching = BOT_CONFIGS[:]
+    selected: list[dict] = []
+    while len(selected) < slots:
+        selected.extend(matching)
+    return selected[:slots]
+
+
 def _titleize_slug(value: str) -> str:
     return value.replace("_", " ").strip().title()
 
@@ -603,7 +634,7 @@ class GamePhase(str, Enum):
 class Game:
     def __init__(self, name: str, max_players: int, min_players: int,
                  turn_timeout: int, max_turns: int, seed: Optional[int], use_rich_state: bool = True,
-                 game_mode: str = DEFAULT_GAME_MODE, queue: str = "showmatch"):
+                 game_mode: str = DEFAULT_GAME_MODE, queue: str = "showmatch", benchmark_tier: str = "baseline"):
         self.id = str(uuid.uuid4())[:8]
         self.name = name
         self.phase = GamePhase.LOBBY
@@ -615,6 +646,7 @@ class Game:
         self.rng = random.Random(self.seed)
         self.game_mode = _normalize_game_mode(game_mode)
         self.queue = _normalize_queue(queue)
+        self.benchmark_tier = _normalize_benchmark_tier(benchmark_tier)
         self.use_rich_state = True if self.game_mode == "competitive_mode" else bool(use_rich_state)
         self.turn = 0
         self.startups: dict[str, Startup] = {}  # id -> Startup
@@ -1787,6 +1819,7 @@ class Game:
             "name": self.name,
             "game_mode": self.game_mode,
             "queue": self.queue,
+            "benchmark_tier": self.benchmark_tier,
             "phase": self.phase.value,
             "turn": self.turn,
             "max_turns": self.max_turns,
@@ -1852,6 +1885,7 @@ class Game:
             "name": self.name,
             "game_mode": self.game_mode,
             "queue": self.queue,
+            "benchmark_tier": self.benchmark_tier,
             "phase": self.phase.value,
             "turn": self.turn,
             "max_turns": self.max_turns,
@@ -2212,6 +2246,7 @@ class Game:
             "seed": self.seed,
             "game_mode": self.game_mode,
             "queue": self.queue,
+            "benchmark_tier": self.benchmark_tier,
             "total_turns": self.turn,
             "use_rich_state": self.use_rich_state,
             "winner": self.winner,
@@ -2909,6 +2944,7 @@ async def info():
         "supports_use_rich_state": True,
         "supported_game_modes": SUPPORTED_GAME_MODES,
         "supported_queues": SUPPORTED_QUEUES,
+        "practice_benchmark_tiers": list(PRACTICE_BENCHMARK_TIERS.keys()),
         "supports_entrant_registry": True,
         "supports_turn_packets": True,
         "supports_decision_packets": True,
@@ -3028,7 +3064,7 @@ async def get_entrant(entrant_id: str):
 async def create_game(req: CreateGameRequest, request: Request):
     _enforce_rate_limit(request, scope="create_game", identity=_client_ip(request), limit=12, window_seconds=60)
     game = Game(req.name, req.max_players, req.min_players,
-                req.turn_timeout, req.max_turns, req.seed, req.use_rich_state, req.game_mode, req.queue)
+                req.turn_timeout, req.max_turns, req.seed, req.use_rich_state, req.game_mode, req.queue, req.benchmark_tier)
     games[game.id] = game
     payload = {
         "game_id": game.id,
@@ -3040,6 +3076,7 @@ async def create_game(req: CreateGameRequest, request: Request):
         "max_turns": game.max_turns,
         "game_mode": game.game_mode,
         "queue": game.queue,
+        "benchmark_tier": game.benchmark_tier,
         "use_rich_state": game.use_rich_state,
         "admin_token": game.admin_token,
         "join_code": game.join_code,
@@ -3051,6 +3088,7 @@ async def create_game(req: CreateGameRequest, request: Request):
         game_id=game.id,
         game_mode=game.game_mode,
         queue=game.queue,
+        benchmark_tier=game.benchmark_tier,
         use_rich_state=game.use_rich_state,
         admin_token_fingerprint=token_fingerprint(game.admin_token),
         spectator_token_fingerprint=token_fingerprint(game.spectator_token),
@@ -3065,7 +3103,7 @@ async def list_games():
             {"id": g.id, "name": g.name, "phase": g.phase.value,
              "players": len(g.startups), "turn": g.turn,
              "max_turns": g.max_turns, "created_at": g.created_at,
-             "game_mode": g.game_mode, "queue": g.queue,
+             "game_mode": g.game_mode, "queue": g.queue, "benchmark_tier": g.benchmark_tier,
              "use_rich_state": g.use_rich_state}
             for g in games.values()
         ]
@@ -3204,6 +3242,7 @@ def _run_bot(agent: FounderAgent):
 
 @app.post("/api/games/{game_id}/fill-bots")
 async def fill_bots(game_id: str, request: Request,
+                    req: FillBotsRequest = Body(default_factory=FillBotsRequest),
                     x_admin_token: Optional[str] = Header(None, alias="X-Admin-Token")):
     """Fill remaining player slots with built-in bot agents, then auto-start."""
     game = games.get(game_id)
@@ -3220,7 +3259,12 @@ async def fill_bots(game_id: str, request: Request,
     if slots <= 0:
         raise HTTPException(400, "Game is full")
 
-    configs = BOT_CONFIGS[:slots]
+    try:
+        benchmark_tier = _normalize_benchmark_tier(req.benchmark_tier or game.benchmark_tier)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    game.benchmark_tier = benchmark_tier
+    configs = _bot_configs_for_tier(benchmark_tier, slots)
     bot_agents = []
     for cfg in configs:
         # Add bot directly to game (no HTTP, avoids deadlock)
@@ -3246,7 +3290,7 @@ async def fill_bots(game_id: str, request: Request,
 
     # Start the game
     game.start()
-    _audit(request, "game_started_via_fill_bots", game_id=game_id, bots_added=len(bot_agents))
+    _audit(request, "game_started_via_fill_bots", game_id=game_id, bots_added=len(bot_agents), benchmark_tier=benchmark_tier)
 
     # Launch bot play loops in daemon threads
     for agent in bot_agents:
@@ -3257,6 +3301,7 @@ async def fill_bots(game_id: str, request: Request,
         "status": "started",
         "bots_added": len(bot_agents),
         "bot_names": [c["name"] for c in configs],
+        "benchmark_tier": benchmark_tier,
         "total_players": len(game.startups),
         "turn": game.turn,
         "game_mode": game.game_mode,

@@ -237,6 +237,9 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertEqual(payload["primary_mode"]["max_players"], 2)
         self.assertEqual(payload["primary_mode"]["max_turns"], 32)
         self.assertEqual(payload["primary_mode"]["practice_queue"], "showmatch")
+        self.assertEqual(payload["primary_mode"]["replay_focus"], "turning points, score deltas, and loss diagnosis")
+        self.assertIn("practice_benchmark_tiers", payload)
+        self.assertEqual(payload["practice_benchmark_tiers"], ["baseline", "pressure", "discipline", "wildcard", "gauntlet"])
         self.assertIn("ranked_actions", payload)
         self.assertIn("legacy_arena_actions", payload)
         self.assertIn("board_sync", payload["ranked_actions"])
@@ -1241,6 +1244,62 @@ class RichStateIntegrationTests(unittest.TestCase):
 
         self.assertEqual(replay["summary"]["practice_takeaway"]["category"], "execution_mistake")
         self.assertIn("illegal action", replay["summary"]["practice_takeaway"]["headline"])
+
+    def test_create_game_and_fill_bots_use_selected_benchmark_tier(self) -> None:
+        create = self.client.post(
+            "/api/games",
+            json={
+                "name": "Wildcard Practice",
+                "max_players": 2,
+                "min_players": 2,
+                "turn_timeout": 5,
+                "max_turns": 8,
+                "use_rich_state": True,
+                "game_mode": "competitive_mode",
+                "queue": "showmatch",
+                "benchmark_tier": "wildcard",
+            },
+        )
+        self.assertEqual(create.status_code, 200)
+        create_payload = create.json()
+        self.assertEqual(create_payload["benchmark_tier"], "wildcard")
+
+        joined = self.client.post(
+            f"/api/games/{create_payload['game_id']}/join",
+            json={
+                "agent_name": "Builder",
+                "startup_name": "BuilderCo",
+                "sector": "ai",
+                "motto": "m1",
+                "strategy_description": "balanced",
+                "join_code": create_payload["join_code"],
+            },
+        )
+        self.assertEqual(joined.status_code, 200)
+
+        with mock.patch("server.threading.Thread") as thread_cls:
+            filled = self.client.post(
+                f"/api/games/{create_payload['game_id']}/fill-bots",
+                headers={"X-Admin-Token": create_payload["admin_token"]},
+                json={"benchmark_tier": "wildcard"},
+            )
+
+        self.assertEqual(filled.status_code, 200)
+        self.assertEqual(filled.json()["benchmark_tier"], "wildcard")
+        self.assertEqual(filled.json()["bot_names"], ["ChaosMonkey"])
+        thread_cls.assert_called()
+
+        public_state = self.client.get(f"/api/games/{create_payload['game_id']}")
+        self.assertEqual(public_state.status_code, 200)
+        payload = public_state.json()
+        self.assertEqual(payload["benchmark_tier"], "wildcard")
+        benchmark_startups = [
+            startup for startup in payload["startups"].values()
+            if startup.get("control_type") == "benchmark"
+        ]
+        self.assertEqual(len(benchmark_startups), 1)
+        self.assertEqual(benchmark_startups[0]["benchmark_profile"]["tier"], "wildcard")
+        self.assertEqual(benchmark_startups[0]["strategy"], "chaos")
 
     def test_low_trust_is_a_recoverable_crisis_not_an_instant_death(self) -> None:
         game = server.Game(
