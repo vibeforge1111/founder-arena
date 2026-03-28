@@ -1747,6 +1747,7 @@ function renderOutcomeRead(title, outcome) {
 
 function renderPracticeTakeawayCard(takeaway) {
   if (!takeaway) return '';
+  const progression = takeaway.progression || null;
   return `<div class="postgame-summary-card">
     <div class="postgame-summary-label">Practice Verdict</div>
     <div class="postgame-summary-value">${takeaway.category_label || 'Practice Read'}</div>
@@ -1756,6 +1757,8 @@ function renderPracticeTakeawayCard(takeaway) {
       ${takeaway.benchmark_strategy ? `<div class="detail-tag">${takeaway.benchmark_strategy}</div>` : ''}
       ${takeaway.benchmark_tier ? `<div class="detail-tag">${takeaway.benchmark_tier}</div>` : ''}
       ${takeaway.score_gap != null ? `<div class="detail-tag">gap ${Number(takeaway.score_gap).toFixed(1)}</div>` : ''}
+      ${progression?.cleared_tiers?.length ? `<div class="detail-tag">cleared ${progression.cleared_tiers.join(', ')}</div>` : ''}
+      ${progression?.next_tier ? `<div class="detail-tag">next ${progression.next_tier}</div>` : ''}
     </div>
   </div>`;
 }
@@ -1765,6 +1768,7 @@ function renderOutcomeDetail(outcome) {
   const strengths = outcome.strengths || [];
   const gaps = outcome.gaps || [];
   const takeaway = outcome.practice_takeaway || null;
+  const progression = takeaway?.progression || null;
   return `<div class="expand-actions-title">RESULT READ</div>
     <div class="recent-action">
       <div class="recent-turn">${(outcome.result || 'result').replace('_', ' ')}</div>
@@ -1774,7 +1778,12 @@ function renderOutcomeDetail(outcome) {
     </div>
     ${strengths.length ? `<div class="detail-tags" style="margin-top:10px">${strengths.map(item => `<div class="detail-tag">edge ${item.label} +${item.weighted_delta.toFixed(1)}</div>`).join('')}</div>` : ''}
     ${gaps.length ? `<div class="detail-tags" style="margin-top:8px">${gaps.map(item => `<div class="detail-tag">watch ${item.label} ${item.weighted_delta.toFixed(1)}</div>`).join('')}</div>` : ''}
-    ${takeaway ? `<div class="expand-actions-title" style="margin-top:12px">PRACTICE TAKEAWAY</div><div class="recent-action"><div class="recent-turn">${takeaway.category_label || 'practice'}</div><div class="recent-type">${takeaway.benchmark_name || 'benchmark'}</div><div class="recent-msg">${takeaway.headline || ''}</div><div class="recent-ok">${takeaway.score_gap == null ? '-' : Number(takeaway.score_gap).toFixed(1)}</div></div>` : ''}`;
+    ${takeaway ? `<div class="expand-actions-title" style="margin-top:12px">PRACTICE TAKEAWAY</div><div class="recent-action"><div class="recent-turn">${takeaway.category_label || 'practice'}</div><div class="recent-type">${takeaway.benchmark_name || 'benchmark'}</div><div class="recent-msg">${takeaway.headline || ''}</div><div class="recent-ok">${takeaway.score_gap == null ? '-' : Number(takeaway.score_gap).toFixed(1)}</div></div>` : ''}
+    ${progression ? `<div class="detail-tags" style="margin-top:8px">
+      ${progression.cleared_tiers?.length ? `<div class="detail-tag">cleared ${progression.cleared_tiers.join(', ')}</div>` : '<div class="detail-tag">no clears yet</div>'}
+      ${progression.next_tier ? `<div class="detail-tag">next ${progression.next_tier}</div>` : '<div class="detail-tag">all tiers cleared</div>'}
+      <div class="detail-tag">${progression.benchmark_wins || 0}/${progression.practice_games || 0} benchmark wins</div>
+    </div>` : ''}`;
 }
 
 // ──────────────────────────────────────────────────
@@ -2099,6 +2108,8 @@ function renderLaunchCompare(comparePayload) {
   const performance = compare.performance || {};
   const currentPerf = performance.current || {};
   const previousPerf = performance.previous || null;
+  const currentPractice = currentPerf.practice_progression || {};
+  const previousPractice = previousPerf?.practice_progression || null;
   panel.innerHTML = `
     <div class="detail-tags">
       <div class="detail-tag">${comparePayload.version_count || 1} versions</div>
@@ -2112,6 +2123,12 @@ function renderLaunchCompare(comparePayload) {
       <div class="detail-tag">current wins ${currentPerf.wins || 0}</div>
       <div class="detail-tag">current avg ${(currentPerf.avg_score || 0).toFixed ? currentPerf.avg_score.toFixed(1) : currentPerf.avg_score || 0}</div>
       ${previousPerf ? `<div class="detail-tag">previous avg ${(previousPerf.avg_score || 0).toFixed ? previousPerf.avg_score.toFixed(1) : previousPerf.avg_score || 0}</div>` : ''}
+    </div>
+    <div class="detail-tags" style="margin-top:8px">
+      ${currentPractice.cleared_tiers?.length ? `<div class="detail-tag">current clears ${currentPractice.cleared_tiers.join(', ')}</div>` : '<div class="detail-tag">current clears none</div>'}
+      ${currentPractice.next_tier ? `<div class="detail-tag">next ${currentPractice.next_tier}</div>` : '<div class="detail-tag">all tiers cleared</div>'}
+      <div class="detail-tag">practice ${currentPractice.benchmark_wins || 0}/${currentPractice.practice_games || 0}</div>
+      ${previousPractice ? `<div class="detail-tag">previous clears ${previousPractice.cleared_tiers?.join(', ') || 'none'}</div>` : ''}
     </div>
   `;
 }
@@ -2351,6 +2368,8 @@ async function submitEntrantLaunch() {
 
 function renderEntrantCard(entrant) {
   const doctrine = entrant.compiled_doctrine?.doctrine || null;
+  const performance = entrant.current_version_performance || {};
+  const practiceProgress = performance.practice_progression || {};
   const preset = launchPresetFor(entrant.entrant_id);
   const queueTargets = entrant.queue_targets || [];
   const lastLaunch = entrant.last_launch || null;
@@ -2401,6 +2420,8 @@ function renderEntrantCard(entrant) {
         <div class="detail-tag">${entrant.entrant_type}</div>
         <div class="detail-tag">v ${entrant.version_hash}</div>
         ${entrant.version_count > 1 ? `<div class="detail-tag">${entrant.version_count} versions</div>` : ''}
+        ${practiceProgress.highest_cleared_tier ? `<div class="detail-tag">cleared ${practiceProgress.highest_cleared_tier}</div>` : ''}
+        ${practiceProgress.next_tier ? `<div class="detail-tag">next ${practiceProgress.next_tier}</div>` : ''}
         ${preset ? `<div class="detail-tag">preset saved</div>` : ''}
       </div>
     </div>
@@ -2408,6 +2429,7 @@ function renderEntrantCard(entrant) {
       <div><span class="entrant-label">Queues</span> ${queueTargets.length ? queueTargets.join(', ') : 'showmatch'}</div>
       <div><span class="entrant-label">Registered</span> ${new Date(entrant.registered_at).toLocaleString()}</div>
       ${lastLaunch?.game_id ? `<div><span class="entrant-label">Last launch</span> ${lastLaunch.game_id.slice(0, 8)} in ${lastLaunch.queue || 'unknown'}</div>` : ''}
+      <div><span class="entrant-label">Practice Progress</span> ${practiceProgress.benchmark_wins || 0}/${practiceProgress.practice_games || 0} clears${practiceProgress.cleared_tiers?.length ? ` (${practiceProgress.cleared_tiers.join(', ')})` : ''}</div>
     </div>
     ${launchDiagnosis ? `<div class="detail-tags" style="margin-top:10px">
       ${renderDiagnosticChip(launchDiagnosis)}

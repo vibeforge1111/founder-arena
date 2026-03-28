@@ -94,6 +94,7 @@ PRACTICE_BENCHMARK_TIERS = {
     "wildcard": ["chaos"],
     "gauntlet": ["balanced", "aggressive", "lean", "chaos"],
 }
+BENCHMARK_TIER_ORDER = ["baseline", "pressure", "discipline", "wildcard", "gauntlet"]
 PRACTICE_FAILURE_KINDS = {"timeout", "illegal_action", "launch_error", "crash", "submission_error"}
 
 # ─── Pydantic Models (API) ──────────────────────────────────────────────────
@@ -2117,6 +2118,19 @@ class Game:
             strengths = edge_summary["strengths"]
             gaps = edge_summary["gaps"]
             score_gap = round(self._score_value_for(startup) - self._score_value_for(comparison), 2)
+            practice_takeaway = self._practice_takeaway_for(
+                startup=startup,
+                comparison=comparison,
+                strengths=strengths,
+                gaps=gaps,
+                is_winner=index == 0,
+                score_gap=score_gap,
+            )
+            if practice_takeaway and getattr(startup, "entrant_id", None) and getattr(startup, "entrant_version_hash", None):
+                practice_takeaway["progression"] = _practice_progression_summary(
+                    getattr(startup, "entrant_id", None),
+                    getattr(startup, "entrant_version_hash", None),
+                )
             outcomes[startup.id] = {
                 "result": "winner" if index == 0 else ("runner_up" if index == 1 else "placement"),
                 "comparison_startup": comparison.startup_name,
@@ -2131,14 +2145,7 @@ class Game:
                 ),
                 "strengths": strengths,
                 "gaps": gaps,
-                "practice_takeaway": self._practice_takeaway_for(
-                    startup=startup,
-                    comparison=comparison,
-                    strengths=strengths,
-                    gaps=gaps,
-                    is_winner=index == 0,
-                    score_gap=score_gap,
-                ),
+                "practice_takeaway": practice_takeaway,
             }
         return outcomes
 
@@ -2489,6 +2496,68 @@ def _version_history_for(entrant: dict) -> list[dict]:
     return deduped
 
 
+def _practice_progression_summary(entrant_id: Optional[str], version_hash: Optional[str]) -> dict:
+    progression = {
+        "practice_games": 0,
+        "benchmark_wins": 0,
+        "benchmark_losses": 0,
+        "cleared_tiers": [],
+        "highest_cleared_tier": None,
+        "next_tier": BENCHMARK_TIER_ORDER[0],
+        "latest_verdict": None,
+    }
+    if not entrant_id or not version_hash:
+        return progression
+
+    cleared_tiers: set[str] = set()
+    latest_stamp = ""
+    latest_verdict = None
+
+    for game in games.values():
+        if game.phase != GamePhase.FINISHED or game.queue != "showmatch":
+            continue
+        ranked = game._ranked_startups()
+        for index, startup in enumerate(ranked):
+            if getattr(startup, "entrant_id", None) != entrant_id:
+                continue
+            if getattr(startup, "entrant_version_hash", None) != version_hash:
+                continue
+            comparison = ranked[index - 1] if index > 0 else (ranked[1] if len(ranked) > 1 else None)
+            if comparison is None:
+                continue
+            edge_summary = game._score_edge_summary(startup, comparison)
+            takeaway = game._practice_takeaway_for(
+                startup=startup,
+                comparison=comparison,
+                strengths=edge_summary["strengths"],
+                gaps=edge_summary["gaps"],
+                is_winner=index == 0,
+                score_gap=round(game._score_value_for(startup) - game._score_value_for(comparison), 2),
+            )
+            if not takeaway:
+                continue
+            progression["practice_games"] += 1
+            if takeaway.get("category") == "benchmark_cleared":
+                progression["benchmark_wins"] += 1
+                tier = takeaway.get("benchmark_tier")
+                if tier in BENCHMARK_TIER_ORDER:
+                    cleared_tiers.add(tier)
+            else:
+                progression["benchmark_losses"] += 1
+
+            stamp = f"{game.created_at}:{game.id}:{startup.id}"
+            if stamp >= latest_stamp:
+                latest_stamp = stamp
+                latest_verdict = deepcopy(takeaway)
+
+    ordered_clears = [tier for tier in BENCHMARK_TIER_ORDER if tier in cleared_tiers]
+    progression["cleared_tiers"] = ordered_clears
+    progression["highest_cleared_tier"] = ordered_clears[-1] if ordered_clears else None
+    progression["next_tier"] = next((tier for tier in BENCHMARK_TIER_ORDER if tier not in cleared_tiers), None)
+    progression["latest_verdict"] = latest_verdict
+    return progression
+
+
 def _version_performance_summary(entrant_id: str, version_hash: str) -> dict:
     games_played = 0
     wins = 0
@@ -2512,6 +2581,7 @@ def _version_performance_summary(entrant_id: str, version_hash: str) -> dict:
         "wins": wins,
         "avg_score": round(total_score / games_played, 2) if games_played else 0.0,
         "best_score": round(best_score, 2),
+        "practice_progression": _practice_progression_summary(entrant_id, version_hash),
     }
 
 
@@ -3035,6 +3105,7 @@ async def list_entrants():
                 "compiled_doctrine": entrant.get("compiled_doctrine"),
                 "last_launch": _with_launch_diagnostics(entrant).get("last_launch"),
                 "version_count": len(_version_history_for(entrant)),
+                "current_version_performance": _version_performance_summary(entrant["entrant_id"], entrant["version_hash"]),
             }
             for entrant in ENTRANTS.values()
         ]
@@ -3055,6 +3126,7 @@ async def get_entrant(entrant_id: str):
     enriched = _with_launch_diagnostics(entrant)
     enriched["version_history"] = _version_history_for(entrant)[:-1]
     enriched["version_count"] = len(_version_history_for(entrant))
+    enriched["current_version_performance"] = _version_performance_summary(entrant["entrant_id"], entrant["version_hash"])
     return enriched
 
 

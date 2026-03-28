@@ -1245,6 +1245,104 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertEqual(replay["summary"]["practice_takeaway"]["category"], "execution_mistake")
         self.assertIn("illegal action", replay["summary"]["practice_takeaway"]["headline"])
 
+    def test_registered_entrant_tracks_benchmark_progression(self) -> None:
+        entrant_id = "progress-skill"
+        version_hash = "v-progress"
+        server.ENTRANTS[entrant_id] = {
+            "entrant_id": entrant_id,
+            "display_name": "Progress Skill",
+            "entrant_type": "skill_package",
+            "version_hash": version_hash,
+            "registered_at": server._utc_now_iso(),
+            "manifest": {
+                "schema_version": "founder-arena.entrant.v1",
+                "entrant_id": entrant_id,
+                "display_name": "Progress Skill",
+                "entrant_type": "skill_package",
+                "queue_targets": ["showmatch"],
+                "skill": {"entry_file": "SKILL.md"},
+                "runtime": {"entry_command": ["python", "skill_runner.py"], "timeout_seconds": 10, "max_actions_per_turn": 3},
+            },
+            "compiled_doctrine": {
+                "doctrine": {
+                    "primary_style": "balanced",
+                    "risk_posture": "medium",
+                    "decision_style": "concise",
+                    "preferred_foci": ["growth"],
+                    "recovery_order": ["support_recovery"],
+                }
+            },
+            "workspace": str(server.ENTRANT_ROOT / entrant_id / version_hash),
+        }
+
+        game = server.Game(
+            name="Progression Match",
+            max_players=2,
+            min_players=2,
+            turn_timeout=5,
+            max_turns=3,
+            seed=123,
+            use_rich_state=True,
+            game_mode="competitive_mode",
+            queue="showmatch",
+            benchmark_tier="baseline",
+        )
+        server.games[game.id] = game
+        startup_a = game.add_startup("BuilderBot", "BuilderCo", "ai", "m1", "balanced")
+        startup_a.entrant_id = entrant_id
+        startup_a.entrant_type = "skill_package"
+        startup_a.entrant_version_hash = version_hash
+        startup_a.compiled_doctrine = server.ENTRANTS[entrant_id]["compiled_doctrine"]
+        startup_b = game.add_startup("AlphaBot", "NeuralForge", "ai", "m2", "balanced")
+        startup_b.control_type = "benchmark"
+        startup_b.benchmark_profile = {
+            "label": "AlphaBot benchmark",
+            "strategy": "balanced",
+            "tier": "baseline",
+        }
+
+        startup_a.seven_dimension_scores = {
+            "dimensions": {
+                "cash_efficiency": 80.0,
+                "revenue_quality": 78.0,
+                "customer_health": 73.0,
+                "product_health": 75.0,
+                "team_health": 72.0,
+                "risk_management": 74.0,
+                "strategic_coherence": 76.0,
+            },
+            "total_score": 77.6,
+        }
+        startup_b.seven_dimension_scores = {
+            "dimensions": {
+                "cash_efficiency": 70.0,
+                "revenue_quality": 69.0,
+                "customer_health": 71.0,
+                "product_health": 72.0,
+                "team_health": 70.0,
+                "risk_management": 71.0,
+                "strategic_coherence": 70.0,
+            },
+            "total_score": 70.2,
+        }
+        game.phase = server.GamePhase.FINISHED
+        game.winner = startup_a.id
+
+        replay = game.get_replay()
+        self.assertEqual(replay["summary"]["practice_takeaway"]["category"], "benchmark_cleared")
+        progression = replay["summary"]["practice_takeaway"]["progression"]
+        self.assertEqual(progression["cleared_tiers"], ["baseline"])
+        self.assertEqual(progression["next_tier"], "pressure")
+
+        listed = self.client.get("/api/entrants")
+        self.assertEqual(listed.status_code, 200)
+        listed_entry = next(item for item in listed.json()["entrants"] if item["entrant_id"] == entrant_id)
+        practice_progress = listed_entry["current_version_performance"]["practice_progression"]
+        self.assertEqual(practice_progress["benchmark_wins"], 1)
+        self.assertEqual(practice_progress["practice_games"], 1)
+        self.assertEqual(practice_progress["highest_cleared_tier"], "baseline")
+        self.assertEqual(practice_progress["next_tier"], "pressure")
+
     def test_create_game_and_fill_bots_use_selected_benchmark_tier(self) -> None:
         create = self.client.post(
             "/api/games",
