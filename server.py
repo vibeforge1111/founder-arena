@@ -276,6 +276,16 @@ SCORE_WEIGHTS = {
     "strategic_coherence": 0.11,
 }
 
+SCORE_DIMENSION_LABELS = {
+    "cash_efficiency": "cash efficiency",
+    "revenue_quality": "revenue quality",
+    "customer_health": "customer health",
+    "product_health": "product health",
+    "team_health": "team health",
+    "risk_management": "risk management",
+    "strategic_coherence": "strategic coherence",
+}
+
 ARC_TYPE_LABELS = {
     "adversity": "Pressure Arc",
     "opportunity": "Breakout Window",
@@ -1869,9 +1879,104 @@ class Game:
             return f"Week {turn}: {leader.startup_name} stretched the gap to {gap:.1f} score."
         return f"Week {turn}: {challenger.startup_name} closed the gap to {gap:.1f} score."
 
+    def _score_edge_summary(self, startup, comparison) -> dict:
+        startup_card = self._scorecard_for(startup)
+        comparison_card = self._scorecard_for(comparison)
+        weighted_edges: list[dict] = []
+        for key, weight in SCORE_WEIGHTS.items():
+            startup_value = float(startup_card["dimensions"].get(key, 0.0) or 0.0)
+            comparison_value = float(comparison_card["dimensions"].get(key, 0.0) or 0.0)
+            delta = round(startup_value - comparison_value, 2)
+            weighted_edges.append(
+                {
+                    "key": key,
+                    "label": SCORE_DIMENSION_LABELS.get(key, key.replace("_", " ")),
+                    "delta": delta,
+                    "weighted_delta": round(delta * weight, 2),
+                    "startup_score": round(startup_value, 2),
+                    "comparison_score": round(comparison_value, 2),
+                }
+            )
+
+        strengths = [
+            item
+            for item in sorted(weighted_edges, key=lambda entry: (entry["weighted_delta"], entry["delta"]), reverse=True)
+            if item["weighted_delta"] > 0
+        ][:2]
+        gaps = [
+            item
+            for item in sorted(weighted_edges, key=lambda entry: (entry["weighted_delta"], entry["delta"]))
+            if item["weighted_delta"] < 0
+        ][:2]
+        return {
+            "strengths": strengths,
+            "gaps": gaps,
+        }
+
+    def _outcome_headline_for(self, *, startup, comparison, strengths: list[dict], gaps: list[dict], is_winner: bool) -> str:
+        if is_winner:
+            if strengths:
+                edges = " and ".join(item["label"] for item in strengths)
+                if gaps:
+                    return (
+                        f"{startup.startup_name} won on {edges}, which covered for weaker "
+                        f"{gaps[0]['label']} against {comparison.startup_name}."
+                    )
+                return f"{startup.startup_name} won on {edges} against {comparison.startup_name}."
+            return f"{startup.startup_name} won on more balanced execution than {comparison.startup_name}."
+
+        if not startup.alive and startup.death_reason:
+            return f"{startup.startup_name} fell out with {startup.death_reason}, which ended the climb."
+        if gaps:
+            edges = " and ".join(item["label"] for item in gaps)
+            if strengths:
+                return (
+                    f"{startup.startup_name} lost ground on {edges} versus {comparison.startup_name}, "
+                    f"despite stronger {strengths[0]['label']}."
+                )
+            return f"{startup.startup_name} lost ground on {edges} versus {comparison.startup_name}."
+        return f"{startup.startup_name} trailed {comparison.startup_name} on overall score balance."
+
+    def _startup_outcome_summary(self, ranked: list) -> dict[str, dict]:
+        outcomes: dict[str, dict] = {}
+        for index, startup in enumerate(ranked):
+            comparison = ranked[index - 1] if index > 0 else (ranked[1] if len(ranked) > 1 else None)
+            if comparison is None:
+                outcomes[startup.id] = {
+                    "result": "winner",
+                    "comparison_startup": None,
+                    "comparison_agent": None,
+                    "score_gap": None,
+                    "headline": f"{startup.startup_name} won the match.",
+                    "strengths": [],
+                    "gaps": [],
+                }
+                continue
+
+            edge_summary = self._score_edge_summary(startup, comparison)
+            strengths = edge_summary["strengths"]
+            gaps = edge_summary["gaps"]
+            score_gap = round(self._score_value_for(startup) - self._score_value_for(comparison), 2)
+            outcomes[startup.id] = {
+                "result": "winner" if index == 0 else ("runner_up" if index == 1 else "placement"),
+                "comparison_startup": comparison.startup_name,
+                "comparison_agent": comparison.agent_name,
+                "score_gap": score_gap,
+                "headline": self._outcome_headline_for(
+                    startup=startup,
+                    comparison=comparison,
+                    strengths=strengths,
+                    gaps=gaps,
+                    is_winner=index == 0,
+                ),
+                "strengths": strengths,
+                "gaps": gaps,
+            }
+        return outcomes
+
     def _build_replay_summary(self, ranked: list) -> dict:
         if not ranked:
-            return {"winner_summary": "", "final_margin": None, "turning_points": []}
+            return {"winner_summary": "", "final_margin": None, "turning_points": [], "startup_outcomes": {}}
 
         winner = ranked[0]
         runner_up = ranked[1] if len(ranked) > 1 else None
@@ -1955,6 +2060,7 @@ class Game:
             "winner_score": round(winner_score, 2),
             "runner_up_score": round(runner_score, 2) if runner_up else None,
             "turning_points": turning_points[:3],
+            "startup_outcomes": self._startup_outcome_summary(ranked),
         }
 
     def get_replay(self) -> dict:

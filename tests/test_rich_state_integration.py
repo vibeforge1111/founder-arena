@@ -1044,7 +1044,13 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertIn("summary", replay_payload)
         self.assertIn("winner_summary", replay_payload["summary"])
         self.assertIn("turning_points", replay_payload["summary"])
+        self.assertIn("startup_outcomes", replay_payload["summary"])
         self.assertTrue(replay_payload["summary"]["turning_points"])
+        self.assertTrue(replay_payload["summary"]["startup_outcomes"])
+        winner_outcome = next(iter(replay_payload["summary"]["startup_outcomes"].values()))
+        self.assertIn("headline", winner_outcome)
+        self.assertIn("strengths", winner_outcome)
+        self.assertIn("gaps", winner_outcome)
         self.assertTrue(all("score" in history[0] for history in replay_payload["histories"].values() if history))
         self.assertEqual(
             set(ranking_payload["seven_dimension_scores"]["dimensions"].keys()),

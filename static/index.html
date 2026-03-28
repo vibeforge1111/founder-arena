@@ -1680,6 +1680,36 @@ function renderTurningPoint(point) {
   </div>`;
 }
 
+function renderOutcomeRead(title, outcome) {
+  if (!outcome) return '';
+  const scoreGap = outcome.score_gap == null ? null : Math.abs(outcome.score_gap).toFixed(1);
+  return `<div class="postgame-summary-card">
+    <div class="postgame-summary-label">${title}</div>
+    <div class="postgame-summary-value">${outcome.comparison_startup || 'Solo Win'}</div>
+    <div class="postgame-summary-body">${outcome.headline || ''}</div>
+    <div class="postgame-summary-tags">
+      ${scoreGap != null ? `<div class="detail-tag">gap ${scoreGap}</div>` : ''}
+      ${(outcome.strengths || []).map(item => `<div class="detail-tag">edge ${item.label}</div>`).join('')}
+      ${(outcome.gaps || []).map(item => `<div class="detail-tag">watch ${item.label}</div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderOutcomeDetail(outcome) {
+  if (!outcome) return '';
+  const strengths = outcome.strengths || [];
+  const gaps = outcome.gaps || [];
+  return `<div class="expand-actions-title">RESULT READ</div>
+    <div class="recent-action">
+      <div class="recent-turn">${(outcome.result || 'result').replace('_', ' ')}</div>
+      <div class="recent-type">${outcome.comparison_startup ? `vs ${outcome.comparison_startup}` : 'solo'}</div>
+      <div class="recent-msg">${outcome.headline || ''}</div>
+      <div class="recent-ok">${outcome.score_gap == null ? '-' : Math.abs(outcome.score_gap).toFixed(1)}</div>
+    </div>
+    ${strengths.length ? `<div class="detail-tags" style="margin-top:10px">${strengths.map(item => `<div class="detail-tag">edge ${item.label} +${item.weighted_delta.toFixed(1)}</div>`).join('')}</div>` : ''}
+    ${gaps.length ? `<div class="detail-tags" style="margin-top:8px">${gaps.map(item => `<div class="detail-tag">watch ${item.label} ${item.weighted_delta.toFixed(1)}</div>`).join('')}</div>` : ''}`;
+}
+
 // ──────────────────────────────────────────────────
 // POST-GAME
 // ──────────────────────────────────────────────────
@@ -1690,6 +1720,7 @@ function renderPostGame() {
   const logs = gameData.action_logs || {};
   const replaySummary = gameData.summary || {};
   const turningPoints = replaySummary.turning_points || [];
+  const startupOutcomes = replaySummary.startup_outcomes || {};
 
   const sorted = Object.entries(startups).sort((a, b) => {
     if (a[1].alive !== b[1].alive) return a[1].alive ? -1 : 1;
@@ -1715,6 +1746,10 @@ function renderPostGame() {
     </div>`;
 
   if (winner && gameData.game_mode === 'competitive_mode') {
+    const winnerOutcomeId = winnerId || sorted[0]?.[0] || null;
+    const winnerOutcome = winnerOutcomeId ? startupOutcomes[winnerOutcomeId] : null;
+    const runnerUpId = sorted[1]?.[0] || null;
+    const runnerUpOutcome = runnerUpId ? startupOutcomes[runnerUpId] : null;
     html += `<div class="postgame-summary-grid">
       <div class="postgame-summary-card">
         <div class="postgame-summary-label">Winner Margin</div>
@@ -1726,6 +1761,8 @@ function renderPostGame() {
           <div class="detail-tag">${gameData.total_turns || gameData.turn || 0} turns</div>
         </div>
       </div>
+      ${renderOutcomeRead('Winner Read', winnerOutcome)}
+      ${runnerUpOutcome ? renderOutcomeRead('Challenger Read', runnerUpOutcome) : ''}
       ${turningPoints.map(renderTurningPoint).join('')}
     </div>`;
   }
@@ -1744,6 +1781,7 @@ function renderPostGame() {
     const decision = latestDecisionFor(sid);
     const doctrine = s.compiled_doctrine?.doctrine || null;
     const diagnostics = s.diagnostics || [];
+    const outcome = startupOutcomes[sid] || null;
 
     html += `<tr class="${isWinner ? 'winner-row' : ''}">
       <td class="rank-cell" style="color:${rank===1?'var(--gold)':rank===2?'var(--silver)':rank===3?'var(--bronze)':'var(--text-dim)'}">${rank}</td>
@@ -1769,6 +1807,7 @@ function renderPostGame() {
         <div class="expand-stat"><div class="stat-label">STRATEGY</div><div class="stat-value">${s.strategy||'unknown'}</div></div>
         <div class="expand-stat"><div class="stat-label">ROUND</div><div class="stat-value">${s.funding_round||'pre-seed'}</div></div>
       </div>
+      ${renderOutcomeDetail(outcome)}
       ${doctrine ? `<div class="expand-actions-title">ENTRANT DOCTRINE</div>
       <div class="detail-tags" style="margin-bottom:10px">
         <div class="detail-tag">style ${doctrine.primary_style || 'balanced'}</div>
