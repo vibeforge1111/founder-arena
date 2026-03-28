@@ -131,6 +131,63 @@ class ExampleAgentTests(unittest.TestCase):
         self.assertEqual(actions[1]["type"], "launch_pr")
         self.assertEqual(actions[2], {"type": "hire", "params": {"role": "marketer"}})
 
+    def test_lean_strategy_runs_go_to_market_and_product_when_product_is_credible_but_not_finished(self) -> None:
+        self.agent = FounderAgent(
+            name="Tester",
+            startup_name="LeanCo",
+            sector="saas",
+            strategy="lean",
+            server="local://founder-arena",
+        )
+        state = {
+            "game_mode": "competitive_mode",
+            "turn": 10,
+            "my_startup_id": "s1",
+            "hot_sectors": ["ai"],
+            "startups": {
+                "s1": {
+                    "cash": 30000,
+                    "users": 1100,
+                    "product_quality": 69,
+                    "morale": 62,
+                    "brand": 22,
+                    "team_size": 3,
+                    "runway": 8,
+                    "revenue": 5200,
+                    "sector": "saas",
+                    "rich_state": {
+                        "customers": {
+                            "trust_score": 0.66,
+                            "monthly_churn_rate": 0.03,
+                        },
+                        "operations": {
+                            "support_backlog": 4,
+                        },
+                        "risk": {
+                            "regulatory_pressure": 0.1,
+                        },
+                    },
+                }
+            },
+        }
+        turn_packet = {
+            "visible_actions": [
+                "build_feature",
+                "acquire_users",
+                "launch_pr",
+                "board_sync",
+                "research",
+                "cut_costs",
+                "fundraise",
+                "hire",
+            ]
+        }
+
+        actions = self.agent.decide(state, turn_packet=turn_packet)
+        action_types = [action["type"] for action in actions]
+
+        self.assertEqual(action_types, ["acquire_users", "launch_pr", "build_feature"])
+
     def test_balanced_scale_phase_does_not_schedule_support_recovery_without_pressure(self) -> None:
         self.agent = FounderAgent(
             name="Tester",
