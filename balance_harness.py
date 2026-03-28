@@ -16,6 +16,8 @@ from example_agent import FounderAgent
 DEFAULT_AGENT_COUNT = 4
 DEFAULT_SEED_COUNT = 20
 DEFAULT_MAX_TURNS = 52
+DEFAULT_BENCHMARK_SEED_COUNT = 3
+DEFAULT_BENCHMARK_MAX_TURNS = int(server.FOUNDER_DUEL_DEFAULTS.get("max_turns", 32))
 ACTION_FAMILIES = {
     "stabilization": {"fundraise", "support_recovery", "board_sync", "incident_response", "compliance_response", "cut_costs"},
     "commercial": {"acquire_users", "launch_pr", "hire"},
@@ -26,6 +28,28 @@ ACTION_FAMILIES = {
 def _selected_configs(agent_count: int) -> list[dict]:
     count = max(2, min(agent_count, len(server.BOT_CONFIGS)))
     return [dict(config) for config in server.BOT_CONFIGS[:count]]
+
+
+def _representative_configs_by_strategy() -> dict[str, dict]:
+    representatives: dict[str, dict] = {}
+    for config in server.BOT_CONFIGS:
+        strategy = str(config.get("strategy") or "unknown")
+        representatives.setdefault(strategy, dict(config))
+    return representatives
+
+
+def _benchmark_config_for_tier(tier: str, seed_offset: int) -> dict:
+    normalized = server._normalize_benchmark_tier(tier)
+    representatives = _representative_configs_by_strategy()
+    allowed_strategies = list(server.PRACTICE_BENCHMARK_TIERS[normalized])
+    if normalized == "gauntlet":
+        strategy = allowed_strategies[seed_offset % len(allowed_strategies)]
+    else:
+        strategy = allowed_strategies[0]
+    config = dict(representatives.get(strategy) or server.BOT_CONFIGS[0])
+    config["name"] = f"{config['name']} {normalized.title()} Benchmark"
+    config["startup"] = f"{config['startup']} {normalized.title()}"
+    return config
 
 
 def _fallback_actions(state: dict, turn_packet: dict | None) -> list[dict]:
@@ -114,6 +138,24 @@ def run_local_match(seed: int, configs: list[dict], *, max_turns: int = DEFAULT_
                 game.submit_actions(startup.agent_token, fallback, decision_packet=fallback_packet)
 
     return game, game.get_replay()
+
+
+def run_local_duel(
+    seed: int,
+    entrant_config: dict,
+    benchmark_config: dict,
+    *,
+    max_turns: int = DEFAULT_BENCHMARK_MAX_TURNS,
+) -> tuple[server.Game, dict]:
+    entrant = dict(entrant_config)
+    benchmark = dict(benchmark_config)
+    entrant_strategy = str(entrant.get("strategy") or "balanced")
+    benchmark_strategy = str(benchmark.get("strategy") or "balanced")
+    entrant["name"] = f"Harness {entrant_strategy.title()}"
+    entrant["startup"] = f"{entrant_strategy.title()} Labs"
+    benchmark["name"] = f"{benchmark['name']}"
+    benchmark["startup"] = f"{benchmark['startup']}"
+    return run_local_match(seed, [entrant, benchmark], max_turns=max_turns)
 
 
 def _mean_or_none(values: list[float | int | None]) -> float | None:
@@ -294,12 +336,144 @@ def _archetype_delta_vs_field(archetype_profile: dict, field_profile: dict, fiel
     }
 
 
+def _round_rate(numerator: int, denominator: int) -> float:
+    return round(float(numerator) / max(1, int(denominator)), 3)
+
+
+def _benchmark_ladder_summary(
+    *,
+    seed_start: int,
+    seed_count: int,
+    max_turns: int = DEFAULT_BENCHMARK_MAX_TURNS,
+) -> dict:
+    representatives = _representative_configs_by_strategy()
+    entrant_strategies = [strategy for strategy in ("balanced", "aggressive", "lean", "chaos") if strategy in representatives]
+    tiers: dict[str, dict] = {}
+    archetypes: dict[str, dict] = {}
+    matches: list[dict] = []
+
+    for strategy in entrant_strategies:
+        archetypes[strategy] = {
+            "matches": 0,
+            "clears": 0,
+            "clear_rate": 0.0,
+            "avg_score_gap": 0.0,
+            "tiers": {},
+        }
+
+    for tier_index, tier in enumerate(server.BENCHMARK_TIER_ORDER):
+        tier_bucket = {
+            "matches": 0,
+            "clears": 0,
+            "clear_rate": 0.0,
+            "avg_score_gap": 0.0,
+            "by_archetype": {},
+            "benchmark_strategies": Counter(),
+        }
+        for strategy in entrant_strategies:
+            archetype_tier_bucket = {
+                "matches": 0,
+                "clears": 0,
+                "clear_rate": 0.0,
+                "avg_score_gap": 0.0,
+            }
+            score_gaps: list[float] = []
+            for seed_offset, seed in enumerate(range(seed_start, seed_start + seed_count)):
+                benchmark_config = _benchmark_config_for_tier(tier, seed_offset)
+                duel_seed = seed + ((tier_index + 1) * 10_000) + (entrant_strategies.index(strategy) * 1_000)
+                _, replay = run_local_duel(
+                    duel_seed,
+                    representatives[strategy],
+                    benchmark_config,
+                    max_turns=max_turns,
+                )
+                rankings = replay["rankings"]
+                entrant_entry = next((entry for entry in rankings if entry["agent"] == f"Harness {strategy.title()}"), None)
+                benchmark_entry = next(
+                    (entry for entry in rankings if entry["agent"] == benchmark_config["name"]),
+                    None,
+                )
+                if entrant_entry is None or benchmark_entry is None:
+                    raise RuntimeError(f"Benchmark ladder replay missing expected entries for {strategy} vs {tier}")
+                entrant_score = float(entrant_entry.get("score", 0.0))
+                benchmark_score = float(benchmark_entry.get("score", 0.0))
+                score_gap = round(entrant_score - benchmark_score, 2)
+                cleared = entrant_entry.get("rank") == 1
+                score_gaps.append(score_gap)
+                tier_bucket["matches"] += 1
+                tier_bucket["clears"] += 1 if cleared else 0
+                archetype_tier_bucket["matches"] += 1
+                archetype_tier_bucket["clears"] += 1 if cleared else 0
+                archetypes[strategy]["matches"] += 1
+                archetypes[strategy]["clears"] += 1 if cleared else 0
+                tier_bucket["benchmark_strategies"][benchmark_config.get("strategy", "unknown")] += 1
+                matches.append(
+                    {
+                        "seed": duel_seed,
+                        "entrant_strategy": strategy,
+                        "benchmark_tier": tier,
+                        "benchmark_strategy": benchmark_config.get("strategy", "unknown"),
+                        "cleared": cleared,
+                        "score_gap": score_gap,
+                    }
+                )
+            avg_gap = round(mean(score_gaps), 2) if score_gaps else 0.0
+            archetype_tier_bucket["clear_rate"] = _round_rate(archetype_tier_bucket["clears"], archetype_tier_bucket["matches"])
+            archetype_tier_bucket["avg_score_gap"] = avg_gap
+            tier_bucket["by_archetype"][strategy] = archetype_tier_bucket
+            archetypes[strategy]["tiers"][tier] = dict(archetype_tier_bucket)
+
+        tier_bucket["clear_rate"] = _round_rate(tier_bucket["clears"], tier_bucket["matches"])
+        tier_bucket["avg_score_gap"] = round(
+            mean(item["score_gap"] for item in matches if item["benchmark_tier"] == tier),
+            2,
+        ) if tier_bucket["matches"] else 0.0
+        tier_bucket["benchmark_strategies"] = dict(sorted(tier_bucket["benchmark_strategies"].items()))
+        tiers[tier] = tier_bucket
+
+    for strategy, bucket in archetypes.items():
+        gaps = [tier_bucket["avg_score_gap"] for tier_bucket in bucket["tiers"].values()]
+        bucket["clear_rate"] = _round_rate(bucket["clears"], bucket["matches"])
+        bucket["avg_score_gap"] = round(mean(gaps), 2) if gaps else 0.0
+
+    ordered_tier_rates = [tiers[tier]["clear_rate"] for tier in server.BENCHMARK_TIER_ORDER if tier in tiers]
+    difficulty_inversions = 0
+    for prev, current in zip(ordered_tier_rates, ordered_tier_rates[1:]):
+        if current > prev:
+            difficulty_inversions += 1
+
+    pressure_rates = [bucket["clear_rate"] for bucket in tiers.get("pressure", {}).get("by_archetype", {}).values()]
+    pressure_clear_spread = round(max(pressure_rates) - min(pressure_rates), 3) if pressure_rates else 0.0
+    best_archetype_clear_rate = max((bucket["clear_rate"] for bucket in archetypes.values()), default=0.0)
+
+    return {
+        "seed_start": seed_start,
+        "seed_count": seed_count,
+        "max_turns": max_turns,
+        "tiers": tiers,
+        "archetypes": archetypes,
+        "matches": matches,
+        "difficulty_curve": {
+            "ordered_clear_rates": {
+                tier: tiers[tier]["clear_rate"]
+                for tier in server.BENCHMARK_TIER_ORDER
+                if tier in tiers
+            },
+            "difficulty_inversions": difficulty_inversions,
+            "pressure_clear_spread": pressure_clear_spread,
+            "best_archetype_clear_rate": round(best_archetype_clear_rate, 3),
+        },
+    }
+
+
 def run_seeded_tournament(
     *,
     seed_start: int = 1,
     seed_count: int = DEFAULT_SEED_COUNT,
     agent_count: int = DEFAULT_AGENT_COUNT,
     max_turns: int = DEFAULT_MAX_TURNS,
+    benchmark_seed_count: int = DEFAULT_BENCHMARK_SEED_COUNT,
+    benchmark_turns: int = DEFAULT_BENCHMARK_MAX_TURNS,
 ) -> dict:
     configs = _selected_configs(agent_count)
     config_by_agent = {config["name"]: config for config in configs}
@@ -633,6 +807,11 @@ def run_seeded_tournament(
         }
         for archetype, bucket in summary["archetypes"].items()
     }
+    summary["benchmark_ladder"] = _benchmark_ladder_summary(
+        seed_start=seed_start,
+        seed_count=max(1, benchmark_seed_count),
+        max_turns=benchmark_turns,
+    )
     return summary
 
 
@@ -687,6 +866,13 @@ def _threshold_failures(summary: dict, args: argparse.Namespace) -> list[str]:
             .get("pressured_commercial", 0.0)
         ),
     )
+    benchmark_ladder = dict(summary.get("benchmark_ladder", {}))
+    benchmark_tiers = dict(benchmark_ladder.get("tiers", {}))
+    difficulty_curve = dict(benchmark_ladder.get("difficulty_curve", {}))
+    baseline_clear_rate = float(benchmark_tiers.get("baseline", {}).get("clear_rate", 0.0))
+    pressure_clear_spread = float(difficulty_curve.get("pressure_clear_spread", 0.0))
+    practice_best_archetype_clear_rate = float(difficulty_curve.get("best_archetype_clear_rate", 0.0))
+    practice_difficulty_inversions = int(difficulty_curve.get("difficulty_inversions", 0))
 
     if args.max_winner_divergence_rate is not None and divergence_rate > args.max_winner_divergence_rate:
         failures.append(
@@ -748,6 +934,30 @@ def _threshold_failures(summary: dict, args: argparse.Namespace) -> list[str]:
         failures.append(
             "best archetype pressured commercial deficit "
             f"{best_archetype_pressured_commercial_deficit:.3f} exceeded {args.max_best_archetype_pressured_commercial_deficit:.3f}"
+        )
+    if args.max_baseline_clear_rate is not None and baseline_clear_rate > args.max_baseline_clear_rate:
+        failures.append(
+            f"baseline clear rate {baseline_clear_rate:.3f} exceeded {args.max_baseline_clear_rate:.3f}"
+        )
+    if args.max_pressure_clear_spread is not None and pressure_clear_spread > args.max_pressure_clear_spread:
+        failures.append(
+            f"pressure clear spread {pressure_clear_spread:.3f} exceeded {args.max_pressure_clear_spread:.3f}"
+        )
+    if (
+        args.max_practice_best_archetype_clear_rate is not None
+        and practice_best_archetype_clear_rate > args.max_practice_best_archetype_clear_rate
+    ):
+        failures.append(
+            "practice best archetype clear rate "
+            f"{practice_best_archetype_clear_rate:.3f} exceeded {args.max_practice_best_archetype_clear_rate:.3f}"
+        )
+    if (
+        args.max_benchmark_difficulty_inversions is not None
+        and practice_difficulty_inversions > args.max_benchmark_difficulty_inversions
+    ):
+        failures.append(
+            "benchmark difficulty inversions "
+            f"{practice_difficulty_inversions} exceeded {args.max_benchmark_difficulty_inversions}"
         )
     return failures
 
@@ -814,6 +1024,21 @@ def _print_human_summary(summary: dict) -> None:
             print(f"  family_share_delta[{key}]={value:+.3f}")
         for key, value in top_pressure_family_deltas:
             print(f"  pressure_family_share_delta[{key}]={value:+.3f}")
+    benchmark_ladder = summary.get("benchmark_ladder", {})
+    if benchmark_ladder:
+        print("Benchmark ladder:")
+        for tier, bucket in benchmark_ladder.get("tiers", {}).items():
+            print(
+                f"  {tier}: clear_rate={bucket['clear_rate']:.3f} "
+                f"avg_gap={bucket['avg_score_gap']:.2f}"
+            )
+        difficulty_curve = benchmark_ladder.get("difficulty_curve", {})
+        print(
+            "Benchmark difficulty curve: "
+            f"inversions={difficulty_curve.get('difficulty_inversions', 0)} "
+            f"pressure_spread={difficulty_curve.get('pressure_clear_spread', 0.0):.3f} "
+            f"best_archetype_clear_rate={difficulty_curve.get('best_archetype_clear_rate', 0.0):.3f}"
+        )
 
 
 def main() -> int:
@@ -822,6 +1047,8 @@ def main() -> int:
     parser.add_argument("--seed-count", type=int, default=DEFAULT_SEED_COUNT)
     parser.add_argument("--agents", type=int, default=DEFAULT_AGENT_COUNT)
     parser.add_argument("--turns", type=int, default=DEFAULT_MAX_TURNS)
+    parser.add_argument("--benchmark-seed-count", type=int, default=DEFAULT_BENCHMARK_SEED_COUNT)
+    parser.add_argument("--benchmark-turns", type=int, default=DEFAULT_BENCHMARK_MAX_TURNS)
     parser.add_argument("--json-out", type=Path, default=None)
     parser.add_argument("--print-json", action="store_true")
     parser.add_argument("--max-winner-divergence-rate", type=float, default=None)
@@ -834,6 +1061,10 @@ def main() -> int:
     parser.add_argument("--max-best-archetype-healthy-stabilization-gap", type=float, default=None)
     parser.add_argument("--max-best-archetype-pressured-stabilization-gap", type=float, default=None)
     parser.add_argument("--max-best-archetype-pressured-commercial-deficit", type=float, default=None)
+    parser.add_argument("--max-baseline-clear-rate", type=float, default=None)
+    parser.add_argument("--max-pressure-clear-spread", type=float, default=None)
+    parser.add_argument("--max-practice-best-archetype-clear-rate", type=float, default=None)
+    parser.add_argument("--max-benchmark-difficulty-inversions", type=int, default=None)
     args = parser.parse_args()
 
     summary = run_seeded_tournament(
@@ -841,6 +1072,8 @@ def main() -> int:
         seed_count=args.seed_count,
         agent_count=args.agents,
         max_turns=args.turns,
+        benchmark_seed_count=args.benchmark_seed_count,
+        benchmark_turns=args.benchmark_turns,
     )
     failures = _threshold_failures(summary, args)
 

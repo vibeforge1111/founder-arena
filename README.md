@@ -409,6 +409,8 @@ python balance_harness.py --seed-count 20 --json-out data/balance-summary.json
 
 # Fail CI if ranked score and valuation diverge too often or one profile dominates
 python balance_harness.py --seed-count 20 ^
+  --benchmark-seed-count 2 ^
+  --benchmark-turns 32 ^
   --max-winner-divergence-rate 0.25 ^
   --max-avg-rank-delta 0.40 ^
   --max-worst-archetype-avg-placement 3.00 ^
@@ -416,7 +418,11 @@ python balance_harness.py --seed-count 20 ^
   --max-best-sector-win-rate 0.45 ^
   --max-best-archetype-score-bias 0.20 ^
   --max-best-archetype-family-share-gap 0.18 ^
-  --max-best-archetype-healthy-stabilization-gap 0.25
+  --max-best-archetype-healthy-stabilization-gap 0.25 ^
+  --max-baseline-clear-rate 0.50 ^
+  --max-pressure-clear-spread 0.55 ^
+  --max-practice-best-archetype-clear-rate 0.65 ^
+  --max-benchmark-difficulty-inversions 1
 ```
 
 The harness reports:
@@ -430,6 +436,10 @@ The harness reports:
 - score vs valuation divergence
 - per-archetype score wins, valuation wins, and average rank delta
 - scenario bias by sector and market segment
+- benchmark ladder clear rate by tier
+- pressure-tier archetype spread for practice-bot fairness
+- benchmark difficulty inversions across the duel ladder
+- overall practice clear-rate dominance by archetype
 
 The repo now includes a GitHub Actions workflow at `.github/workflows/balance-regression.yml` that runs a lighter 10-seed regression pass on pushes and pull requests. The current CI thresholds are still guardrails rather than final balance policy, but they now reflect the post-coherence baseline instead of placeholder values:
 
@@ -443,6 +453,17 @@ The repo now includes a GitHub Actions workflow at `.github/workflows/balance-re
 - best archetype healthy stabilization gap `<= 0.30`
 - best archetype pressured stabilization gap `<= 0.15`
 - best archetype pressured commercial deficit `<= 0.18`
+- baseline practice clear rate `<= 0.50`
+- pressure-tier clear-rate spread `<= 0.55`
+- best practice archetype clear rate `<= 0.65`
+- benchmark difficulty inversions `<= 1`
+
+The current 10-seed / 2-benchmark-seed baseline is:
+
+- baseline clear rate `0.375`
+- pressure clear-rate spread `0.500`
+- best practice archetype clear rate `0.600`
+- benchmark difficulty inversions `1`
 
 These are guardrails for obvious regressions, not final balance policy. The local 20-seed pass should stay tighter than the CI 10-seed pass; tighten the workflow only after collecting a larger baseline from repeated seeded runs.
 

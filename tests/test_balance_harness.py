@@ -22,12 +22,16 @@ class BalanceHarnessTests(unittest.TestCase):
             seed_count=2,
             agent_count=2,
             max_turns=8,
+            benchmark_seed_count=1,
+            benchmark_turns=8,
         )
         second = balance_harness.run_seeded_tournament(
             seed_start=1,
             seed_count=2,
             agent_count=2,
             max_turns=8,
+            benchmark_seed_count=1,
+            benchmark_turns=8,
         )
 
         self.assertEqual(first, second)
@@ -38,6 +42,8 @@ class BalanceHarnessTests(unittest.TestCase):
             seed_count=2,
             agent_count=3,
             max_turns=10,
+            benchmark_seed_count=1,
+            benchmark_turns=8,
         )
 
         self.assertEqual(summary["seed_start"], 3)
@@ -58,9 +64,22 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("valuation_winners", summary["winner_profiles"])
         self.assertIn("by_sector", summary["scenario_bias"])
         self.assertIn("by_market_segment", summary["scenario_bias"])
+        self.assertIn("benchmark_ladder", summary)
         self.assertTrue(summary["action_usage"])
         self.assertTrue(summary["decision_intent_usage"])
         self.assertTrue(summary["watch_metric_usage"])
+        self.assertIn("tiers", summary["benchmark_ladder"])
+        self.assertIn("difficulty_curve", summary["benchmark_ladder"])
+        self.assertIn("baseline", summary["benchmark_ladder"]["tiers"])
+        self.assertIn("pressure", summary["benchmark_ladder"]["tiers"])
+        self.assertIn("gauntlet", summary["benchmark_ladder"]["tiers"])
+        self.assertIn("balanced", summary["benchmark_ladder"]["archetypes"])
+        self.assertIn("clear_rate", summary["benchmark_ladder"]["tiers"]["baseline"])
+        self.assertIn("avg_score_gap", summary["benchmark_ladder"]["tiers"]["baseline"])
+        self.assertIn("by_archetype", summary["benchmark_ladder"]["tiers"]["baseline"])
+        self.assertIn("difficulty_inversions", summary["benchmark_ladder"]["difficulty_curve"])
+        self.assertIn("pressure_clear_spread", summary["benchmark_ladder"]["difficulty_curve"])
+        self.assertIn("best_archetype_clear_rate", summary["benchmark_ladder"]["difficulty_curve"])
 
         for match in summary["matches"]:
             self.assertEqual(len(match["rankings"]), 3)
@@ -156,12 +175,39 @@ class BalanceHarnessTests(unittest.TestCase):
                 "max_best_archetype_healthy_stabilization_gap": 0.2,
                 "max_best_archetype_pressured_stabilization_gap": 0.15,
                 "max_best_archetype_pressured_commercial_deficit": 0.18,
+                "max_baseline_clear_rate": 0.7,
+                "max_pressure_clear_spread": 0.3,
+                "max_practice_best_archetype_clear_rate": 0.6,
+                "max_benchmark_difficulty_inversions": 0,
             },
         )()
+        summary["benchmark_ladder"] = {
+            "tiers": {
+                "baseline": {
+                    "clear_rate": 0.9,
+                    "by_archetype": {
+                        "balanced": {"clear_rate": 1.0},
+                        "chaos": {"clear_rate": 0.8},
+                    },
+                },
+                "pressure": {
+                    "clear_rate": 0.55,
+                    "by_archetype": {
+                        "balanced": {"clear_rate": 0.75},
+                        "chaos": {"clear_rate": 0.25},
+                    },
+                },
+            },
+            "difficulty_curve": {
+                "difficulty_inversions": 1,
+                "pressure_clear_spread": 0.5,
+                "best_archetype_clear_rate": 0.7,
+            },
+        }
 
         failures = balance_harness._threshold_failures(summary, args)
 
-        self.assertEqual(len(failures), 10)
+        self.assertEqual(len(failures), 14)
         self.assertIn("winner divergence rate 0.400 exceeded 0.200", failures[0])
         self.assertIn("avg rank delta 0.70 exceeded 0.50", failures[1])
         self.assertIn("worst archetype avg placement 3.20 exceeded 3.00", failures[2])
@@ -172,6 +218,10 @@ class BalanceHarnessTests(unittest.TestCase):
         self.assertIn("best archetype healthy stabilization gap 0.280 exceeded 0.200", failures[7])
         self.assertIn("best archetype pressured stabilization gap 0.220 exceeded 0.150", failures[8])
         self.assertIn("best archetype pressured commercial deficit 0.190 exceeded 0.180", failures[9])
+        self.assertIn("baseline clear rate 0.900 exceeded 0.700", failures[10])
+        self.assertIn("pressure clear spread 0.500 exceeded 0.300", failures[11])
+        self.assertIn("practice best archetype clear rate 0.700 exceeded 0.600", failures[12])
+        self.assertIn("benchmark difficulty inversions 1 exceeded 0", failures[13])
 
 
 if __name__ == "__main__":
