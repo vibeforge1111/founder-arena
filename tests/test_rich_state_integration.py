@@ -1330,6 +1330,7 @@ class RichStateIntegrationTests(unittest.TestCase):
 
         replay = game.get_replay()
         self.assertEqual(replay["summary"]["practice_takeaway"]["category"], "benchmark_cleared")
+        self.assertEqual(replay["summary"]["practice_takeaway"]["entrant_id"], entrant_id)
         progression = replay["summary"]["practice_takeaway"]["progression"]
         self.assertEqual(progression["cleared_tiers"], ["baseline"])
         self.assertEqual(progression["next_tier"], "pressure")

@@ -2028,6 +2028,10 @@ class Game:
             return {
                 "category": "benchmark_cleared",
                 "category_label": "Benchmark Cleared",
+                "entrant_id": getattr(startup, "entrant_id", None),
+                "entrant_version_hash": getattr(startup, "entrant_version_hash", None),
+                "startup_id": startup.id,
+                "startup_name": startup.startup_name,
                 "headline": headline,
                 "benchmark_name": benchmark_label,
                 "benchmark_strategy": benchmark_strategy,
@@ -2045,6 +2049,10 @@ class Game:
             return {
                 "category": "execution_mistake",
                 "category_label": "Execution Mistake",
+                "entrant_id": getattr(startup, "entrant_id", None),
+                "entrant_version_hash": getattr(startup, "entrant_version_hash", None),
+                "startup_id": startup.id,
+                "startup_name": startup.startup_name,
                 "headline": headline,
                 "benchmark_name": benchmark_label,
                 "benchmark_strategy": benchmark_strategy,
@@ -2057,6 +2065,10 @@ class Game:
             return {
                 "category": "execution_mistake",
                 "category_label": "Execution Mistake",
+                "entrant_id": getattr(startup, "entrant_id", None),
+                "entrant_version_hash": getattr(startup, "entrant_version_hash", None),
+                "startup_id": startup.id,
+                "startup_name": startup.startup_name,
                 "headline": (
                     f"{startup.startup_name} fell out with {startup.death_reason} before it could hold "
                     f"off {benchmark_label}."
@@ -2073,6 +2085,10 @@ class Game:
             return {
                 "category": "benchmark_pressure",
                 "category_label": "Benchmark Pressure",
+                "entrant_id": getattr(startup, "entrant_id", None),
+                "entrant_version_hash": getattr(startup, "entrant_version_hash", None),
+                "startup_id": startup.id,
+                "startup_name": startup.startup_name,
                 "headline": (
                     f"{startup.startup_name} stayed close to {benchmark_label}, but benchmark pressure on {focus} "
                     f"kept it from converting the match."
@@ -2088,6 +2104,10 @@ class Game:
         return {
             "category": "archetype_weakness",
             "category_label": "Archetype Weakness",
+            "entrant_id": getattr(startup, "entrant_id", None),
+            "entrant_version_hash": getattr(startup, "entrant_version_hash", None),
+            "startup_id": startup.id,
+            "startup_name": startup.startup_name,
             "headline": (
                 f"{benchmark_label} exposed weaker {focus} in {startup.startup_name}'s current plan."
             ),

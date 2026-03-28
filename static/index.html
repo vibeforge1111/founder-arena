@@ -1207,6 +1207,44 @@ function benchmarkTierLabel(tier) {
   return tier || 'Baseline';
 }
 
+function entrantById(entrantId) {
+  return (entrantRegistryCache || []).find(item => item.entrant_id === entrantId) || null;
+}
+
+function recommendedPracticeButtons(entrantId, primaryTier, secondaryTier, primaryLabelOverride = null) {
+  if (!entrantId || !primaryTier) return '';
+  const busy = !!entrantQueueBusy[entrantId];
+  const primaryLabel = primaryLabelOverride || (secondaryTier ? `QUEUE ${benchmarkTierLabel(primaryTier).toUpperCase()}` : `RETRY ${benchmarkTierLabel(primaryTier).toUpperCase()}`);
+  return `<div class="entrant-actions" style="margin-top:10px">
+    <button class="btn btn-sm" ${busy ? 'disabled' : ''} onclick="queueEntrantToPracticeTier('${entrantId}', '${primaryTier}')">${busy ? 'QUEUEING...' : primaryLabel}</button>
+    ${secondaryTier ? `<button class="btn btn-sm" ${busy ? 'disabled' : ''} onclick="queueEntrantToPracticeTier('${entrantId}', '${secondaryTier}')">RETRY ${benchmarkTierLabel(secondaryTier).toUpperCase()}</button>` : ''}
+  </div>`;
+}
+
+function effectiveLaunchConfig(entrant, overrides = {}) {
+  const defaults = defaultEntrantConfig(entrant);
+  const preset = launchPresetFor(entrant.entrant_id) || {};
+  const lobby = currentLobbyMeta();
+  const queueOptions = queueOptionsForEntrant(entrant);
+  const fallbackQueue = queueOptions.includes(FOUNDER_DUEL_DEFAULTS.practice_queue) ? FOUNDER_DUEL_DEFAULTS.practice_queue : queueOptions[0];
+  const queue = overrides.queue || preset.queue || (lobby.active && queueOptions.includes(lobby.queue) ? lobby.queue : fallbackQueue);
+  const benchmarkTier = overrides.benchmark_tier || preset.benchmark_tier || lobby.benchmark_tier || FOUNDER_DUEL_DEFAULTS.benchmark_tier;
+  return {
+    agent_name: overrides.agent_name || preset.agent_name || defaults.agent_name,
+    startup_name: overrides.startup_name || preset.startup_name || defaults.startup_name,
+    sector: overrides.sector || preset.sector || defaults.sector,
+    queue,
+    benchmark_tier: benchmarkTier,
+    motto: overrides.motto || preset.motto || defaults.motto,
+    strategy_description: overrides.strategy_description || preset.strategy_description || defaults.strategy_description,
+    game_name: overrides.game_name || preset.game_name || `${entrant.display_name} Founder Duel`,
+    max_players: Math.min(8, Math.max(2, parseInt(overrides.max_players || preset.max_players || lobby.max || FOUNDER_DUEL_DEFAULTS.max_players, 10) || FOUNDER_DUEL_DEFAULTS.max_players)),
+    max_turns: parseInt(overrides.max_turns || preset.max_turns || currentLobbyData?.max_turns || FOUNDER_DUEL_DEFAULTS.max_turns, 10) || FOUNDER_DUEL_DEFAULTS.max_turns,
+    turn_timeout: parseInt(overrides.turn_timeout || preset.turn_timeout || selectedSpeed || 5, 10) || 5,
+    saved_at: new Date().toISOString(),
+  };
+}
+
 // ──────────────────────────────────────────────────
 // DATA FETCHING
 // ──────────────────────────────────────────────────
@@ -1748,6 +1786,11 @@ function renderOutcomeRead(title, outcome) {
 function renderPracticeTakeawayCard(takeaway) {
   if (!takeaway) return '';
   const progression = takeaway.progression || null;
+  const entrantId = takeaway.entrant_id || null;
+  const retryTier = takeaway.benchmark_tier || null;
+  const nextTier = progression?.next_tier || null;
+  const primaryTier = nextTier || retryTier;
+  const secondaryTier = nextTier && retryTier && nextTier !== retryTier ? retryTier : null;
   return `<div class="postgame-summary-card">
     <div class="postgame-summary-label">Practice Verdict</div>
     <div class="postgame-summary-value">${takeaway.category_label || 'Practice Read'}</div>
@@ -1760,6 +1803,7 @@ function renderPracticeTakeawayCard(takeaway) {
       ${progression?.cleared_tiers?.length ? `<div class="detail-tag">cleared ${progression.cleared_tiers.join(', ')}</div>` : ''}
       ${progression?.next_tier ? `<div class="detail-tag">next ${progression.next_tier}</div>` : ''}
     </div>
+    ${recommendedPracticeButtons(entrantId, primaryTier, secondaryTier)}
   </div>`;
 }
 
@@ -2221,8 +2265,110 @@ function rerenderLeaderboardIfVisible() {
   }
 }
 
+function rerenderPostgameIfVisible() {
+  if (document.getElementById('view-postgame').classList.contains('active') && gameData?.phase === 'finished') {
+    renderPostGame();
+  }
+}
+
+async function queueEntrantToPracticeTier(entrantId, benchmarkTier) {
+  let entrant = entrantById(entrantId);
+  if (!entrant) {
+    await fetchLeaderboard();
+    entrant = entrantById(entrantId);
+  }
+  if (!entrant) {
+    alert('Entrant not found in registry.');
+    return;
+  }
+  const config = effectiveLaunchConfig(entrant, {
+    queue: 'showmatch',
+    benchmark_tier: benchmarkTier || FOUNDER_DUEL_DEFAULTS.benchmark_tier,
+  });
+  const lobby = currentLobbyMeta();
+  entrantQueueBusy[entrant.entrant_id] = true;
+  rerenderLeaderboardIfVisible();
+  rerenderPostgameIfVisible();
+
+  try {
+    const validation = await fetchEntrantValidation(entrant.entrant_id);
+    if (!validation.ready) {
+      throw new Error('Entrant validation failed. Fix the validation issues before queueing this benchmark run.');
+    }
+
+    const existingStartup = Object.values(lobby.startups || {}).find(item => item.entrant_id === entrant.entrant_id);
+    if (existingStartup && lobby.active && lobby.queue === 'showmatch' && lobby.benchmark_tier === config.benchmark_tier) {
+      throw new Error(`${existingStartup.startup_name || entrant.display_name} is already queued in the current ${benchmarkTierLabel(config.benchmark_tier)} lobby.`);
+    }
+
+    const matchingLobby = (
+      lobby.active &&
+      lobby.queue === 'showmatch' &&
+      lobby.benchmark_tier === config.benchmark_tier &&
+      (!lobby.max || lobby.count < lobby.max)
+    );
+
+    if (!matchingLobby) {
+      const createResp = await fetch('/api/games', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: config.game_name || 'Entrant Match',
+          max_players: config.max_players,
+          min_players: 2,
+          turn_timeout: config.turn_timeout,
+          max_turns: config.max_turns,
+          game_mode: 'competitive_mode',
+          use_rich_state: true,
+          queue: 'showmatch',
+          benchmark_tier: config.benchmark_tier,
+        }),
+      });
+      const createData = await createResp.json().catch(() => ({}));
+      if (!createResp.ok) throw new Error(createData.detail || 'Failed to create practice lobby');
+      applyLobbyState(createData, config.max_players);
+      startLobbyPoll();
+    }
+
+    const payload = {
+      entrant_id: entrant.entrant_id,
+      agent_name: config.agent_name || defaultEntrantConfig(entrant).agent_name,
+      startup_name: config.startup_name || defaultEntrantConfig(entrant).startup_name,
+      sector: config.sector,
+      motto: config.motto,
+      strategy_description: config.strategy_description || defaultEntrantConfig(entrant).strategy_description,
+      launch: true,
+    };
+    const resp = await fetch(`/api/games/${soloGameId}/add-entrant`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken,
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Failed to queue entrant');
+
+    const presets = loadLaunchPresets();
+    presets[entrant.entrant_id] = config;
+    saveLaunchPresets(presets);
+
+    await pollLobby();
+    await fetchLeaderboard();
+    switchView('lobby');
+  } catch (e) {
+    console.error('Quick queue error:', e);
+    alert(e.message);
+  } finally {
+    delete entrantQueueBusy[entrant.entrant_id];
+    rerenderLeaderboardIfVisible();
+    rerenderPostgameIfVisible();
+  }
+}
+
 async function openLaunchModal(entrantId) {
-  const entrant = (entrantRegistryCache || []).find(item => item.entrant_id === entrantId);
+  const entrant = entrantById(entrantId);
   if (!entrant) {
     alert('Entrant not found in registry.');
     return;
@@ -2370,6 +2516,14 @@ function renderEntrantCard(entrant) {
   const doctrine = entrant.compiled_doctrine?.doctrine || null;
   const performance = entrant.current_version_performance || {};
   const practiceProgress = performance.practice_progression || {};
+  const latestVerdict = practiceProgress.latest_verdict || null;
+  const nextTier = practiceProgress.next_tier || null;
+  const retryTier = latestVerdict?.benchmark_tier || null;
+  const primaryPracticeTier = nextTier || retryTier;
+  const secondaryPracticeTier = nextTier && retryTier && nextTier !== retryTier ? retryTier : null;
+  const practicePrimaryLabel = (practiceProgress.practice_games || 0) === 0 && primaryPracticeTier
+    ? `QUEUE ${benchmarkTierLabel(primaryPracticeTier).toUpperCase()}`
+    : null;
   const preset = launchPresetFor(entrant.entrant_id);
   const queueTargets = entrant.queue_targets || [];
   const lastLaunch = entrant.last_launch || null;
@@ -2445,6 +2599,7 @@ function renderEntrantCard(entrant) {
       </div>
       ${(doctrine.recovery_order || []).length ? `<div class="hint" style="margin-top:8px">Recovery: ${doctrine.recovery_order.join(' -> ')}</div>` : ''}
     </div>` : `<div class="entrant-doctrine"><div class="hint">No compiled doctrine available.</div></div>`}
+    ${queueTargets.includes('showmatch') ? recommendedPracticeButtons(entrant.entrant_id, primaryPracticeTier, secondaryPracticeTier, practicePrimaryLabel) : ''}
     <div class="entrant-actions">
       <button class="btn btn-sm" ${actionDisabled ? 'disabled' : ''} ${actionHandler ? `onclick="${actionHandler}"` : ''}>${actionLabel}</button>
       <div class="entrant-hint">${actionHint}</div>
