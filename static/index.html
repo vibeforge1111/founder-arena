@@ -364,6 +364,23 @@
   .postgame-title { font-size: 10px; font-weight: 500; letter-spacing: 3px; color: var(--text-muted); margin-bottom: 8px; }
   .postgame-winner { font-size: 28px; font-weight: 600; color: var(--gold); margin-bottom: 4px; }
   .postgame-sub { font-size: 12px; color: var(--text-dim); font-weight: 400; }
+  .postgame-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin: 12px;
+  }
+  .postgame-summary-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .postgame-summary-label { font-size: 9px; font-weight: 500; letter-spacing: 1.2px; color: var(--text-muted); text-transform: uppercase; }
+  .postgame-summary-value { margin-top: 8px; font-size: 18px; font-weight: 600; color: var(--text); }
+  .postgame-summary-body { margin-top: 8px; font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+  .postgame-summary-tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
 
   .postgame-table-wrap {
     padding: 20px;
@@ -1512,6 +1529,26 @@ function makeProgressBar(label, value, colorVar) {
   return `<div class="progress-row"><div class="progress-label">${label}</div><div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:var(${colorVar})"></div></div><div class="progress-val">${Math.round(value)}</div></div>`;
 }
 
+function renderTurningPoint(point) {
+  const leaderPlan = point.leader_decision?.intent || point.leader_actions?.[0] || 'No recorded plan';
+  const challengerPlan = point.challenger_decision?.intent || point.challenger_actions?.[0] || 'No recorded plan';
+  const deltaPrefix = point.gap_change > 0 ? '+' : '';
+  return `<div class="postgame-summary-card">
+    <div class="postgame-summary-label">Turning Point • Week ${point.turn}</div>
+    <div class="postgame-summary-value">${point.leader_startup}</div>
+    <div class="postgame-summary-body">${point.headline}</div>
+    <div class="postgame-summary-tags">
+      <div class="detail-tag">gap ${point.score_gap.toFixed(1)}</div>
+      <div class="detail-tag">swing ${deltaPrefix}${point.gap_change.toFixed(1)}</div>
+      ${point.leader_changed ? '<div class="detail-tag">lead change</div>' : ''}
+    </div>
+    <div class="postgame-summary-body" style="margin-top:10px">
+      <strong>${point.leader_agent}</strong>: ${leaderPlan}<br>
+      <strong>${point.challenger_agent}</strong>: ${challengerPlan}
+    </div>
+  </div>`;
+}
+
 // ──────────────────────────────────────────────────
 // POST-GAME
 // ──────────────────────────────────────────────────
@@ -1520,6 +1557,8 @@ function renderPostGame() {
   const container = document.getElementById('postgameContent');
   const startups = gameData.startups;
   const logs = gameData.action_logs || {};
+  const replaySummary = gameData.summary || {};
+  const turningPoints = replaySummary.turning_points || [];
 
   const sorted = Object.entries(startups).sort((a, b) => {
     if (a[1].alive !== b[1].alive) return a[1].alive ? -1 : 1;
@@ -1542,7 +1581,25 @@ function renderPostGame() {
       <div class="postgame-title">GAME OVER</div>
       <div class="postgame-winner">${winner ? winner.startup_name : 'No Winner'}</div>
       <div class="postgame-sub">${winnerSummary}</div>
-    </div>
+    </div>`;
+
+  if (winner && gameData.game_mode === 'competitive_mode') {
+    html += `<div class="postgame-summary-grid">
+      <div class="postgame-summary-card">
+        <div class="postgame-summary-label">Winner Margin</div>
+        <div class="postgame-summary-value">${replaySummary.final_margin != null ? replaySummary.final_margin.toFixed(1) : winnerScore.toFixed(1)}</div>
+        <div class="postgame-summary-body">${replaySummary.winner_summary || winnerSummary}</div>
+        <div class="postgame-summary-tags">
+          <div class="detail-tag">winner ${replaySummary.winner_score != null ? replaySummary.winner_score.toFixed(1) : winnerScore.toFixed(1)}</div>
+          ${replaySummary.runner_up_score != null ? `<div class="detail-tag">runner-up ${replaySummary.runner_up_score.toFixed(1)}</div>` : ''}
+          <div class="detail-tag">${gameData.total_turns || gameData.turn || 0} turns</div>
+        </div>
+      </div>
+      ${turningPoints.map(renderTurningPoint).join('')}
+    </div>`;
+  }
+
+  html += `
     <div class="postgame-table-wrap">
       <table class="score-table"><thead><tr>
         <th>RANK</th><th>AGENT</th><th>STARTUP</th><th>SECTOR</th><th>VALUATION</th><th>USERS</th><th>REVENUE</th><th>STATUS</th><th></th>

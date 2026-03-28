@@ -820,6 +820,7 @@ class RichStateIntegrationTests(unittest.TestCase):
                 "turn_timeout": 5,
                 "max_turns": 1,
                 "use_rich_state": True,
+                "game_mode": "competitive_mode",
             },
         )
         self.assertEqual(create.status_code, 200)
@@ -900,6 +901,11 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertIn("seven_dimension_scores", startup_payload)
         self.assertIn("score", ranking_payload)
         self.assertIn("seven_dimension_scores", ranking_payload)
+        self.assertIn("summary", replay_payload)
+        self.assertIn("winner_summary", replay_payload["summary"])
+        self.assertIn("turning_points", replay_payload["summary"])
+        self.assertTrue(replay_payload["summary"]["turning_points"])
+        self.assertTrue(all("score" in history[0] for history in replay_payload["histories"].values() if history))
         self.assertEqual(
             set(ranking_payload["seven_dimension_scores"]["dimensions"].keys()),
             {

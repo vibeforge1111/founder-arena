@@ -570,18 +570,19 @@ class RichStartupState:
             snap["cash_display"] = "<$100K"
         return snap
 
-    def record_history(self, turn: int) -> None:
-        self.history.append(
-            {
-                "turn": turn,
-                "cash": self.cash,
-                "users": self.users,
-                "revenue": self.revenue,
-                "valuation": self.calc_valuation(),
-                "product_quality": self.product_quality,
-                "morale": self.morale,
-                "brand": self.brand,
-                "team_size": len(self.team),
-                "stress_index": round(self.stress_index, 4),
-            }
-        )
+    def record_history(self, turn: int, score: float | None = None) -> None:
+        entry = {
+            "turn": turn,
+            "cash": self.cash,
+            "users": self.users,
+            "revenue": self.revenue,
+            "valuation": self.calc_valuation(),
+            "product_quality": self.product_quality,
+            "morale": self.morale,
+            "brand": self.brand,
+            "team_size": len(self.team),
+            "stress_index": round(self.stress_index, 4),
+        }
+        if score is not None:
+            entry["score"] = round(float(score), 2)
+        self.history.append(entry)

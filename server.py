@@ -251,13 +251,16 @@ class Startup:
             snap["cash_display"] = "<$100K"
         return snap
 
-    def record_history(self, turn: int):
-        self.history.append({
+    def record_history(self, turn: int, score: float | None = None):
+        entry = {
             "turn": turn, "cash": self.cash, "users": self.users,
             "revenue": self.revenue, "valuation": self.calc_valuation(),
             "product_quality": self.product_quality, "morale": self.morale,
             "brand": self.brand, "team_size": len(self.team),
-        })
+        }
+        if score is not None:
+            entry["score"] = round(float(score), 2)
+        self.history.append(entry)
 
 
 SCORE_WEIGHTS = {
@@ -1183,7 +1186,8 @@ class Game:
 
         # 6. Record history for all
         for s in self.startups.values():
-            s.record_history(self.turn)
+            history_score = self._score_value_for(s) if self.game_mode == "competitive_mode" else None
+            s.record_history(self.turn, score=history_score)
 
         # 7. Generate turn narrative
         alive_now = [s for s in self.startups.values() if s.alive]
@@ -1746,6 +1750,8 @@ class Game:
 
         if self.game_mode == "competitive_mode" and my_startup_id:
             state["turn_packet"] = self._build_turn_packet(self.startups[my_startup_id])
+        if self.phase == GamePhase.FINISHED:
+            state["summary"] = self._build_replay_summary(self._ranked_startups())
 
         return state
 
@@ -1788,7 +1794,122 @@ class Game:
         }
         for sid, startup in self.startups.items():
             state["startups"][sid]["current_arc"] = self._arc_summary_for(startup)
+        if self.phase == GamePhase.FINISHED:
+            state["summary"] = self._build_replay_summary(self._ranked_startups())
         return state
+
+    def _decision_for_turn(self, startup_id: str, turn: int) -> Optional[dict]:
+        for decision in reversed(self.decision_log.get(startup_id, [])):
+            if int(decision.get("turn_index", -1)) == turn:
+                return decision
+        return None
+
+    def _action_labels_for_turn(self, startup_id: str, turn: int) -> list[str]:
+        labels: list[str] = []
+        for action in self.action_log.get(startup_id, []):
+            if int(action.get("turn", -1)) != turn:
+                continue
+            label = action.get("action_type") or "action"
+            params = action.get("params") or {}
+            if params:
+                label = f"{label}({', '.join(str(value) for value in params.values())})"
+            labels.append(label)
+        return labels[:3]
+
+    def _turning_point_headline(self, *, leader, challenger, gap: float, gap_change: float, leader_changed: bool, turn: int) -> str:
+        if leader_changed:
+            return f"Week {turn}: {leader.startup_name} seized the lead by {gap:.1f} score."
+        if gap_change >= 0:
+            return f"Week {turn}: {leader.startup_name} stretched the gap to {gap:.1f} score."
+        return f"Week {turn}: {challenger.startup_name} closed the gap to {gap:.1f} score."
+
+    def _build_replay_summary(self, ranked: list) -> dict:
+        if not ranked:
+            return {"winner_summary": "", "final_margin": None, "turning_points": []}
+
+        winner = ranked[0]
+        runner_up = ranked[1] if len(ranked) > 1 else None
+        winner_score = self._score_value_for(winner)
+        runner_score = self._score_value_for(runner_up) if runner_up else 0.0
+        final_margin = round(winner_score - runner_score, 2) if runner_up else None
+
+        history_by_turn: dict[int, list[dict]] = {}
+        for startup in self.startups.values():
+            for point in startup.history:
+                history_by_turn.setdefault(int(point.get("turn", 0)), []).append(
+                    {
+                        "startup_id": startup.id,
+                        "score": float(point.get("score", 0.0) or 0.0),
+                        "valuation": float(point.get("valuation", 0) or 0),
+                    }
+                )
+
+        turning_points: list[dict] = []
+        previous_gap: float | None = None
+        previous_leader_id: str | None = None
+        for turn in sorted(history_by_turn):
+            standings = history_by_turn[turn]
+            if len(standings) < 2:
+                continue
+            standings.sort(key=lambda item: (item["score"], item["valuation"]), reverse=True)
+            leader_meta = standings[0]
+            challenger_meta = standings[1]
+            leader = self.startups[leader_meta["startup_id"]]
+            challenger = self.startups[challenger_meta["startup_id"]]
+            gap = round(leader_meta["score"] - challenger_meta["score"], 2)
+            gap_change = round(gap if previous_gap is None else gap - previous_gap, 2)
+            leader_changed = previous_leader_id is not None and previous_leader_id != leader.id
+            swing_score = round(abs(gap_change) + (3.0 if leader_changed else 0.0), 2)
+            turning_points.append(
+                {
+                    "turn": turn,
+                    "leader_startup": leader.startup_name,
+                    "leader_agent": leader.agent_name,
+                    "leader_score": round(leader_meta["score"], 2),
+                    "challenger_startup": challenger.startup_name,
+                    "challenger_agent": challenger.agent_name,
+                    "challenger_score": round(challenger_meta["score"], 2),
+                    "score_gap": gap,
+                    "gap_change": gap_change,
+                    "leader_changed": leader_changed,
+                    "swing_score": swing_score,
+                    "headline": self._turning_point_headline(
+                        leader=leader,
+                        challenger=challenger,
+                        gap=gap,
+                        gap_change=gap_change,
+                        leader_changed=leader_changed,
+                        turn=turn,
+                    ),
+                    "leader_actions": self._action_labels_for_turn(leader.id, turn),
+                    "challenger_actions": self._action_labels_for_turn(challenger.id, turn),
+                    "leader_decision": self._public_decision_summary(self._decision_for_turn(leader.id, turn)),
+                    "challenger_decision": self._public_decision_summary(self._decision_for_turn(challenger.id, turn)),
+                }
+            )
+            previous_gap = gap
+            previous_leader_id = leader.id
+
+        turning_points.sort(
+            key=lambda item: (
+                item["leader_changed"],
+                item["swing_score"],
+                abs(item["score_gap"]),
+            ),
+            reverse=True,
+        )
+        winner_summary = (
+            f"{winner.startup_name} won by {final_margin:.1f} score over {runner_up.startup_name}."
+            if runner_up and final_margin is not None
+            else f"{winner.startup_name} won the match."
+        )
+        return {
+            "winner_summary": winner_summary,
+            "final_margin": final_margin,
+            "winner_score": round(winner_score, 2),
+            "runner_up_score": round(runner_score, 2) if runner_up else None,
+            "turning_points": turning_points[:3],
+        }
 
     def get_replay(self) -> dict:
         """Full game replay data."""
@@ -1827,6 +1948,7 @@ class Game:
             "action_logs": self.action_log,
             "arc_feed": self._arc_feed(),
             "decision_logs": self.decision_log,
+            "summary": self._build_replay_summary(ranked),
         }
 
 
