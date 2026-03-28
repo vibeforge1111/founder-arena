@@ -1,0 +1,3154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FOUNDER ARENA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --panel: rgba(0, 0, 0, 0.65);
+    --panel-solid: rgba(8, 8, 8, 0.88);
+    --card: rgba(255, 255, 255, 0.04);
+    --card-hover: rgba(255, 255, 255, 0.07);
+    --border: rgba(255,255,255,0.06);
+    --border-bright: rgba(255,255,255,0.1);
+    --text: #ECECEC;
+    --text-dim: #999;
+    --text-muted: #555;
+    --gold: #F0B429;
+    --silver: #94A3B8;
+    --bronze: #CD7F32;
+    --red: #EF4444;
+    --green: #22C55E;
+    --blue: #3B82F6;
+    --purple: #A78BFA;
+    --cyan: #22D3EE;
+    --pink: #F472B6;
+    --orange: #FB923C;
+    --yellow: #FACC15;
+    --radius: 14px;
+    --radius-sm: 8px;
+    --shadow: 0 8px 32px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.04);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    background-image: url('/static/office.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    color: var(--text);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* ─── HEADER (floating top bar) ─── */
+  .header {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    height: 48px;
+    background: var(--panel-solid);
+    backdrop-filter: blur(24px) saturate(1.2);
+    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 20px;
+    user-select: none;
+    z-index: 100;
+    box-shadow: var(--shadow);
+  }
+
+  .logo {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: var(--text);
+  }
+
+  .logo span { color: var(--text-muted); font-weight: 400; font-size: 10px; letter-spacing: 1.5px; }
+
+  .nav-tabs {
+    display: flex;
+    gap: 1px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    padding: 3px;
+  }
+
+  .nav-tab {
+    padding: 5px 16px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+  }
+
+  .nav-tab:hover { color: var(--text-dim); }
+  .nav-tab.active { background: rgba(255,255,255,0.08); color: var(--text); }
+
+  .header-status {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+  .status-dot.live { background: var(--green); box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+  .status-dot.finished { background: var(--gold); box-shadow: 0 0 8px rgba(240,180,41,0.3); }
+
+  .turn-badge {
+    background: rgba(255,255,255,0.06);
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+  }
+
+  /* ─── VIEWS ─── */
+  .view { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+  .view.active { display: block; }
+
+  /* ─── LIVE VIEW: floating panels over office ─── */
+  .panel-left {
+    position: absolute;
+    top: 72px;
+    left: 12px;
+    bottom: 12px;
+    width: 260px;
+    background: var(--panel);
+    backdrop-filter: blur(20px) saturate(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    z-index: 10;
+  }
+
+  .panel-center {
+    position: absolute;
+    left: 284px;
+    right: 314px;
+    bottom: 12px;
+    height: 340px;
+    background: var(--panel);
+    backdrop-filter: blur(20px) saturate(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    z-index: 10;
+  }
+
+  .panel-right {
+    position: absolute;
+    top: 72px;
+    right: 12px;
+    bottom: 12px;
+    width: 290px;
+    background: var(--panel);
+    backdrop-filter: blur(20px) saturate(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow-y: auto;
+    box-shadow: var(--shadow);
+    z-index: 10;
+  }
+
+  /* ─── PANEL HEADERS ─── */
+  .panel-header {
+    padding: 14px 16px 12px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  /* ─── LEFT: RANKINGS ─── */
+  .rankings { flex: 1; overflow-y: auto; }
+
+  .rank-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-left: 3px solid transparent;
+  }
+  .rank-row:hover { background: rgba(255,255,255,0.03); }
+  .rank-row.selected { background: rgba(255,255,255,0.06); }
+  .rank-row.dead { opacity: 0.35; }
+  .rank-row.dead .startup-name { text-decoration: line-through; }
+
+  .rank-badge {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600;
+    background: rgba(255,255,255,0.04);
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .rank-badge.r1 { background: rgba(240,180,41,0.12); color: var(--gold); }
+  .rank-badge.r2 { background: rgba(148,163,184,0.1); color: var(--silver); }
+  .rank-badge.r3 { background: rgba(205,127,50,0.1); color: var(--bronze); }
+
+  .agent-color { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .rank-info { flex: 1; min-width: 0; }
+  .agent-name { font-size: 11px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .startup-name { font-size: 9px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rank-val { font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; flex-shrink: 0; }
+
+  .rank-status {
+    font-size: 8px; font-weight: 500; letter-spacing: 0.5px;
+    padding: 2px 6px; border-radius: 4px; flex-shrink: 0;
+  }
+  .rank-status.alive { background: rgba(34,197,94,0.1); color: var(--green); }
+  .rank-status.dead { background: rgba(239,68,68,0.1); color: var(--red); }
+
+  .mini-bars { display: flex; gap: 2px; align-items: flex-end; height: 14px; flex-shrink: 0; }
+  .mini-bar { width: 3px; border-radius: 1px; min-height: 2px; }
+
+  /* ─── CENTER: TIMELINE / CHART ─── */
+  .center-tabs {
+    display: flex; gap: 0;
+    padding: 8px 16px 0;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .center-tab {
+    padding: 8px 18px;
+    font-size: 10px; font-weight: 500; letter-spacing: 0.8px;
+    color: var(--text-muted); cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+  }
+  .center-tab:hover { color: var(--text-dim); }
+  .center-tab.active { color: var(--text); border-bottom-color: var(--text); }
+
+  .center-content { flex: 1; overflow: hidden; position: relative; }
+  .tab-panel { display: none; height: 100%; width: 100%; }
+  .tab-panel.active { display: flex; flex-direction: column; }
+
+  /* Timeline */
+  .timeline { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+  .timeline-filter {
+    padding: 4px 14px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10px; color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .timeline-filter-btn {
+    padding: 3px 10px; font-size: 9px; font-weight: 500;
+    border-radius: 5px; background: rgba(255,255,255,0.06); color: var(--text-dim);
+    border: 1px solid var(--border); cursor: pointer; transition: all 0.15s;
+  }
+  .timeline-filter-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+
+  .turn-divider {
+    padding: 6px 16px; font-size: 9px; font-weight: 500;
+    letter-spacing: 1px; color: var(--text-muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .turn-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .timeline-entry {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 3px 14px; font-size: 11px;
+    transition: background 0.1s;
+  }
+  .timeline-entry:hover { background: rgba(255,255,255,0.03); }
+
+  .tl-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .tl-agent { width: 80px; font-weight: 600; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
+  .tl-action { padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 500; white-space: nowrap; flex-shrink: 0; }
+  .tl-message { flex: 1; color: var(--text-dim); font-size: 10px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tl-icon { flex-shrink: 0; font-size: 10px; width: 14px; text-align: center; }
+  .tl-icon.success { color: var(--green); }
+  .tl-icon.fail { color: var(--red); }
+
+  /* Chart */
+  .chart-container { flex: 1; padding: 12px; position: relative; }
+  #valuation-chart { width: 100%; height: 100%; }
+
+  /* ─── RIGHT: AGENT DETAIL ─── */
+  .detail-empty { padding: 24px; text-align: center; color: var(--text-muted); font-size: 11px; margin-top: 40px; }
+  .detail-empty .hint { margin-top: 8px; font-size: 10px; color: var(--text-muted); opacity: 0.5; }
+
+  .agent-detail { padding: 16px; }
+  .detail-header { margin-bottom: 16px; }
+  .detail-agent-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+  .detail-startup-name { font-size: 12px; color: var(--text-dim); margin-bottom: 3px; font-weight: 400; }
+  .detail-motto { font-size: 10px; color: var(--text-muted); font-style: italic; margin-bottom: 10px; }
+  .detail-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+  .detail-tag { font-size: 9px; font-weight: 500; letter-spacing: 0.5px; padding: 3px 8px; border-radius: 5px; background: rgba(255,255,255,0.05); color: var(--text-dim); }
+
+  .detail-section { margin-top: 16px; }
+  .detail-section-title { font-size: 9px; font-weight: 500; letter-spacing: 1.2px; color: var(--text-muted); margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stat-item { background: rgba(255,255,255,0.03); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); }
+  .stat-label { font-size: 8px; font-weight: 500; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 2px; }
+  .stat-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.gold { color: var(--gold); }
+
+  .progress-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .progress-label { width: 55px; font-size: 10px; color: var(--text-dim); }
+  .progress-track { flex: 1; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+  .progress-val { width: 26px; text-align: right; font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .team-member { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 10px; }
+  .team-role { font-size: 8px; font-weight: 500; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); color: var(--text-dim); width: 62px; text-align: center; flex-shrink: 0; }
+  .team-name { flex: 1; }
+  .team-skill { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+  .recent-action { display: flex; align-items: center; gap: 5px; padding: 3px 0; font-size: 10px; border-bottom: 1px solid var(--border); }
+  .recent-turn { color: var(--text-muted); font-size: 9px; width: 28px; flex-shrink: 0; }
+  .recent-type { padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 500; flex-shrink: 0; }
+  .recent-msg { flex: 1; color: var(--text-dim); font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .recent-ok { color: var(--green); font-size: 9px; }
+  .recent-fail { color: var(--red); font-size: 9px; }
+
+  /* ─── POST-GAME VIEW ─── */
+  #view-postgame { overflow-y: auto; padding-top: 72px; }
+
+  .postgame-banner {
+    text-align: center; padding: 32px 24px 24px;
+    background: var(--panel-solid);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    margin: 0 12px; border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: var(--shadow);
+  }
+  .postgame-title { font-size: 10px; font-weight: 500; letter-spacing: 3px; color: var(--text-muted); margin-bottom: 8px; }
+  .postgame-winner { font-size: 28px; font-weight: 600; color: var(--gold); margin-bottom: 4px; }
+  .postgame-sub { font-size: 12px; color: var(--text-dim); font-weight: 400; }
+  .postgame-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin: 12px;
+  }
+  .postgame-summary-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+  .postgame-summary-label { font-size: 9px; font-weight: 500; letter-spacing: 1.2px; color: var(--text-muted); text-transform: uppercase; }
+  .postgame-summary-value { margin-top: 8px; font-size: 18px; font-weight: 600; color: var(--text); }
+  .postgame-summary-body { margin-top: 8px; font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+  .postgame-summary-tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .postgame-table-wrap {
+    padding: 20px;
+    max-width: 1200px; margin: 0 auto; width: 100%;
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    margin-left: 12px; margin-right: 12px;
+    border-radius: 0 0 var(--radius) var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 12px;
+    overflow-x: auto;
+  }
+
+  .score-table { width: 100%; border-collapse: collapse; }
+  .score-table th { font-size: 9px; font-weight: 500; letter-spacing: 1px; color: var(--text-muted); text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border-bright); }
+  .score-table td { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .score-table tr.winner-row { border-left: 3px solid var(--gold); }
+  .score-table tr.winner-row td:first-child { padding-left: 9px; }
+  .score-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .score-table .rank-cell { font-weight: 600; width: 36px; }
+  .score-table .val-cell { font-weight: 500; }
+
+  .expand-btn { background: none; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; font-size: 10px; padding: 3px 8px; border-radius: 5px; transition: all 0.15s; }
+  .expand-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+
+  .score-expand { display: none; padding: 12px 16px; background: rgba(255,255,255,0.02); }
+  .score-expand.open { display: block; }
+
+  .expand-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .expand-stat { background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); }
+  .expand-actions-title { font-size: 9px; font-weight: 500; letter-spacing: 1px; color: var(--text-muted); margin: 12px 0 6px; }
+  .expand-actions-list { max-height: 180px; overflow-y: auto; }
+
+  /* ─── LEADERBOARD VIEW ─── */
+  #view-leaderboard { overflow-y: auto; padding-top: 72px; }
+
+  .lb-section {
+    padding: 20px;
+    max-width: 1200px; margin: 12px; width: calc(100% - 24px);
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+  }
+
+  .lb-section-title { font-size: 10px; font-weight: 500; letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .lb-table { width: 100%; border-collapse: collapse; }
+  .lb-table th { font-size: 9px; font-weight: 500; letter-spacing: 1px; color: var(--text-muted); text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border-bright); cursor: pointer; user-select: none; }
+  .lb-table th:hover { color: var(--text-dim); }
+  .lb-table td { padding: 9px 12px; font-size: 11px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .lb-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .entrant-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .entrant-card {
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015));
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .entrant-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .entrant-name { font-size: 13px; font-weight: 700; color: var(--text); }
+  .entrant-id { font-size: 10px; color: var(--text-muted); margin-top: 3px; font-family: 'JetBrains Mono', monospace; overflow-wrap: anywhere; }
+  .entrant-meta { font-size: 10px; color: var(--text-muted); margin-top: 10px; display: grid; gap: 5px; }
+  .entrant-label { color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; font-size: 9px; }
+  .entrant-doctrine { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .entrant-empty { font-size: 11px; color: var(--text-muted); padding: 10px 0; }
+  .entrant-actions { margin-top: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .entrant-hint { font-size: 10px; color: var(--text-muted); line-height: 1.4; }
+  .benchmark-ladder {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.025);
+  }
+  .benchmark-ladder.compact { padding: 10px; }
+  .benchmark-ladder-title {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 1.1px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  .benchmark-ladder-head {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.4;
+  }
+  .benchmark-ladder.compact .benchmark-ladder-head {
+    font-size: 11px;
+  }
+  .benchmark-ladder-sub {
+    margin-top: 5px;
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .benchmark-ladder-meter {
+    margin-top: 10px;
+    height: 6px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.06);
+  }
+  .benchmark-ladder-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--green), var(--cyan));
+  }
+  .benchmark-ladder-meta {
+    margin-top: 7px;
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.4px;
+  }
+  .benchmark-tier-row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .benchmark-tier {
+    min-width: 0;
+    padding: 7px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+  }
+  .benchmark-tier-label {
+    display: block;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .benchmark-tier-state {
+    display: block;
+    margin-top: 3px;
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .benchmark-tier.cleared {
+    border-color: rgba(34,197,94,0.36);
+    background: rgba(20,83,45,0.26);
+  }
+  .benchmark-tier.cleared .benchmark-tier-label,
+  .benchmark-tier.cleared .benchmark-tier-state {
+    color: #bbf7d0;
+  }
+  .benchmark-tier.next {
+    border-color: rgba(59,130,246,0.4);
+    background: rgba(30,64,175,0.24);
+  }
+  .benchmark-tier.next .benchmark-tier-label,
+  .benchmark-tier.next .benchmark-tier-state {
+    color: #bfdbfe;
+  }
+  .benchmark-tier.retry {
+    border-color: rgba(245,158,11,0.42);
+    background: rgba(120,53,15,0.24);
+  }
+  .benchmark-tier.retry .benchmark-tier-label,
+  .benchmark-tier.retry .benchmark-tier-state {
+    color: #fde68a;
+  }
+  .benchmark-tier.locked {
+    opacity: 0.7;
+  }
+  @media (max-width: 640px) {
+    .benchmark-tier-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .lb-subnote { font-size: 10px; color: var(--text-muted); margin: -4px 0 12px; }
+  .diag-chip { font-size: 9px; font-weight: 600; letter-spacing: 0.4px; padding: 3px 7px; border-radius: 999px; border: 1px solid var(--border); }
+  .diag-chip.error { color: #fecaca; border-color: rgba(248,113,113,0.45); background: rgba(127,29,29,0.24); }
+  .diag-chip.warn { color: #fde68a; border-color: rgba(245,158,11,0.45); background: rgba(120,53,15,0.22); }
+  .diag-chip.ok { color: #bbf7d0; border-color: rgba(34,197,94,0.4); background: rgba(20,83,45,0.22); }
+  .diag-chip.info { color: var(--text-dim); }
+  .diag-list { margin-top: 10px; display: grid; gap: 6px; }
+  .diag-item { font-size: 10px; color: var(--text-dim); line-height: 1.45; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,0.03); }
+
+  .win-rate-bar { width: 50px; height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 5px; }
+  .win-rate-fill { height: 100%; background: var(--green); border-radius: 2px; opacity: 0.8; }
+
+  /* ─── NO GAME ─── */
+  .no-game { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); gap: 10px; }
+  .no-game-title { font-size: 16px; font-weight: 500; color: var(--text-dim); }
+  .no-game-sub { font-size: 12px; font-weight: 400; }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    padding: 9px 20px; font-size: 11px; font-weight: 500; letter-spacing: 0.5px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    cursor: pointer; transition: all 0.2s ease; background: rgba(255,255,255,0.05); color: var(--text-dim);
+    font-family: inherit;
+  }
+  .btn:hover { background: rgba(255,255,255,0.08); color: var(--text); border-color: var(--border-bright); }
+  .btn-primary { background: var(--text); color: #000; border-color: var(--text); font-weight: 500; }
+  .btn-primary:hover { background: #fff; }
+  .btn-sm { padding: 4px 10px; font-size: 10px; }
+  .btn-new-game {
+    padding: 5px 14px; font-size: 10px; font-weight: 500; letter-spacing: 0.5px;
+    background: rgba(255,255,255,0.08); color: var(--text-dim); border: 1px solid var(--border);
+    border-radius: 8px; cursor: pointer; transition: all 0.2s ease; font-family: inherit;
+  }
+  .btn-new-game:hover { background: rgba(255,255,255,0.12); color: var(--text); border-color: var(--border-bright); }
+
+  /* ─── CREATE GAME / LOBBY PANELS ─── */
+  .solo-panel {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 460px;
+    background: var(--panel-solid);
+    backdrop-filter: blur(32px) saturate(1.2);
+    -webkit-backdrop-filter: blur(32px) saturate(1.2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+    z-index: 20;
+    padding: 32px;
+  }
+  .solo-title { font-size: 11px; font-weight: 500; letter-spacing: 2.5px; color: var(--text-dim); margin-bottom: 24px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 9px; font-weight: 500; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 6px; display: block; }
+  .form-input, .form-select {
+    width: 100%; padding: 10px 12px; font-size: 13px;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text); outline: none;
+    font-family: inherit; transition: border-color 0.2s;
+  }
+  .form-input:focus, .form-select:focus { border-color: rgba(255,255,255,0.2); }
+  .form-row { display: flex; gap: 12px; }
+  .form-row .form-group { flex: 1; }
+  .speed-toggle { display: flex; gap: 0; }
+  .speed-opt {
+    flex: 1; padding: 9px; text-align: center; font-size: 11px; font-weight: 500;
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    cursor: pointer; color: var(--text-dim); transition: all 0.2s ease; font-family: inherit;
+  }
+  .speed-opt:first-child { border-radius: 8px 0 0 8px; }
+  .speed-opt:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+  .speed-opt.active { background: rgba(255,255,255,0.1); color: var(--text); border-color: rgba(255,255,255,0.15); }
+
+  /* Lobby */
+  .lobby-panel { width: 540px; max-height: 85vh; overflow-y: auto; }
+  .conn-section { margin-bottom: 18px; }
+  .conn-section-title { font-size: 9px; font-weight: 500; letter-spacing: 1.2px; color: var(--text-muted); margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid var(--border); }
+  .conn-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .conn-label { width: 70px; font-size: 10px; color: var(--text-muted); flex-shrink: 0; font-weight: 400; }
+  .conn-value { flex: 1; font-size: 12px; font-weight: 500; font-family: 'SF Mono', 'Consolas', 'Monaco', monospace; color: var(--text); padding: 6px 10px; background: rgba(255,255,255,0.04); border-radius: 6px; border: 1px solid var(--border); }
+  .copy-btn {
+    padding: 4px 10px; font-size: 9px; font-weight: 500;
+    background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+    border-radius: 6px; cursor: pointer; color: var(--text-dim); transition: all 0.15s; font-family: inherit;
+  }
+  .copy-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+  .code-block {
+    background: rgba(0,0,0,0.5); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; font-size: 11px; line-height: 1.6;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace; color: var(--green);
+    white-space: pre; overflow-x: auto; position: relative;
+  }
+  .code-block .copy-btn { position: absolute; top: 8px; right: 8px; }
+  .agent-list { margin-top: 10px; }
+  .agent-list-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: rgba(255,255,255,0.03);
+    border-radius: 8px; margin-bottom: 4px; font-size: 11px; border: 1px solid var(--border);
+  }
+  .agent-list-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px rgba(34,197,94,0.3); }
+  .agent-list-empty { font-size: 11px; color: var(--text-muted); padding: 10px 0; }
+  .lobby-count { font-size: 11px; color: var(--text-dim); margin-bottom: 8px; font-weight: 400; }
+  .lobby-actions { margin-top: 24px; display: flex; gap: 10px; justify-content: flex-end; }
+  .preview-editor {
+    min-height: 120px;
+    resize: vertical;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    line-height: 1.5;
+  }
+  .preview-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .preview-status { font-size: 10px; color: var(--text-muted); }
+  .preview-output {
+    margin-top: 10px;
+    min-height: 84px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+  }
+  .preview-empty { font-size: 11px; color: var(--text-muted); }
+  .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .preview-pill {
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+  }
+  .preview-pill strong { color: var(--text); font-weight: 600; }
+  .preview-list { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .preview-chip {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.4px;
+    color: var(--text-dim);
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+  }
+  .preview-error {
+    color: #fca5a5;
+    font-size: 11px;
+    white-space: pre-wrap;
+  }
+  .launch-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.62);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 20px;
+  }
+  .launch-modal-backdrop.open { display: flex; }
+  .launch-modal {
+    width: min(680px, 100%);
+    max-height: 90vh;
+    overflow-y: auto;
+    background: var(--panel-solid);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+    padding: 28px;
+  }
+  .launch-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-bottom: 18px;
+  }
+  .launch-section {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .launch-status {
+    margin-top: 14px;
+    font-size: 10px;
+    color: var(--text-muted);
+    min-height: 14px;
+  }
+  .launch-status.error { color: #fca5a5; }
+  .launch-status.success { color: #86efac; }
+  .launch-preset-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: -4px 0 14px;
+  }
+  .launch-preset-note {
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+  .validation-panel {
+    margin-top: 14px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.025);
+  }
+  .validation-line {
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-top: 6px;
+  }
+  .validation-line.error { color: #fca5a5; }
+  .validation-line.warn { color: #fde68a; }
+  .validation-pre {
+    margin-top: 8px;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.22);
+    color: var(--text-soft);
+    font-size: 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid var(--border);
+  }
+  .compare-line {
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-top: 6px;
+  }
+
+  /* ─── SCROLLBAR ─── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+  /* ─── AGENT COLORS ─── */
+  .ac-0 { background: var(--blue); }
+  .ac-1 { background: var(--red); }
+  .ac-2 { background: var(--green); }
+  .ac-3 { background: var(--purple); }
+  .ac-4 { background: var(--cyan); }
+  .ac-5 { background: var(--pink); }
+  .ac-6 { background: var(--orange); }
+  .ac-7 { background: var(--yellow); }
+
+  .border-0 { border-left-color: var(--blue) !important; }
+  .border-1 { border-left-color: var(--red) !important; }
+  .border-2 { border-left-color: var(--green) !important; }
+  .border-3 { border-left-color: var(--purple) !important; }
+  .border-4 { border-left-color: var(--cyan) !important; }
+  .border-5 { border-left-color: var(--pink) !important; }
+  .border-6 { border-left-color: var(--orange) !important; }
+  .border-7 { border-left-color: var(--yellow) !important; }
+
+  .tc-0 { color: var(--blue); }
+  .tc-1 { color: var(--red); }
+  .tc-2 { color: var(--green); }
+  .tc-3 { color: var(--purple); }
+  .tc-4 { color: var(--cyan); }
+  .tc-5 { color: var(--pink); }
+  .tc-6 { color: var(--orange); }
+  .tc-7 { color: var(--yellow); }
+
+  /* Action type pills */
+  .at-fundraise { background: rgba(34,197,94,0.08); color: #4ade80; }
+  .at-hire { background: rgba(59,130,246,0.08); color: #60a5fa; }
+  .at-build_feature { background: rgba(168,85,247,0.08); color: #c084fc; }
+  .at-acquire_users { background: rgba(6,182,212,0.08); color: #22d3ee; }
+  .at-launch_pr { background: rgba(236,72,153,0.08); color: #f472b6; }
+  .at-pivot { background: rgba(249,115,22,0.08); color: #fb923c; }
+  .at-spy { background: rgba(239,68,68,0.08); color: #f87171; }
+  .at-poach { background: rgba(239,68,68,0.08); color: #f87171; }
+  .at-cut_costs { background: rgba(234,179,8,0.08); color: #facc15; }
+  .at-research { background: rgba(148,163,184,0.08); color: #94a3b8; }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 1100px) {
+    .panel-right { display: none; }
+    .panel-center { right: 12px; }
+  }
+  @media (max-width: 800px) {
+    .panel-left { width: 200px; }
+    .panel-center { left: 224px; }
+  }
+  @media (max-width: 700px) {
+    body { overflow-x: hidden; }
+    .header {
+      height: auto;
+      min-height: 48px;
+      padding: 10px 12px;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: stretch;
+    }
+    .logo {
+      width: 100%;
+      font-size: 11px;
+      letter-spacing: 2px;
+    }
+    .nav-tabs {
+      width: 100%;
+      order: 2;
+      justify-content: space-between;
+    }
+    .nav-tab {
+      flex: 1;
+      text-align: center;
+      padding: 6px 8px;
+    }
+    .btn-new-game {
+      order: 3;
+      width: 100%;
+      justify-content: center;
+    }
+    .header-status {
+      order: 4;
+      margin-left: 0;
+      width: 100%;
+      justify-content: space-between;
+    }
+    #view-live,
+    #view-postgame,
+    #view-leaderboard {
+      padding-top: 148px;
+    }
+    .solo-panel {
+      width: min(460px, calc(100% - 24px));
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">FOUNDER ARENA <span>// SPECTATOR</span></div>
+  <div class="nav-tabs">
+    <div class="nav-tab active" data-view="live">LIVE</div>
+    <div class="nav-tab" data-view="postgame">POST-GAME</div>
+    <div class="nav-tab" data-view="leaderboard">LEADERBOARD</div>
+  </div>
+  <button class="btn-new-game" onclick="showCreateGame()">+ NEW GAME</button>
+  <div class="header-status">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Connecting...</span>
+    <div class="turn-badge" id="turnBadge">W0/0</div>
+  </div>
+</div>
+
+<!-- LIVE VIEW -->
+<div id="view-live" class="view active">
+  <div class="panel-left">
+    <div class="panel-header">RANKINGS</div>
+    <div class="rankings" id="rankings"></div>
+  </div>
+  <div class="panel-center">
+    <div class="center-tabs">
+      <div class="center-tab active" data-tab="timeline">TIMELINE</div>
+      <div class="center-tab" data-tab="chart">CHART</div>
+    </div>
+    <div class="center-content">
+      <div id="tab-timeline" class="tab-panel active">
+        <div class="timeline-filter" id="timelineFilter" style="display:none">
+          <span>Filtering:</span>
+          <span id="filterAgent" style="font-weight:600"></span>
+          <button class="timeline-filter-btn" onclick="clearFilter()">Show All</button>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </div>
+      <div id="tab-chart" class="tab-panel">
+        <div class="chart-container">
+          <canvas id="valuation-chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="panel-right">
+    <div class="panel-header">AGENT DETAIL</div>
+    <div id="agentDetail">
+      <div class="detail-empty">
+        Select an agent from the rankings
+        <div class="hint">Click a row to view their stats, team, and decisions</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- POST-GAME VIEW -->
+<div id="view-postgame" class="view">
+  <div id="postgameContent">
+    <div class="no-game">
+      <div class="no-game-title">Game In Progress</div>
+      <div class="no-game-sub">Results will appear when the game ends</div>
+    </div>
+  </div>
+</div>
+
+<!-- LEADERBOARD VIEW -->
+<div id="view-leaderboard" class="view">
+  <div id="leaderboardContent">
+    <div class="no-game">
+      <div class="no-game-title">Loading Leaderboard...</div>
+    </div>
+  </div>
+</div>
+
+<!-- CREATE GAME VIEW -->
+<div id="view-create" class="view">
+  <div class="solo-panel">
+    <div class="solo-title">CREATE FOUNDER DUEL</div>
+    <div class="launch-meta" style="margin-bottom:16px">Official mode: 1v1, simultaneous turns, 32-turn score race. You can still change the fields below for local testing.</div>
+    <div class="form-group">
+      <label class="form-label">GAME NAME</label>
+      <input class="form-input" id="createName" value="Founder Duel" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">PLAYERS (2-8)</label>
+        <input class="form-input" id="createPlayers" type="number" min="2" max="8" value="2" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">TURNS</label>
+        <input class="form-input" id="createTurns" type="number" min="5" max="100" value="32" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">SPEED</label>
+      <div class="speed-toggle">
+        <div class="speed-opt active" data-speed="5" onclick="setSpeed(this)">FAST (5s)</div>
+        <div class="speed-opt" data-speed="30" onclick="setSpeed(this)">NORMAL (30s)</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">BENCHMARK TIER</label>
+      <select class="form-select" id="createBenchmarkTier">
+        <option value="baseline">BASELINE</option>
+        <option value="pressure">PRESSURE</option>
+        <option value="discipline">DISCIPLINE</option>
+        <option value="wildcard">WILDCARD</option>
+        <option value="gauntlet">GAUNTLET</option>
+      </select>
+    </div>
+    <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end">
+      <button class="btn" onclick="cancelCreate()">CANCEL</button>
+      <button class="btn btn-primary" onclick="createGame()">CREATE GAME</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOBBY VIEW -->
+<div id="view-lobby" class="view">
+  <div class="solo-panel lobby-panel">
+    <div class="solo-title">GAME LOBBY</div>
+    <div class="lobby-count" id="lobbyCount">Waiting for agents (0/4)</div>
+
+    <div class="conn-section">
+      <div class="conn-section-title">CONNECTION INFO</div>
+      <div class="conn-row">
+        <span class="conn-label">Game ID</span>
+        <span class="conn-value" id="lobbyGameId">-</span>
+        <button class="copy-btn" onclick="copyText('lobbyGameId')">copy</button>
+      </div>
+      <div class="conn-row">
+        <span class="conn-label">Join Code</span>
+        <span class="conn-value" id="lobbyJoinCode">-</span>
+        <button class="copy-btn" onclick="copyText('lobbyJoinCode')">copy</button>
+      </div>
+      <div class="conn-row">
+        <span class="conn-label">API</span>
+        <span class="conn-value" id="lobbyApi">http://localhost:8888</span>
+        <button class="copy-btn" onclick="copyText('lobbyApi')">copy</button>
+      </div>
+    </div>
+
+    <div class="conn-section">
+      <div class="conn-section-title">QUICK START - PYTHON</div>
+      <div class="code-block" id="lobbyCode">
+<button class="copy-btn" onclick="copyCode()">copy</button>from example_agent import FounderAgent
+agent = FounderAgent(
+    name="MyAgent",
+    startup_name="MyCo",
+    sector="ai",
+    strategy="balanced",
+)
+agent.join_game("GAME_ID", "JOIN_CODE")
+agent.play()</div>
+    </div>
+
+    <div class="conn-section">
+      <div class="conn-section-title">CONNECTED AGENTS</div>
+      <div class="agent-list" id="lobbyAgents">
+        <div class="agent-list-empty">No agents connected yet</div>
+      </div>
+    </div>
+
+    <div class="conn-section">
+      <div class="conn-section-title">PRACTICE BENCHMARK</div>
+      <div class="launch-meta" id="lobbyBenchmarkHint">Baseline benchmark selected for this lobby.</div>
+      <div class="form-group" style="margin-top:10px">
+        <label class="form-label">BENCHMARK TIER</label>
+        <select class="form-select" id="lobbyBenchmarkTier">
+          <option value="baseline">BASELINE</option>
+          <option value="pressure">PRESSURE</option>
+          <option value="discipline">DISCIPLINE</option>
+          <option value="wildcard">WILDCARD</option>
+          <option value="gauntlet">GAUNTLET</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="conn-section">
+      <div class="conn-section-title">SKILL PREVIEW</div>
+      <label class="form-label">PASTE SKILL.MD</label>
+      <textarea class="form-input preview-editor" id="skillPreviewText"># Skill Entrant
+primary_style: lean
+risk_posture: low
+decision_style: analytical
+preferred_foci: governance resilience growth
+recovery_order: support_recovery board_sync
+
+Protect trust, preserve runway, and keep the board aligned before scaling too aggressively.</textarea>
+      <div class="preview-actions">
+        <button class="btn btn-sm" id="skillPreviewBtn" onclick="previewSkillDoctrine()">PREVIEW DOCTRINE</button>
+        <span class="preview-status" id="skillPreviewStatus">See how Founder Arena will interpret your skill package before you queue.</span>
+      </div>
+      <div class="preview-output" id="skillPreviewOutput">
+        <div class="preview-empty">No preview yet.</div>
+      </div>
+    </div>
+
+    <div class="lobby-actions">
+      <button class="btn" onclick="cancelLobby()">CANCEL</button>
+      <button class="btn btn-primary" id="fillBotsBtn" onclick="fillBotsAndStart()">FILL BOTS &amp; START</button>
+    </div>
+  </div>
+</div>
+
+<div class="launch-modal-backdrop" id="launchModalBackdrop">
+  <div class="launch-modal">
+    <div class="solo-title">LAUNCH ENTRANT</div>
+    <div class="launch-meta" id="launchModalMeta">Configure how this entrant will join the next match.</div>
+    <div class="launch-preset-row">
+      <button class="btn btn-sm" id="launchSavePresetBtn" onclick="saveLaunchPresetFromModal()">SAVE PRESET</button>
+      <button class="btn btn-sm" id="launchResetPresetBtn" onclick="resetLaunchPresetFromModal()">RESET PRESET</button>
+      <div class="launch-preset-note" id="launchPresetNote">No saved preset for this entrant yet.</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">AGENT NAME</label>
+        <input class="form-input" id="launchAgentName" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">STARTUP NAME</label>
+        <input class="form-input" id="launchStartupName" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">SECTOR</label>
+        <select class="form-select" id="launchSector">
+          <option value="ai">ai</option>
+          <option value="saas">saas</option>
+          <option value="consumer">consumer</option>
+          <option value="fintech">fintech</option>
+          <option value="crypto">crypto</option>
+          <option value="healthtech">healthtech</option>
+          <option value="edtech">edtech</option>
+          <option value="climate">climate</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">QUEUE</label>
+        <select class="form-select" id="launchQueue"></select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">MOTTO</label>
+      <input class="form-input" id="launchMotto" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">STRATEGY DESCRIPTION</label>
+      <input class="form-input" id="launchStrategy" />
+    </div>
+    <div class="launch-section">
+      <div class="conn-section-title">LOBBY SETUP</div>
+      <div class="launch-meta" id="launchLobbyHint">Founder Arena defaults new launches to Founder Duel practice: 1v1, 32 turns, benchmark-bot friendly.</div>
+      <div class="form-group">
+        <label class="form-label">GAME NAME</label>
+        <input class="form-input" id="launchGameName" value="Entrant Match" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">PLAYERS</label>
+          <input class="form-input" id="launchPlayers" type="number" min="2" max="8" value="2" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">TURNS</label>
+          <input class="form-input" id="launchTurns" type="number" min="5" max="100" value="32" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">SPEED</label>
+          <select class="form-select" id="launchSpeed">
+            <option value="5">FAST (5s)</option>
+            <option value="30">NORMAL (30s)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">BENCHMARK TIER</label>
+          <select class="form-select" id="launchBenchmarkTier">
+            <option value="baseline">BASELINE</option>
+            <option value="pressure">PRESSURE</option>
+            <option value="discipline">DISCIPLINE</option>
+            <option value="wildcard">WILDCARD</option>
+            <option value="gauntlet">GAUNTLET</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="launch-section">
+      <div class="conn-section-title">ENTRANT VALIDATION</div>
+      <div class="launch-meta">Founder Arena checks workspace health, runtime availability, and recent retained logs before queueing this entrant.</div>
+      <div class="validation-panel" id="launchValidationPanel">
+        <div class="preview-empty">Validation not loaded yet.</div>
+      </div>
+    </div>
+    <div class="launch-section">
+      <div class="conn-section-title">VERSION COMPARE</div>
+      <div class="launch-meta">See what changed from the previous registered version before you send this entrant back into practice or ranked play.</div>
+      <div class="validation-panel" id="launchComparePanel">
+        <div class="preview-empty">No version comparison loaded yet.</div>
+      </div>
+    </div>
+    <div class="launch-status" id="launchStatus"></div>
+    <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end">
+      <button class="btn" onclick="closeLaunchModal()">CANCEL</button>
+      <button class="btn btn-primary" id="launchSubmitBtn" onclick="submitEntrantLaunch()">QUEUE ENTRANT</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────────
+let gameId = null;
+let gameData = null;
+let selectedStartupId = null;
+let filterStartupId = null;
+let agentColorMap = {};
+let colorIdx = 0;
+const COLOR_HEX = ['#3B82F6','#EF4444','#22C55E','#A855F7','#06B6D4','#EC4899','#F97316','#EAB308'];
+
+// Solo mode state
+let soloGameId = null;
+let adminToken = null;
+let joinCode = null;
+let spectatorToken = null;
+let lobbyInterval = null;
+let selectedSpeed = 5;
+let currentLobbyData = null;
+let leaderboardDataCache = null;
+let entrantRegistryCache = [];
+let entrantQueueBusy = {};
+let launchEntrantState = null;
+let launchValidationState = null;
+let launchCompareState = null;
+const LAUNCH_PRESET_STORAGE_KEY = 'founder-arena.launch-presets.v1';
+const FOUNDER_DUEL_DEFAULTS = {
+  name: 'Founder Duel',
+  max_players: 2,
+  max_turns: 32,
+  practice_queue: 'showmatch',
+  benchmark_tier: 'baseline',
+};
+const PRACTICE_BENCHMARK_TIERS = ['baseline', 'pressure', 'discipline', 'wildcard', 'gauntlet'];
+
+function getAgentColor(startupId) {
+  if (!(startupId in agentColorMap)) {
+    agentColorMap[startupId] = colorIdx;
+    colorIdx = (colorIdx + 1) % 8;
+  }
+  return agentColorMap[startupId];
+}
+
+// ──────────────────────────────────────────────────
+// NAVIGATION
+// ──────────────────────────────────────────────────
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + tab.dataset.view).classList.add('active');
+    if (tab.dataset.view === 'leaderboard') fetchLeaderboard();
+  });
+});
+
+document.querySelectorAll('.center-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.center-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'chart') drawChart();
+  });
+});
+
+document.getElementById('launchQueue').addEventListener('change', updateLaunchLobbyHint);
+document.getElementById('launchBenchmarkTier').addEventListener('change', updateLaunchLobbyHint);
+document.getElementById('lobbyBenchmarkTier').addEventListener('change', () => {
+  document.getElementById('lobbyBenchmarkHint').textContent = `${benchmarkTierLabel(document.getElementById('lobbyBenchmarkTier').value)} benchmark selected for this lobby.`;
+});
+document.getElementById('launchModalBackdrop').addEventListener('click', (event) => {
+  if (event.target.id === 'launchModalBackdrop') closeLaunchModal();
+});
+
+// ──────────────────────────────────────────────────
+// FORMAT HELPERS
+// ──────────────────────────────────────────────────
+function fmtMoney(n) {
+  if (n == null) return '$0';
+  if (Math.abs(n) >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+  return '$' + n.toFixed(0);
+}
+
+function fmtNum(n) {
+  if (n == null) return '0';
+  return n.toLocaleString();
+}
+
+function latestDecisionFor(sid) {
+  if (!gameData) return null;
+  const summary = (gameData.decision_summaries || {})[sid];
+  if (summary) return summary;
+  const startup = (gameData.startups || {})[sid] || {};
+  return startup.latest_decision || null;
+}
+
+function scoreValueForStartup(startup) {
+  if (!startup) return 0;
+  return startup.seven_dimension_scores?.total_score || startup.score || 0;
+}
+
+function benchmarkTierLabel(tier) {
+  if (tier === 'baseline') return 'Baseline';
+  if (tier === 'pressure') return 'Pressure';
+  if (tier === 'discipline') return 'Discipline';
+  if (tier === 'wildcard') return 'Wildcard';
+  if (tier === 'gauntlet') return 'Gauntlet';
+  return tier || 'Baseline';
+}
+
+const BENCHMARK_TIER_ORDER = ['baseline', 'pressure', 'discipline', 'wildcard', 'gauntlet'];
+
+function benchmarkTierState(tier, progression = {}, retryTier = null) {
+  const clearedTiers = progression?.cleared_tiers || [];
+  if (clearedTiers.includes(tier)) return 'cleared';
+  if (progression?.next_tier === tier) return 'next';
+  if (retryTier === tier) return 'retry';
+  return 'locked';
+}
+
+function benchmarkRecommendation(progression = {}, retryTier = null) {
+  const clears = progression?.cleared_tiers || [];
+  const practiceGames = progression?.practice_games || 0;
+  const nextTier = progression?.next_tier || null;
+  const highestClearedTier = progression?.highest_cleared_tier || null;
+
+  if (!practiceGames) {
+    return {
+      headline: 'Start this version at the Baseline benchmark.',
+      subhead: 'Recommended next match: queue Baseline and establish the first clear.',
+    };
+  }
+
+  if (!nextTier && highestClearedTier) {
+    return {
+      headline: `Full benchmark ladder cleared through ${benchmarkTierLabel(highestClearedTier)}.`,
+      subhead: 'Recommended next match: rerun Gauntlet for confidence or move this version into ranked.',
+    };
+  }
+
+  if (nextTier && clears.length) {
+    const retryText = retryTier && retryTier !== nextTier
+      ? ` Retry ${benchmarkTierLabel(retryTier)} if you want to confirm the last miss.`
+      : '';
+    return {
+      headline: `Cleared through ${benchmarkTierLabel(highestClearedTier)}. ${benchmarkTierLabel(nextTier)} is next.`,
+      subhead: `Recommended next match: queue ${benchmarkTierLabel(nextTier)}.${retryText}`,
+    };
+  }
+
+  if (nextTier) {
+    return {
+      headline: `${benchmarkTierLabel(nextTier)} is still the entry gate for this version.`,
+      subhead: `Recommended next match: retry ${benchmarkTierLabel(nextTier)} until you secure the first clear.`,
+    };
+  }
+
+  if (retryTier) {
+    return {
+      headline: `Latest practice signal came from ${benchmarkTierLabel(retryTier)}.`,
+      subhead: `Recommended next match: retry ${benchmarkTierLabel(retryTier)}.`,
+    };
+  }
+
+  return {
+    headline: 'Practice progression is available for this version.',
+    subhead: 'Recommended next match: queue the next visible benchmark tier.',
+  };
+}
+
+function renderBenchmarkLadder(progression = {}, options = {}) {
+  const compact = !!options.compact;
+  const retryTier = options.retryTier || null;
+  const title = options.title || 'Benchmark Ladder';
+  const recommendation = benchmarkRecommendation(progression, retryTier);
+  const clearedTiers = progression?.cleared_tiers || [];
+  const clearedCount = clearedTiers.length;
+  const progressPct = Math.round((clearedCount / BENCHMARK_TIER_ORDER.length) * 100);
+  const summary = progression?.next_tier
+    ? `${clearedCount}/${BENCHMARK_TIER_ORDER.length} cleared. Next up: ${benchmarkTierLabel(progression.next_tier)}.`
+    : `${clearedCount}/${BENCHMARK_TIER_ORDER.length} cleared. Full ladder complete.`;
+  return `<div class="benchmark-ladder ${compact ? 'compact' : ''}">
+    <div class="benchmark-ladder-title">${title}</div>
+    <div class="benchmark-ladder-head">${recommendation.headline}</div>
+    <div class="benchmark-ladder-sub">${recommendation.subhead}</div>
+    <div class="benchmark-ladder-meter"><div class="benchmark-ladder-fill" style="width:${progressPct}%"></div></div>
+    <div class="benchmark-ladder-meta">${summary}</div>
+    <div class="benchmark-tier-row">
+      ${BENCHMARK_TIER_ORDER.map(tier => {
+        const state = benchmarkTierState(tier, progression, retryTier);
+        const stateLabel = state === 'cleared' ? 'Cleared' : state === 'next' ? 'Next Up' : state === 'retry' ? 'Retry' : 'Locked';
+        return `<div class="benchmark-tier ${state}">
+          <span class="benchmark-tier-label">${benchmarkTierLabel(tier)}</span>
+          <span class="benchmark-tier-state">${stateLabel}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function entrantById(entrantId) {
+  return (entrantRegistryCache || []).find(item => item.entrant_id === entrantId) || null;
+}
+
+function recommendedPracticeButtons(entrantId, primaryTier, secondaryTier, primaryLabelOverride = null) {
+  if (!entrantId || !primaryTier) return '';
+  const busy = !!entrantQueueBusy[entrantId];
+  const primaryLabel = primaryLabelOverride || (secondaryTier ? `QUEUE ${benchmarkTierLabel(primaryTier).toUpperCase()}` : `RETRY ${benchmarkTierLabel(primaryTier).toUpperCase()}`);
+  return `<div class="entrant-actions" style="margin-top:10px">
+    <button class="btn btn-sm" ${busy ? 'disabled' : ''} onclick="queueEntrantToPracticeTier('${entrantId}', '${primaryTier}')">${busy ? 'QUEUEING...' : primaryLabel}</button>
+    ${secondaryTier ? `<button class="btn btn-sm" ${busy ? 'disabled' : ''} onclick="queueEntrantToPracticeTier('${entrantId}', '${secondaryTier}')">RETRY ${benchmarkTierLabel(secondaryTier).toUpperCase()}</button>` : ''}
+  </div>`;
+}
+
+function effectiveLaunchConfig(entrant, overrides = {}) {
+  const defaults = defaultEntrantConfig(entrant);
+  const preset = launchPresetFor(entrant.entrant_id) || {};
+  const lobby = currentLobbyMeta();
+  const queueOptions = queueOptionsForEntrant(entrant);
+  const fallbackQueue = queueOptions.includes(FOUNDER_DUEL_DEFAULTS.practice_queue) ? FOUNDER_DUEL_DEFAULTS.practice_queue : queueOptions[0];
+  const queue = overrides.queue || preset.queue || (lobby.active && queueOptions.includes(lobby.queue) ? lobby.queue : fallbackQueue);
+  const benchmarkTier = overrides.benchmark_tier || preset.benchmark_tier || lobby.benchmark_tier || FOUNDER_DUEL_DEFAULTS.benchmark_tier;
+  return {
+    agent_name: overrides.agent_name || preset.agent_name || defaults.agent_name,
+    startup_name: overrides.startup_name || preset.startup_name || defaults.startup_name,
+    sector: overrides.sector || preset.sector || defaults.sector,
+    queue,
+    benchmark_tier: benchmarkTier,
+    motto: overrides.motto || preset.motto || defaults.motto,
+    strategy_description: overrides.strategy_description || preset.strategy_description || defaults.strategy_description,
+    game_name: overrides.game_name || preset.game_name || `${entrant.display_name} Founder Duel`,
+    max_players: Math.min(8, Math.max(2, parseInt(overrides.max_players || preset.max_players || lobby.max || FOUNDER_DUEL_DEFAULTS.max_players, 10) || FOUNDER_DUEL_DEFAULTS.max_players)),
+    max_turns: parseInt(overrides.max_turns || preset.max_turns || currentLobbyData?.max_turns || FOUNDER_DUEL_DEFAULTS.max_turns, 10) || FOUNDER_DUEL_DEFAULTS.max_turns,
+    turn_timeout: parseInt(overrides.turn_timeout || preset.turn_timeout || selectedSpeed || 5, 10) || 5,
+    saved_at: new Date().toISOString(),
+  };
+}
+
+// ──────────────────────────────────────────────────
+// DATA FETCHING
+// ──────────────────────────────────────────────────
+async function findGame() {
+  try {
+    const resp = await fetch('/api/games');
+    const data = await resp.json();
+    const games = data.games || data;
+    if (games.length > 0) {
+      const running = games.find(g => g.phase === 'playing');
+      const game = running || games[games.length - 1];
+      return game.id || game.game_id;
+    }
+  } catch (e) { console.error('findGame error:', e); }
+  return null;
+}
+
+async function fetchState() {
+  if (!gameId) {
+    gameId = await findGame();
+    if (!gameId) return;
+  }
+  try {
+    const resp = spectatorToken
+      ? await fetch(`/api/games/${gameId}/spectate`, {
+          headers: { 'X-Spectator-Token': spectatorToken },
+        })
+      : await fetch(`/api/games/${gameId}`);
+    if (!resp.ok) { gameId = null; return; }
+    gameData = await resp.json();
+    updateUI();
+  } catch (e) { console.error('Fetch error:', e); }
+}
+
+async function fetchLeaderboard() {
+  try {
+    const [leaderboardResp, entrantsResp] = await Promise.all([
+      fetch('/api/leaderboard'),
+      fetch('/api/entrants'),
+    ]);
+    const data = leaderboardResp.ok ? await leaderboardResp.json() : {};
+    const entrantsData = entrantsResp.ok ? await entrantsResp.json() : { entrants: [] };
+    leaderboardDataCache = data;
+    entrantRegistryCache = entrantsData.entrants || [];
+    renderLeaderboard(leaderboardDataCache, entrantRegistryCache);
+  } catch (e) { console.error('Leaderboard error:', e); }
+}
+
+// ──────────────────────────────────────────────────
+// MAIN UI UPDATE
+// ──────────────────────────────────────────────────
+let postGameShown = false;
+
+function updateUI() {
+  if (!gameData) return;
+  const phase = gameData.phase;
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  const badge = document.getElementById('turnBadge');
+
+  if (phase === 'playing') {
+    dot.className = 'status-dot live';
+    txt.textContent = 'LIVE';
+  } else if (phase === 'finished') {
+    dot.className = 'status-dot finished';
+    txt.textContent = 'FINISHED';
+    if (!postGameShown) {
+      postGameShown = true;
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      document.querySelector('[data-view="postgame"]').classList.add('active');
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-postgame').classList.add('active');
+    }
+  } else {
+    dot.className = 'status-dot';
+    txt.textContent = phase.toUpperCase();
+  }
+  const modeLabel = gameData.game_mode === 'competitive_mode' ? ' COMP' : '';
+  badge.textContent = `W${gameData.turn}/${gameData.max_turns}${modeLabel}`;
+
+  renderRankings();
+  renderTimeline();
+  if (selectedStartupId) renderAgentDetail(selectedStartupId);
+  if (phase === 'finished') renderPostGame();
+}
+
+// ──────────────────────────────────────────────────
+// LEFT: RANKINGS
+// ──────────────────────────────────────────────────
+function renderRankings() {
+  const container = document.getElementById('rankings');
+  const startups = gameData.startups;
+  if (!startups) return;
+
+  const sorted = Object.entries(startups).sort((a, b) => {
+    if (a[1].alive !== b[1].alive) return a[1].alive ? -1 : 1;
+    const scoreDiff = scoreValueForStartup(b[1]) - scoreValueForStartup(a[1]);
+    if (Math.abs(scoreDiff) > 0.01) return scoreDiff;
+    return (b[1].valuation || 0) - (a[1].valuation || 0);
+  });
+
+  container.innerHTML = sorted.map(([sid, s], i) => {
+    const ci = getAgentColor(sid);
+    const rank = i + 1;
+    const rankClass = rank <= 3 ? ` r${rank}` : '';
+    const selectedClass = sid === selectedStartupId ? ' selected border-' + ci : '';
+    const deadClass = !s.alive ? ' dead' : '';
+    const statusClass = s.alive ? 'alive' : 'dead';
+    const statusText = s.alive ? 'ALIVE' : 'DEAD';
+    const decision = latestDecisionFor(sid);
+    const score = scoreValueForStartup(s);
+    const q = Math.max(2, (s.product_quality || 0) * 0.14);
+    const b = Math.max(2, (s.brand || 0) * 0.14);
+    const m = Math.max(2, (s.morale || 0) * 0.14);
+
+    return `<div class="rank-row${selectedClass}${deadClass}" onclick="selectAgent('${sid}')">
+      <div class="rank-badge${rankClass}">${rank}</div>
+      <div class="agent-color ac-${ci}"></div>
+      <div class="rank-info">
+        <div class="agent-name">${s.agent_name}</div>
+        <div class="startup-name">${s.startup_name}${!s.alive ? ' - ' + (s.death_reason || 'Dead') : ''}</div>
+        ${decision?.intent ? `<div class="hint" style="margin-top:3px">${decision.intent}</div>` : ''}
+      </div>
+      <div class="mini-bars" title="Q:${s.product_quality||0} B:${s.brand||0} M:${s.morale||0}">
+        <div class="mini-bar" style="height:${q}px;background:var(--purple)"></div>
+        <div class="mini-bar" style="height:${b}px;background:var(--pink)"></div>
+        <div class="mini-bar" style="height:${m}px;background:var(--cyan)"></div>
+      </div>
+      <div class="rank-val">${gameData.game_mode === 'competitive_mode' ? score.toFixed(1) : fmtMoney(s.valuation)}</div>
+      <div class="rank-status ${statusClass}">${statusText}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectAgent(sid) {
+  if (selectedStartupId === sid) {
+    selectedStartupId = null;
+    filterStartupId = null;
+    document.getElementById('timelineFilter').style.display = 'none';
+  } else {
+    selectedStartupId = sid;
+    filterStartupId = sid;
+    const s = gameData.startups[sid];
+    document.getElementById('filterAgent').textContent = s.agent_name;
+    document.getElementById('filterAgent').className = 'tc-' + getAgentColor(sid);
+    document.getElementById('timelineFilter').style.display = 'flex';
+  }
+  renderRankings();
+  renderTimeline();
+  if (selectedStartupId) {
+    renderAgentDetail(selectedStartupId);
+  } else {
+    document.getElementById('agentDetail').innerHTML = `
+      <div class="detail-empty">
+        Select an agent from the rankings
+        <div class="hint">Click a row to view their stats, team, and decisions</div>
+      </div>`;
+  }
+}
+
+function clearFilter() {
+  filterStartupId = null;
+  document.getElementById('timelineFilter').style.display = 'none';
+  renderTimeline();
+}
+
+// ──────────────────────────────────────────────────
+// CENTER: TIMELINE
+// ──────────────────────────────────────────────────
+function renderTimeline() {
+  const container = document.getElementById('timeline');
+  const logs = gameData.action_logs || {};
+  const decisionSummaries = gameData.decision_summaries || {};
+  const arcFeed = gameData.arc_feed || [];
+
+  let entries = [];
+  for (const arc of arcFeed) {
+    entries.push({
+      turn: gameData.turn,
+      sid: arc.startup_id,
+      agentName: arc.agent_name,
+      ci: getAgentColor(arc.startup_id),
+      type: 'arc',
+      title: arc.title,
+      headline: arc.headline,
+      severity: arc.severity,
+      startupName: arc.startup_name,
+    });
+  }
+  for (const [sid, decision] of Object.entries(decisionSummaries)) {
+    const s = gameData.startups[sid];
+    if (!s || !decision) continue;
+    if (filterStartupId && sid !== filterStartupId) continue;
+    const ci = getAgentColor(sid);
+    entries.push({
+      turn: decision.turn_index || gameData.turn,
+      sid,
+      agentName: s.agent_name,
+      ci,
+      type: 'decision',
+      intent: decision.intent,
+      risk: decision.primary_risk,
+      confidence: decision.confidence,
+      message: decision.reasoning_summary || decision.expected_outcome || '',
+    });
+  }
+  for (const [sid, actions] of Object.entries(logs)) {
+    const s = gameData.startups[sid];
+    if (!s) continue;
+    if (filterStartupId && sid !== filterStartupId) continue;
+    const ci = getAgentColor(sid);
+    for (const a of actions) {
+      entries.push({ turn: a.turn, sid, agentName: s.agent_name, ci, type: 'action', actionType: a.action_type, params: a.params, message: a.message, success: a.success });
+    }
+  }
+
+  entries.sort((a, b) => b.turn - a.turn || a.agentName.localeCompare(b.agentName));
+  entries = entries.slice(0, 300);
+
+  let html = '';
+  let currentTurn = null;
+
+  for (const e of entries) {
+    if (e.turn !== currentTurn) {
+      currentTurn = e.turn;
+      html += `<div class="turn-divider">WEEK ${currentTurn}</div>`;
+    }
+    if (e.type === 'arc') {
+      html += `<div class="timeline-entry" style="background:rgba(255,214,10,0.05)">
+        <div class="tl-dot ac-${e.ci}"></div>
+        <div class="tl-agent tc-${e.ci}">${e.agentName}</div>
+        <div class="tl-action" style="color:var(--gold)">arc</div>
+        <div class="tl-message"><strong>${e.title}</strong> - ${e.headline}</div>
+        <div class="tl-icon ${e.severity > 0.65 ? 'fail' : e.severity > 0.35 ? '' : 'success'}">${Math.round((e.severity || 0) * 100)}</div>
+      </div>`;
+      continue;
+    }
+    if (e.type === 'decision') {
+      html += `<div class="timeline-entry" style="background:rgba(255,255,255,0.02)">
+        <div class="tl-dot ac-${e.ci}"></div>
+        <div class="tl-agent tc-${e.ci}">${e.agentName}</div>
+        <div class="tl-action" style="color:var(--gold)">plan</div>
+        <div class="tl-message"><strong>${e.intent || 'Operating plan'}</strong>${e.risk ? ` - risk: ${e.risk}` : ''}${e.message ? `<div class="hint" style="margin-top:4px">${e.message}</div>` : ''}</div>
+        <div class="tl-icon ${e.confidence === 'high' ? 'success' : e.confidence === 'low' ? 'fail' : ''}">${(e.confidence || 'mid').slice(0,1).toUpperCase()}</div>
+      </div>`;
+      continue;
+    }
+    const paramStr = e.params && Object.keys(e.params).length > 0
+      ? '(' + Object.values(e.params).join(', ') + ')' : '';
+
+    html += `<div class="timeline-entry">
+      <div class="tl-dot ac-${e.ci}"></div>
+      <div class="tl-agent tc-${e.ci}">${e.agentName}</div>
+      <div class="tl-action at-${e.actionType}">${e.actionType}${paramStr}</div>
+      <div class="tl-message">${e.message || ''}</div>
+      <div class="tl-icon ${e.success ? 'success' : 'fail'}">${e.success ? '\u2713' : '\u2717'}</div>
+    </div>`;
+  }
+
+  if (!entries.length) {
+    html = '<div class="detail-empty" style="margin-top:40px">No actions yet<div class="hint">Actions will appear as agents play</div></div>';
+  }
+  container.innerHTML = html;
+}
+
+// ──────────────────────────────────────────────────
+// CENTER: CHART
+// ──────────────────────────────────────────────────
+function drawChart() {
+  const canvas = document.getElementById('valuation-chart');
+  if (!canvas || !gameData) return;
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+
+  const histories = gameData.histories || {};
+  const startups = gameData.startups || {};
+  const padding = { top: 24, right: 16, bottom: 32, left: 60 };
+  const w = canvas.width - padding.left - padding.right;
+  const h = canvas.height - padding.top - padding.bottom;
+
+  let maxVal = 100000;
+  let maxTurn = gameData.max_turns || 52;
+  for (const [sid, hist] of Object.entries(histories)) {
+    for (const pt of hist) {
+      if (pt.valuation > maxVal) maxVal = pt.valuation;
+    }
+  }
+  maxVal *= 1.1;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padding.top + (h * i / 4);
+    ctx.beginPath(); ctx.moveTo(padding.left, y); ctx.lineTo(padding.left + w, y); ctx.stroke();
+    ctx.fillStyle = '#555'; ctx.font = '9px Inter, system-ui'; ctx.textAlign = 'right';
+    ctx.fillText(fmtMoney(maxVal * (1 - i / 4)), padding.left - 6, y + 3);
+  }
+
+  ctx.fillStyle = '#555'; ctx.font = '9px Inter, system-ui'; ctx.textAlign = 'center';
+  const xStep = Math.ceil(maxTurn / 8);
+  for (let t = 0; t <= maxTurn; t += xStep) {
+    const x = padding.left + (t / maxTurn) * w;
+    ctx.fillText('W' + t, x, canvas.height - 6);
+  }
+
+  for (const sid of Object.keys(histories)) {
+    const hist = histories[sid];
+    if (!hist || !hist.length) continue;
+    const ci = getAgentColor(sid);
+    const s = startups[sid];
+    const color = COLOR_HEX[ci] || '#888';
+
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < hist.length; i++) {
+      const x = padding.left + (hist[i].turn / maxTurn) * w;
+      const y = padding.top + h - (hist[i].valuation / maxVal) * h;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    const last = hist[hist.length - 1];
+    const ex = padding.left + (last.turn / maxTurn) * w;
+    const ey = padding.top + h - (last.valuation / maxVal) * h;
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(ex, ey, 3, 0, Math.PI * 2); ctx.fill();
+
+    if (s && !s.alive) {
+      ctx.strokeStyle = '#EF4444'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(ex-4, ey-4); ctx.lineTo(ex+4, ey+4); ctx.moveTo(ex+4, ey-4); ctx.lineTo(ex-4, ey+4); ctx.stroke();
+    }
+
+    ctx.fillStyle = color; ctx.font = '10px Inter, system-ui'; ctx.textAlign = 'left';
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 3;
+    ctx.strokeText(s ? s.agent_name : sid.slice(0,6), ex + 7, ey - 6);
+    ctx.fillText(s ? s.agent_name : sid.slice(0,6), ex + 7, ey - 6);
+  }
+}
+
+// ──────────────────────────────────────────────────
+// RIGHT: AGENT DETAIL
+// ──────────────────────────────────────────────────
+function renderAgentDetail(sid) {
+  const container = document.getElementById('agentDetail');
+  const s = gameData.startups[sid];
+  if (!s) return;
+
+  const ci = getAgentColor(sid);
+  const actions = (gameData.action_logs || {})[sid] || [];
+  const decision = latestDecisionFor(sid);
+  const currentArc = s.current_arc || null;
+  const recentActions = actions.slice(-15).reverse();
+  const dims = s.seven_dimension_scores?.dimensions || {};
+  const doctrine = s.compiled_doctrine?.doctrine || null;
+  const diagnostics = s.diagnostics || [];
+
+  let html = `<div class="agent-detail">
+    <div class="detail-header">
+      <div class="detail-agent-name tc-${ci}">${s.agent_name}</div>
+      <div class="detail-startup-name">${s.startup_name}</div>
+      ${s.motto ? `<div class="detail-motto">"${s.motto}"</div>` : ''}
+      <div class="detail-tags">
+        <div class="detail-tag">${s.strategy || 'unknown'}</div>
+        <div class="detail-tag">${s.sector || 'unknown'}</div>
+        <div class="detail-tag">${s.alive ? 'ALIVE' : 'DEAD'}</div>
+        ${s.entrant_type ? `<div class="detail-tag">${s.entrant_type}</div>` : ''}
+        ${s.funding_round ? `<div class="detail-tag">${s.funding_round}</div>` : ''}
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">FINANCIALS</div>
+      <div class="stat-grid">
+        <div class="stat-item"><div class="stat-label">VALUATION</div><div class="stat-value gold">${fmtMoney(s.valuation)}</div></div>
+        <div class="stat-item"><div class="stat-label">CASH</div><div class="stat-value ${s.cash < 0 ? 'red' : ''}">${fmtMoney(s.cash)}</div></div>
+        <div class="stat-item"><div class="stat-label">REVENUE</div><div class="stat-value green">${fmtMoney(s.revenue)}/mo</div></div>
+        <div class="stat-item"><div class="stat-label">BURN</div><div class="stat-value red">${fmtMoney(s.monthly_burn)}/mo</div></div>
+        <div class="stat-item"><div class="stat-label">RUNWAY</div><div class="stat-value ${s.runway < 4 ? 'red' : ''}">${(s.runway || 0).toFixed(1)}w</div></div>
+        <div class="stat-item"><div class="stat-label">RAISED</div><div class="stat-value">${fmtMoney(s.total_raised)} (${((s.dilution||0)*100).toFixed(0)}%)</div></div>
+        <div class="stat-item"><div class="stat-label">USERS</div><div class="stat-value">${fmtNum(s.users)}</div></div>
+        <div class="stat-item"><div class="stat-label">FEATURES</div><div class="stat-value">${s.features_built || 0}</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">PERFORMANCE</div>
+      ${makeProgressBar('Quality', s.product_quality || 0, '--purple')}
+      ${makeProgressBar('Brand', s.brand || 0, '--pink')}
+      ${makeProgressBar('Morale', s.morale || 0, '--cyan')}
+    </div>`;
+
+  if (doctrine) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">ENTRANT DOCTRINE</div>
+      <div class="detail-tags">
+        <div class="detail-tag">style ${doctrine.primary_style || 'balanced'}</div>
+        <div class="detail-tag">risk ${doctrine.risk_posture || 'medium'}</div>
+        <div class="detail-tag">${doctrine.decision_style || 'concise'}</div>
+        ${s.entrant_version_hash ? `<div class="detail-tag">v ${s.entrant_version_hash}</div>` : ''}
+      </div>
+      ${(doctrine.preferred_foci || []).length ? `<div class="hint" style="margin-top:8px">Focus: ${doctrine.preferred_foci.join(', ')}</div>` : ''}
+      ${(doctrine.recovery_order || []).length ? `<div class="hint" style="margin-top:6px">Recovery: ${doctrine.recovery_order.join(' -> ')}</div>` : ''}
+    </div>`;
+  }
+
+  if (decision) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">DECISION SUMMARY</div>
+      <div class="recent-action" style="grid-template-columns:80px 1fr;align-items:start">
+        <div class="recent-turn">TURN ${decision.turn_index || gameData.turn}</div>
+        <div>
+          <div style="font-weight:700;color:var(--text)">${decision.intent || 'No intent recorded'}</div>
+          ${decision.primary_risk ? `<div class="hint" style="margin-top:4px">Risk: ${decision.primary_risk}</div>` : ''}
+          ${decision.reasoning_summary ? `<div style="margin-top:8px;color:var(--text-soft);line-height:1.45">${decision.reasoning_summary}</div>` : ''}
+          <div class="detail-tags" style="margin-top:10px">
+            ${decision.confidence ? `<div class="detail-tag">${decision.confidence} confidence</div>` : ''}
+            ${decision.watch_metric ? `<div class="detail-tag">watch ${decision.watch_metric}</div>` : ''}
+          </div>
+          ${decision.expected_outcome ? `<div class="hint" style="margin-top:8px">Expected: ${decision.expected_outcome}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if (currentArc) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">CURRENT ARC</div>
+      <div class="recent-action" style="grid-template-columns:80px 1fr;align-items:start">
+        <div class="recent-turn">${Math.round((currentArc.severity || 0) * 100)}</div>
+        <div>
+          <div style="font-weight:700;color:var(--gold)">${currentArc.title || currentArc.arc_type}</div>
+          <div class="hint" style="margin-top:4px">${currentArc.packet_kind_label || currentArc.packet_kind || ''}</div>
+          <div style="margin-top:8px;color:var(--text-soft);line-height:1.45">${currentArc.headline || ''}</div>
+          <div class="detail-tags" style="margin-top:10px">
+            ${currentArc.theme ? `<div class="detail-tag">${currentArc.theme}</div>` : ''}
+            ${currentArc.phase ? `<div class="detail-tag">${currentArc.phase}</div>` : ''}
+          </div>
+          ${currentArc.response_routes?.length ? `<div class="hint" style="margin-top:8px">Suggested responses: ${currentArc.response_routes.join(', ')}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if (diagnostics.length > 0) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">DIAGNOSTICS</div>
+      ${renderDiagnosticsList(diagnostics)}
+    </div>`;
+  }
+
+  if (Object.keys(dims).length > 0) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">7-DIM SCORE: ${(s.seven_dimension_scores?.total_score || 0).toFixed(1)}</div>
+      ${Object.entries(dims).map(([k, v]) => makeProgressBar(k.replace(/_/g, ' '), v, '--blue')).join('')}
+    </div>`;
+  }
+
+  if (s.team && s.team.length > 0) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">TEAM (${s.team.length})</div>
+      ${s.team.map(m => `<div class="team-member"><div class="team-role">${m.role}</div><div class="team-name">${m.name}</div><div class="team-skill">s:${m.skill}</div></div>`).join('')}
+    </div>`;
+  }
+
+  if (recentActions.length > 0) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">RECENT ACTIONS</div>
+      ${recentActions.map(a => `<div class="recent-action"><div class="recent-turn">W${a.turn}</div><div class="recent-type at-${a.action_type}">${a.action_type}</div><div class="recent-msg">${a.message||''}</div><div class="${a.success ? 'recent-ok' : 'recent-fail'}">${a.success ? '\u2713' : '\u2717'}</div></div>`).join('')}
+    </div>`;
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function makeProgressBar(label, value, colorVar) {
+  const pct = Math.min(100, Math.max(0, value));
+  return `<div class="progress-row"><div class="progress-label">${label}</div><div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:var(${colorVar})"></div></div><div class="progress-val">${Math.round(value)}</div></div>`;
+}
+
+function renderDiagnosticChip(diagnostic) {
+  if (!diagnostic) return '';
+  const level = diagnostic.level || diagnostic.severity || 'info';
+  const label = diagnostic.label || diagnostic.kind || 'diagnostic';
+  return `<span class="diag-chip ${level}">${label}</span>`;
+}
+
+function renderDiagnosticsList(diagnostics) {
+  if (!diagnostics || !diagnostics.length) {
+    return '<div class="hint">No diagnostics recorded.</div>';
+  }
+  return `<div class="diag-list">${diagnostics.map(item => `
+    <div class="diag-item">
+      <div class="detail-tags" style="margin-bottom:6px">
+        ${renderDiagnosticChip(item)}
+        ${item.turn ? `<div class="detail-tag">week ${item.turn}</div>` : ''}
+      </div>
+      <div>${item.message || ''}</div>
+    </div>`).join('')}</div>`;
+}
+
+function renderTurningPoint(point) {
+  const leaderPlan = point.leader_decision?.intent || point.leader_actions?.[0] || 'No recorded plan';
+  const challengerPlan = point.challenger_decision?.intent || point.challenger_actions?.[0] || 'No recorded plan';
+  const deltaPrefix = point.gap_change > 0 ? '+' : '';
+  return `<div class="postgame-summary-card">
+    <div class="postgame-summary-label">Turning Point • Week ${point.turn}</div>
+    <div class="postgame-summary-value">${point.leader_startup}</div>
+    <div class="postgame-summary-body">${point.headline}</div>
+    <div class="postgame-summary-tags">
+      <div class="detail-tag">gap ${point.score_gap.toFixed(1)}</div>
+      <div class="detail-tag">swing ${deltaPrefix}${point.gap_change.toFixed(1)}</div>
+      ${point.leader_changed ? '<div class="detail-tag">lead change</div>' : ''}
+    </div>
+    <div class="postgame-summary-body" style="margin-top:10px">
+      <strong>${point.leader_agent}</strong>: ${leaderPlan}<br>
+      <strong>${point.challenger_agent}</strong>: ${challengerPlan}
+    </div>
+  </div>`;
+}
+
+function renderOutcomeRead(title, outcome) {
+  if (!outcome) return '';
+  const scoreGap = outcome.score_gap == null ? null : Math.abs(outcome.score_gap).toFixed(1);
+  return `<div class="postgame-summary-card">
+    <div class="postgame-summary-label">${title}</div>
+    <div class="postgame-summary-value">${outcome.comparison_startup || 'Solo Win'}</div>
+    <div class="postgame-summary-body">${outcome.headline || ''}</div>
+    <div class="postgame-summary-tags">
+      ${scoreGap != null ? `<div class="detail-tag">gap ${scoreGap}</div>` : ''}
+      ${(outcome.strengths || []).map(item => `<div class="detail-tag">edge ${item.label}</div>`).join('')}
+      ${(outcome.gaps || []).map(item => `<div class="detail-tag">watch ${item.label}</div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderPracticeTakeawayCard(takeaway) {
+  if (!takeaway) return '';
+  const progression = takeaway.progression || null;
+  const entrantId = takeaway.entrant_id || null;
+  const retryTier = takeaway.benchmark_tier || null;
+  const nextTier = progression?.next_tier || null;
+  const primaryTier = nextTier || retryTier;
+  const secondaryTier = nextTier && retryTier && nextTier !== retryTier ? retryTier : null;
+  return `<div class="postgame-summary-card">
+    <div class="postgame-summary-label">Practice Verdict</div>
+    <div class="postgame-summary-value">${takeaway.category_label || 'Practice Read'}</div>
+    <div class="postgame-summary-body">${takeaway.headline || ''}</div>
+    ${progression ? renderBenchmarkLadder(progression, { title: 'Recommended Next Benchmark', retryTier, compact: true }) : ''}
+    <div class="postgame-summary-tags">
+      ${takeaway.benchmark_name ? `<div class="detail-tag">${takeaway.benchmark_name}</div>` : ''}
+      ${takeaway.benchmark_strategy ? `<div class="detail-tag">${takeaway.benchmark_strategy}</div>` : ''}
+      ${takeaway.benchmark_tier ? `<div class="detail-tag">${takeaway.benchmark_tier}</div>` : ''}
+      ${takeaway.score_gap != null ? `<div class="detail-tag">gap ${Number(takeaway.score_gap).toFixed(1)}</div>` : ''}
+      ${progression?.cleared_tiers?.length ? `<div class="detail-tag">cleared ${progression.cleared_tiers.join(', ')}</div>` : ''}
+      ${progression?.next_tier ? `<div class="detail-tag">next ${progression.next_tier}</div>` : ''}
+    </div>
+    ${recommendedPracticeButtons(entrantId, primaryTier, secondaryTier)}
+  </div>`;
+}
+
+function renderOutcomeDetail(outcome) {
+  if (!outcome) return '';
+  const strengths = outcome.strengths || [];
+  const gaps = outcome.gaps || [];
+  const takeaway = outcome.practice_takeaway || null;
+  const progression = takeaway?.progression || null;
+  const retryTier = takeaway?.benchmark_tier || null;
+  return `<div class="expand-actions-title">RESULT READ</div>
+    <div class="recent-action">
+      <div class="recent-turn">${(outcome.result || 'result').replace('_', ' ')}</div>
+      <div class="recent-type">${outcome.comparison_startup ? `vs ${outcome.comparison_startup}` : 'solo'}</div>
+      <div class="recent-msg">${outcome.headline || ''}</div>
+      <div class="recent-ok">${outcome.score_gap == null ? '-' : Math.abs(outcome.score_gap).toFixed(1)}</div>
+    </div>
+    ${strengths.length ? `<div class="detail-tags" style="margin-top:10px">${strengths.map(item => `<div class="detail-tag">edge ${item.label} +${item.weighted_delta.toFixed(1)}</div>`).join('')}</div>` : ''}
+    ${gaps.length ? `<div class="detail-tags" style="margin-top:8px">${gaps.map(item => `<div class="detail-tag">watch ${item.label} ${item.weighted_delta.toFixed(1)}</div>`).join('')}</div>` : ''}
+    ${takeaway ? `<div class="expand-actions-title" style="margin-top:12px">PRACTICE TAKEAWAY</div><div class="recent-action"><div class="recent-turn">${takeaway.category_label || 'practice'}</div><div class="recent-type">${takeaway.benchmark_name || 'benchmark'}</div><div class="recent-msg">${takeaway.headline || ''}</div><div class="recent-ok">${takeaway.score_gap == null ? '-' : Number(takeaway.score_gap).toFixed(1)}</div></div>` : ''}
+    ${progression ? renderBenchmarkLadder(progression, { title: 'Practice Ladder', retryTier, compact: true }) : ''}
+    ${progression ? `<div class="detail-tags" style="margin-top:8px">
+      ${progression.cleared_tiers?.length ? `<div class="detail-tag">cleared ${progression.cleared_tiers.join(', ')}</div>` : '<div class="detail-tag">no clears yet</div>'}
+      ${progression.next_tier ? `<div class="detail-tag">next ${progression.next_tier}</div>` : '<div class="detail-tag">all tiers cleared</div>'}
+      <div class="detail-tag">${progression.benchmark_wins || 0}/${progression.practice_games || 0} benchmark wins</div>
+    </div>` : ''}`;
+}
+
+// ──────────────────────────────────────────────────
+// POST-GAME
+// ──────────────────────────────────────────────────
+function renderPostGame() {
+  if (!gameData || gameData.phase !== 'finished') return;
+  const container = document.getElementById('postgameContent');
+  const startups = gameData.startups;
+  const logs = gameData.action_logs || {};
+  const replaySummary = gameData.summary || {};
+  const turningPoints = replaySummary.turning_points || [];
+  const startupOutcomes = replaySummary.startup_outcomes || {};
+  const practiceTakeaway = replaySummary.practice_takeaway || null;
+
+  const sorted = Object.entries(startups).sort((a, b) => {
+    if (a[1].alive !== b[1].alive) return a[1].alive ? -1 : 1;
+    const scoreDiff = scoreValueForStartup(b[1]) - scoreValueForStartup(a[1]);
+    if (Math.abs(scoreDiff) > 0.01) return scoreDiff;
+    return (b[1].valuation || 0) - (a[1].valuation || 0);
+  });
+
+  const winnerId = gameData.winner;
+  const winner = winnerId ? startups[winnerId] : (sorted[0] ? sorted[0][1] : null);
+  const winnerScore = winner ? scoreValueForStartup(winner) : 0;
+  const winnerSummary = !winner ? '' : (
+    gameData.game_mode === 'competitive_mode'
+      ? `${winner.agent_name} wins with ${winnerScore.toFixed(1)} score (${fmtMoney(winner.valuation)} valuation)`
+      : `${winner.agent_name} wins with ${fmtMoney(winner.valuation)} valuation`
+  );
+
+  let html = `
+    <div class="postgame-banner">
+      <div class="postgame-title">GAME OVER</div>
+      <div class="postgame-winner">${winner ? winner.startup_name : 'No Winner'}</div>
+      <div class="postgame-sub">${winnerSummary}</div>
+    </div>`;
+
+  if (winner && gameData.game_mode === 'competitive_mode') {
+    const winnerOutcomeId = winnerId || sorted[0]?.[0] || null;
+    const winnerOutcome = winnerOutcomeId ? startupOutcomes[winnerOutcomeId] : null;
+    const runnerUpId = sorted[1]?.[0] || null;
+    const runnerUpOutcome = runnerUpId ? startupOutcomes[runnerUpId] : null;
+    html += `<div class="postgame-summary-grid">
+      <div class="postgame-summary-card">
+        <div class="postgame-summary-label">Winner Margin</div>
+        <div class="postgame-summary-value">${replaySummary.final_margin != null ? replaySummary.final_margin.toFixed(1) : winnerScore.toFixed(1)}</div>
+        <div class="postgame-summary-body">${replaySummary.winner_summary || winnerSummary}</div>
+        <div class="postgame-summary-tags">
+          <div class="detail-tag">winner ${replaySummary.winner_score != null ? replaySummary.winner_score.toFixed(1) : winnerScore.toFixed(1)}</div>
+          ${replaySummary.runner_up_score != null ? `<div class="detail-tag">runner-up ${replaySummary.runner_up_score.toFixed(1)}</div>` : ''}
+          <div class="detail-tag">${gameData.total_turns || gameData.turn || 0} turns</div>
+        </div>
+      </div>
+      ${practiceTakeaway ? renderPracticeTakeawayCard(practiceTakeaway) : ''}
+      ${renderOutcomeRead('Winner Read', winnerOutcome)}
+      ${runnerUpOutcome ? renderOutcomeRead('Challenger Read', runnerUpOutcome) : ''}
+      ${turningPoints.map(renderTurningPoint).join('')}
+    </div>`;
+  }
+
+  html += `
+    <div class="postgame-table-wrap">
+      <table class="score-table"><thead><tr>
+        <th>RANK</th><th>AGENT</th><th>STARTUP</th><th>SECTOR</th><th>VALUATION</th><th>USERS</th><th>REVENUE</th><th>STATUS</th><th></th>
+      </tr></thead><tbody>`;
+
+  sorted.forEach(([sid, s], i) => {
+    const rank = i + 1;
+    const ci = getAgentColor(sid);
+    const isWinner = sid === winnerId || (rank === 1 && s.alive);
+    const actions = logs[sid] || [];
+    const decision = latestDecisionFor(sid);
+    const doctrine = s.compiled_doctrine?.doctrine || null;
+    const diagnostics = s.diagnostics || [];
+    const outcome = startupOutcomes[sid] || null;
+
+    html += `<tr class="${isWinner ? 'winner-row' : ''}">
+      <td class="rank-cell" style="color:${rank===1?'var(--gold)':rank===2?'var(--silver)':rank===3?'var(--bronze)':'var(--text-dim)'}">${rank}</td>
+      <td><span class="tc-${ci}" style="font-weight:600">${s.agent_name}</span></td>
+      <td>${s.startup_name}</td>
+      <td style="color:var(--text-dim)">${s.sector}</td>
+      <td class="val-cell">${fmtMoney(s.valuation)}</td>
+      <td>${fmtNum(s.users)}</td>
+      <td>${fmtMoney(s.revenue)}/mo</td>
+      <td><span class="rank-status ${s.alive?'alive':'dead'}">${s.alive?'ALIVE':s.death_reason||'DEAD'}</span></td>
+      <td><button class="expand-btn" onclick="toggleExpand('exp-${sid}')">details</button></td>
+    </tr>
+    <tr><td colspan="9" style="padding:0"><div class="score-expand" id="exp-${sid}">
+      <div class="expand-grid">
+        <div class="expand-stat"><div class="stat-label">CASH</div><div class="stat-value">${fmtMoney(s.cash)}</div></div>
+        <div class="expand-stat"><div class="stat-label">BURN RATE</div><div class="stat-value">${fmtMoney(s.monthly_burn)}/mo</div></div>
+        <div class="expand-stat"><div class="stat-label">TOTAL RAISED</div><div class="stat-value">${fmtMoney(s.total_raised)}</div></div>
+        <div class="expand-stat"><div class="stat-label">DILUTION</div><div class="stat-value">${((s.dilution||0)*100).toFixed(0)}%</div></div>
+        <div class="expand-stat"><div class="stat-label">QUALITY</div><div class="stat-value">${s.product_quality||0}</div></div>
+        <div class="expand-stat"><div class="stat-label">BRAND</div><div class="stat-value">${s.brand||0}</div></div>
+        <div class="expand-stat"><div class="stat-label">MORALE</div><div class="stat-value">${s.morale||0}</div></div>
+        <div class="expand-stat"><div class="stat-label">TEAM</div><div class="stat-value">${s.team_size||0}</div></div>
+        <div class="expand-stat"><div class="stat-label">STRATEGY</div><div class="stat-value">${s.strategy||'unknown'}</div></div>
+        <div class="expand-stat"><div class="stat-label">ROUND</div><div class="stat-value">${s.funding_round||'pre-seed'}</div></div>
+      </div>
+      ${renderOutcomeDetail(outcome)}
+      ${doctrine ? `<div class="expand-actions-title">ENTRANT DOCTRINE</div>
+      <div class="detail-tags" style="margin-bottom:10px">
+        <div class="detail-tag">style ${doctrine.primary_style || 'balanced'}</div>
+        <div class="detail-tag">risk ${doctrine.risk_posture || 'medium'}</div>
+        <div class="detail-tag">${doctrine.decision_style || 'concise'}</div>
+        ${(doctrine.preferred_foci || []).map(item => `<div class="detail-tag">${item}</div>`).join('')}
+      </div>` : ''}
+      ${diagnostics.length ? `<div class="expand-actions-title">MATCH DIAGNOSTICS</div>
+      ${renderDiagnosticsList(diagnostics)}` : ''}
+      ${decision ? `<div class="expand-actions-title">LAST PLAN</div>
+      <div class="recent-action"><div class="recent-turn">${decision.confidence || 'mid'}</div><div class="recent-type">${decision.intent || 'No intent'}</div><div class="recent-msg">${decision.reasoning_summary || decision.expected_outcome || ''}</div><div class="recent-ok">${decision.watch_metric || '-'}</div></div>` : ''}
+      ${actions.length ? `<div class="expand-actions-title">ACTION HISTORY (${actions.length} actions)</div>
+      <div class="expand-actions-list">${actions.map(a => `<div class="recent-action"><div class="recent-turn">W${a.turn}</div><div class="recent-type at-${a.action_type}">${a.action_type}</div><div class="recent-msg">${a.message||''}</div><div class="${a.success?'recent-ok':'recent-fail'}">${a.success?'\u2713':'\u2717'}</div></div>`).join('')}</div>` : ''}
+    </div></td></tr>`;
+  });
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+function toggleExpand(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
+}
+
+// ──────────────────────────────────────────────────
+// LEADERBOARD
+// ──────────────────────────────────────────────────
+function lobbyAcceptsEntrant(entrantType, queue) {
+  if (queue === 'showmatch') return true;
+  if (queue === 'skill_ranked') return entrantType === 'skill_package';
+  if (queue === 'github_ranked') return entrantType === 'github_repo';
+  return false;
+}
+
+function currentLobbyMeta() {
+  const startups = currentLobbyData?.startups || {};
+  return {
+    active: !!soloGameId && !!adminToken && currentLobbyData?.phase === 'lobby',
+    phase: currentLobbyData?.phase || null,
+    queue: currentLobbyData?.queue || 'showmatch',
+    benchmark_tier: currentLobbyData?.benchmark_tier || FOUNDER_DUEL_DEFAULTS.benchmark_tier,
+    count: Object.keys(startups).length,
+    max: currentLobbyData?.max_players || 0,
+    startups,
+  };
+}
+
+function queueOptionsForEntrant(entrant) {
+  if (entrant.entrant_type === 'skill_package') return ['showmatch', 'skill_ranked'];
+  if (entrant.entrant_type === 'github_repo') return ['showmatch', 'github_ranked'];
+  return ['showmatch'];
+}
+
+function queueLabel(queue) {
+  if (queue === 'showmatch') return 'Practice Duel';
+  if (queue === 'skill_ranked') return 'Ranked Duel (SKILL.md)';
+  if (queue === 'github_ranked') return 'Ranked Duel (GitHub)';
+  return queue;
+}
+
+function loadLaunchPresets() {
+  try {
+    return JSON.parse(localStorage.getItem(LAUNCH_PRESET_STORAGE_KEY) || '{}');
+  } catch (e) {
+    console.warn('Failed to load launch presets', e);
+    return {};
+  }
+}
+
+function saveLaunchPresets(presets) {
+  try {
+    localStorage.setItem(LAUNCH_PRESET_STORAGE_KEY, JSON.stringify(presets));
+  } catch (e) {
+    console.warn('Failed to save launch presets', e);
+  }
+}
+
+function launchPresetFor(entrantId) {
+  const presets = loadLaunchPresets();
+  return presets[entrantId] || null;
+}
+
+function defaultEntrantConfig(entrant) {
+  const doctrine = entrant.compiled_doctrine?.doctrine || {};
+  const baseName = (entrant.display_name || entrant.entrant_id || 'Entrant').trim();
+  const startupBase = baseName.replace(/\b(bot|agent)\b/ig, '').replace(/\s+/g, ' ').trim() || baseName;
+  return {
+    agent_name: baseName.slice(0, 32),
+    startup_name: startupBase.slice(0, 32),
+    sector: 'ai',
+    motto: doctrine.primary_style ? `${doctrine.primary_style} doctrine entrant` : 'registered entrant',
+    strategy_description: doctrine.primary_style || 'competitive',
+  };
+}
+
+function collectLaunchFormValues() {
+  return {
+    agent_name: document.getElementById('launchAgentName').value.trim(),
+    startup_name: document.getElementById('launchStartupName').value.trim(),
+    sector: document.getElementById('launchSector').value,
+    queue: document.getElementById('launchQueue').value,
+    benchmark_tier: document.getElementById('launchBenchmarkTier').value || FOUNDER_DUEL_DEFAULTS.benchmark_tier,
+    motto: document.getElementById('launchMotto').value.trim(),
+    strategy_description: document.getElementById('launchStrategy').value.trim(),
+    game_name: document.getElementById('launchGameName').value.trim(),
+    max_players: Math.min(8, Math.max(2, parseInt(document.getElementById('launchPlayers').value, 10) || FOUNDER_DUEL_DEFAULTS.max_players)),
+    max_turns: parseInt(document.getElementById('launchTurns').value, 10) || FOUNDER_DUEL_DEFAULTS.max_turns,
+    turn_timeout: parseInt(document.getElementById('launchSpeed').value, 10) || 5,
+    saved_at: new Date().toISOString(),
+  };
+}
+
+function updateLaunchPresetNote() {
+  const note = document.getElementById('launchPresetNote');
+  const resetBtn = document.getElementById('launchResetPresetBtn');
+  if (!launchEntrantState) {
+    note.textContent = 'No entrant selected.';
+    resetBtn.disabled = true;
+    return;
+  }
+  const preset = launchPresetFor(launchEntrantState.entrant_id);
+  if (!preset) {
+    note.textContent = 'No saved preset for this entrant yet.';
+    resetBtn.disabled = true;
+    return;
+  }
+  const stamp = preset.saved_at ? new Date(preset.saved_at).toLocaleString() : 'saved';
+  note.textContent = `Saved preset: ${preset.agent_name || '-'} / ${preset.startup_name || '-'} / ${queueLabel(preset.queue || FOUNDER_DUEL_DEFAULTS.practice_queue)} / ${benchmarkTierLabel(preset.benchmark_tier || FOUNDER_DUEL_DEFAULTS.benchmark_tier)} (${stamp})`;
+  resetBtn.disabled = false;
+}
+
+function saveLaunchPresetFromModal(showStatus = true) {
+  if (!launchEntrantState) return;
+  const presets = loadLaunchPresets();
+  presets[launchEntrantState.entrant_id] = collectLaunchFormValues();
+  saveLaunchPresets(presets);
+  updateLaunchPresetNote();
+  rerenderLeaderboardIfVisible();
+  if (showStatus) {
+    const statusEl = document.getElementById('launchStatus');
+    statusEl.className = 'launch-status success';
+    statusEl.textContent = 'Launch preset saved for this entrant.';
+  }
+}
+
+function resetLaunchPresetFromModal() {
+  if (!launchEntrantState) return;
+  const presets = loadLaunchPresets();
+  delete presets[launchEntrantState.entrant_id];
+  saveLaunchPresets(presets);
+  updateLaunchPresetNote();
+  rerenderLeaderboardIfVisible();
+  const statusEl = document.getElementById('launchStatus');
+  statusEl.className = 'launch-status';
+  statusEl.textContent = 'Saved preset cleared.';
+}
+
+function updateLaunchLobbyHint() {
+  if (!launchEntrantState) return;
+  const hint = document.getElementById('launchLobbyHint');
+  const btn = document.getElementById('launchSubmitBtn');
+  const lobby = currentLobbyMeta();
+  const queue = document.getElementById('launchQueue').value;
+  const benchmarkSelect = document.getElementById('launchBenchmarkTier');
+  const benchmarkTier = benchmarkSelect.value || FOUNDER_DUEL_DEFAULTS.benchmark_tier;
+  benchmarkSelect.disabled = queue !== 'showmatch';
+  if (lobby.active && lobby.queue === queue) {
+    const benchmarkNote = queue === 'showmatch' ? ` Current benchmark tier is ${benchmarkTierLabel(lobby.benchmark_tier)}.` : '';
+    hint.textContent = `Current lobby ${soloGameId} matches ${queueLabel(queue)}.${benchmarkNote} Founder Arena will reuse it if there is room.`;
+    btn.textContent = (!lobby.max || lobby.count < lobby.max) ? 'QUEUE TO CURRENT LOBBY' : 'CREATE NEW LOBBY & QUEUE';
+  } else if (lobby.active) {
+    const benchmarkNote = queue === 'showmatch' ? ` using the ${benchmarkTierLabel(benchmarkTier)} benchmark tier` : '';
+    hint.textContent = `Current lobby uses ${queueLabel(lobby.queue)}. Founder Arena will create a new ${queueLabel(queue)} lobby${benchmarkNote} with the settings below, then queue this entrant.`;
+    btn.textContent = 'CREATE NEW LOBBY & QUEUE';
+  } else {
+    const benchmarkNote = queue === 'showmatch' ? ` using the ${benchmarkTierLabel(benchmarkTier)} benchmark tier` : '';
+    hint.textContent = `No active lobby. Founder Arena will create a new ${queueLabel(queue)} lobby${benchmarkNote} with the settings below, then queue this entrant.`;
+    btn.textContent = 'CREATE LOBBY & QUEUE';
+  }
+}
+
+function renderLaunchValidation(validation) {
+  const panel = document.getElementById('launchValidationPanel');
+  if (!panel) return;
+  if (!validation) {
+    panel.innerHTML = '<div class="preview-empty">Validation not loaded yet.</div>';
+    return;
+  }
+  const readyLabel = validation.ready ? 'READY' : 'NOT READY';
+  const errors = validation.errors || [];
+  const warnings = validation.warnings || [];
+  const lastLaunch = validation.last_launch || {};
+  panel.innerHTML = `
+    <div class="detail-tags">
+      <div class="detail-tag">${readyLabel}</div>
+      ${validation.entry_command?.length ? `<div class="detail-tag">${validation.entry_command.join(' ')}</div>` : ''}
+      ${validation.timeout_seconds ? `<div class="detail-tag">${validation.timeout_seconds}s timeout</div>` : ''}
+    </div>
+    <div class="validation-line">Workspace: ${validation.workspace || '-'}</div>
+    <div class="validation-line">Launch cwd: ${validation.launch_cwd || '-'}</div>
+    ${errors.map(item => `<div class="validation-line error">Error: ${item}</div>`).join('')}
+    ${warnings.map(item => `<div class="validation-line warn">Warning: ${item}</div>`).join('')}
+    ${lastLaunch.stderr_tail ? `<div class="validation-line warn">Last stderr tail</div><div class="validation-pre">${lastLaunch.stderr_tail}</div>` : ''}
+    ${lastLaunch.stdout_tail ? `<div class="validation-line">Last stdout tail</div><div class="validation-pre">${lastLaunch.stdout_tail}</div>` : ''}
+    ${!errors.length && !warnings.length ? '<div class="validation-line">No validation issues detected.</div>' : ''}
+  `;
+}
+
+function renderLaunchCompare(comparePayload) {
+  const panel = document.getElementById('launchComparePanel');
+  if (!panel) return;
+  if (!comparePayload) {
+    panel.innerHTML = '<div class="preview-empty">No version comparison loaded yet.</div>';
+    return;
+  }
+  const compare = comparePayload.compare || {};
+  const current = compare.current_version || {};
+  const previous = compare.previous_version || null;
+  const performance = compare.performance || {};
+  const currentPerf = performance.current || {};
+  const previousPerf = performance.previous || null;
+  const currentPractice = currentPerf.practice_progression || {};
+  const previousPractice = previousPerf?.practice_progression || null;
+  const currentRetryTier = currentPractice.latest_verdict?.benchmark_tier || null;
+  const previousRetryTier = previousPractice?.latest_verdict?.benchmark_tier || null;
+  panel.innerHTML = `
+    <div class="detail-tags">
+      <div class="detail-tag">${comparePayload.version_count || 1} versions</div>
+      <div class="detail-tag">current ${current.version_hash || '-'}</div>
+      ${previous ? `<div class="detail-tag">previous ${previous.version_hash || '-'}</div>` : ''}
+    </div>
+    <div class="compare-line" style="margin-top:8px">${compare.headline || 'No compare summary available.'}</div>
+    ${(compare.change_lines || []).map(item => `<div class="compare-line">${item}</div>`).join('')}
+    <div class="detail-tags" style="margin-top:10px">
+      <div class="detail-tag">current games ${currentPerf.games_played || 0}</div>
+      <div class="detail-tag">current wins ${currentPerf.wins || 0}</div>
+      <div class="detail-tag">current avg ${(currentPerf.avg_score || 0).toFixed ? currentPerf.avg_score.toFixed(1) : currentPerf.avg_score || 0}</div>
+      ${previousPerf ? `<div class="detail-tag">previous avg ${(previousPerf.avg_score || 0).toFixed ? previousPerf.avg_score.toFixed(1) : previousPerf.avg_score || 0}</div>` : ''}
+    </div>
+    <div class="detail-tags" style="margin-top:8px">
+      ${currentPractice.cleared_tiers?.length ? `<div class="detail-tag">current clears ${currentPractice.cleared_tiers.join(', ')}</div>` : '<div class="detail-tag">current clears none</div>'}
+      ${currentPractice.next_tier ? `<div class="detail-tag">next ${currentPractice.next_tier}</div>` : '<div class="detail-tag">all tiers cleared</div>'}
+      <div class="detail-tag">practice ${currentPractice.benchmark_wins || 0}/${currentPractice.practice_games || 0}</div>
+      ${previousPractice ? `<div class="detail-tag">previous clears ${previousPractice.cleared_tiers?.join(', ') || 'none'}</div>` : ''}
+    </div>
+    ${renderBenchmarkLadder(currentPractice, { title: 'Current Ladder Read', retryTier: currentRetryTier, compact: true })}
+    ${previousPractice ? renderBenchmarkLadder(previousPractice, { title: 'Previous Ladder Read', retryTier: previousRetryTier, compact: true }) : ''}
+  `;
+}
+
+async function fetchEntrantCompare(entrantId) {
+  const panel = document.getElementById('launchComparePanel');
+  if (panel) {
+    panel.innerHTML = '<div class="preview-empty">Loading version comparison...</div>';
+  }
+  try {
+    const resp = await fetch(`/api/entrants/${entrantId}/compare`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Failed to compare versions');
+    launchCompareState = data;
+    renderLaunchCompare(data);
+    return data;
+  } catch (e) {
+    launchCompareState = null;
+    if (panel) {
+      panel.innerHTML = `<div class="validation-line error">${e.message}</div>`;
+    }
+    return null;
+  }
+}
+
+async function fetchEntrantValidation(entrantId) {
+  const panel = document.getElementById('launchValidationPanel');
+  if (panel) {
+    panel.innerHTML = '<div class="preview-empty">Loading validation...</div>';
+  }
+  try {
+    const resp = await fetch(`/api/entrants/${entrantId}/validate`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Failed to validate entrant');
+    launchValidationState = data;
+    renderLaunchValidation(data);
+    return data;
+  } catch (e) {
+    launchValidationState = {
+      ready: false,
+      errors: [e.message],
+      warnings: [],
+      workspace: '-',
+      launch_cwd: '-',
+      entry_command: [],
+      last_launch: null,
+    };
+    renderLaunchValidation(launchValidationState);
+    return launchValidationState;
+  }
+}
+
+function applyLobbyState(data, playerCountHint = null) {
+  soloGameId = data.game_id;
+  adminToken = data.admin_token;
+  joinCode = data.join_code;
+  spectatorToken = data.spectator_token;
+  gameId = soloGameId;
+  currentLobbyData = {
+    phase: 'lobby',
+    queue: data.queue || FOUNDER_DUEL_DEFAULTS.practice_queue,
+    benchmark_tier: data.benchmark_tier || FOUNDER_DUEL_DEFAULTS.benchmark_tier,
+    max_players: playerCountHint || data.max_players || FOUNDER_DUEL_DEFAULTS.max_players,
+    max_turns: data.max_turns || FOUNDER_DUEL_DEFAULTS.max_turns,
+    turn_timeout: data.turn_timeout || selectedSpeed || 5,
+    startups: {},
+  };
+
+  document.getElementById('lobbyGameId').textContent = soloGameId;
+  document.getElementById('lobbyJoinCode').textContent = joinCode;
+  document.getElementById('lobbyCount').textContent = `Waiting for agents (0/${currentLobbyData.max_players})`;
+  document.getElementById('lobbyBenchmarkTier').value = currentLobbyData.benchmark_tier;
+  document.getElementById('lobbyBenchmarkHint').textContent = `${benchmarkTierLabel(currentLobbyData.benchmark_tier)} benchmark selected for this lobby.`;
+
+  const codeEl = document.getElementById('lobbyCode');
+  codeEl.innerHTML = `<button class="copy-btn" onclick="copyCode()">copy</button>from example_agent import FounderAgent
+agent = FounderAgent(
+    name="MyAgent",
+    startup_name="MyCo",
+    sector="ai",
+    strategy="balanced",
+)
+agent.join_game("${soloGameId}", "${joinCode}")
+agent.play()`;
+}
+
+function rerenderLeaderboardIfVisible() {
+  if (document.getElementById('view-leaderboard').classList.contains('active')) {
+    renderLeaderboard(leaderboardDataCache || {}, entrantRegistryCache || []);
+  }
+}
+
+function rerenderPostgameIfVisible() {
+  if (document.getElementById('view-postgame').classList.contains('active') && gameData?.phase === 'finished') {
+    renderPostGame();
+  }
+}
+
+async function queueEntrantToPracticeTier(entrantId, benchmarkTier) {
+  let entrant = entrantById(entrantId);
+  if (!entrant) {
+    await fetchLeaderboard();
+    entrant = entrantById(entrantId);
+  }
+  if (!entrant) {
+    alert('Entrant not found in registry.');
+    return;
+  }
+  const config = effectiveLaunchConfig(entrant, {
+    queue: 'showmatch',
+    benchmark_tier: benchmarkTier || FOUNDER_DUEL_DEFAULTS.benchmark_tier,
+  });
+  const lobby = currentLobbyMeta();
+  entrantQueueBusy[entrant.entrant_id] = true;
+  rerenderLeaderboardIfVisible();
+  rerenderPostgameIfVisible();
+
+  try {
+    const validation = await fetchEntrantValidation(entrant.entrant_id);
+    if (!validation.ready) {
+      throw new Error('Entrant validation failed. Fix the validation issues before queueing this benchmark run.');
+    }
+
+    const existingStartup = Object.values(lobby.startups || {}).find(item => item.entrant_id === entrant.entrant_id);
+    if (existingStartup && lobby.active && lobby.queue === 'showmatch' && lobby.benchmark_tier === config.benchmark_tier) {
+      throw new Error(`${existingStartup.startup_name || entrant.display_name} is already queued in the current ${benchmarkTierLabel(config.benchmark_tier)} lobby.`);
+    }
+
+    const matchingLobby = (
+      lobby.active &&
+      lobby.queue === 'showmatch' &&
+      lobby.benchmark_tier === config.benchmark_tier &&
+      (!lobby.max || lobby.count < lobby.max)
+    );
+
+    if (!matchingLobby) {
+      const createResp = await fetch('/api/games', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: config.game_name || 'Entrant Match',
+          max_players: config.max_players,
+          min_players: 2,
+          turn_timeout: config.turn_timeout,
+          max_turns: config.max_turns,
+          game_mode: 'competitive_mode',
+          use_rich_state: true,
+          queue: 'showmatch',
+          benchmark_tier: config.benchmark_tier,
+        }),
+      });
+      const createData = await createResp.json().catch(() => ({}));
+      if (!createResp.ok) throw new Error(createData.detail || 'Failed to create practice lobby');
+      applyLobbyState(createData, config.max_players);
+      startLobbyPoll();
+    }
+
+    const payload = {
+      entrant_id: entrant.entrant_id,
+      agent_name: config.agent_name || defaultEntrantConfig(entrant).agent_name,
+      startup_name: config.startup_name || defaultEntrantConfig(entrant).startup_name,
+      sector: config.sector,
+      motto: config.motto,
+      strategy_description: config.strategy_description || defaultEntrantConfig(entrant).strategy_description,
+      launch: true,
+    };
+    const resp = await fetch(`/api/games/${soloGameId}/add-entrant`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken,
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Failed to queue entrant');
+
+    const presets = loadLaunchPresets();
+    presets[entrant.entrant_id] = config;
+    saveLaunchPresets(presets);
+
+    await pollLobby();
+    await fetchLeaderboard();
+    switchView('lobby');
+  } catch (e) {
+    console.error('Quick queue error:', e);
+    alert(e.message);
+  } finally {
+    delete entrantQueueBusy[entrant.entrant_id];
+    rerenderLeaderboardIfVisible();
+    rerenderPostgameIfVisible();
+  }
+}
+
+async function openLaunchModal(entrantId) {
+  const entrant = entrantById(entrantId);
+  if (!entrant) {
+    alert('Entrant not found in registry.');
+    return;
+  }
+  launchEntrantState = entrant;
+  launchValidationState = null;
+  launchCompareState = null;
+  const defaults = defaultEntrantConfig(entrant);
+  const preset = launchPresetFor(entrant.entrant_id);
+  const queueOptions = queueOptionsForEntrant(entrant);
+  const lobby = currentLobbyMeta();
+  const selectedQueue = (
+    preset?.queue && queueOptions.includes(preset.queue)
+      ? preset.queue
+      : (lobby.active && queueOptions.includes(lobby.queue) ? lobby.queue : queueOptions[0])
+  );
+
+  document.getElementById('launchModalMeta').textContent = `${entrant.display_name} (${entrant.entrant_id}) can be launched into practice or ranked queues from here.`;
+  document.getElementById('launchAgentName').value = preset?.agent_name || defaults.agent_name;
+  document.getElementById('launchStartupName').value = preset?.startup_name || defaults.startup_name;
+  document.getElementById('launchSector').value = preset?.sector || defaults.sector;
+  document.getElementById('launchMotto').value = preset?.motto || defaults.motto;
+  document.getElementById('launchStrategy').value = preset?.strategy_description || defaults.strategy_description;
+  document.getElementById('launchGameName').value = preset?.game_name || `${entrant.display_name} Founder Duel`;
+  document.getElementById('launchPlayers').value = preset?.max_players || lobby.max || FOUNDER_DUEL_DEFAULTS.max_players;
+  document.getElementById('launchTurns').value = preset?.max_turns || currentLobbyData?.max_turns || FOUNDER_DUEL_DEFAULTS.max_turns;
+  document.getElementById('launchSpeed').value = String(preset?.turn_timeout || selectedSpeed || 5);
+  document.getElementById('launchBenchmarkTier').value = preset?.benchmark_tier || lobby.benchmark_tier || FOUNDER_DUEL_DEFAULTS.benchmark_tier;
+
+  const queueSelect = document.getElementById('launchQueue');
+  queueSelect.innerHTML = queueOptions.map(queue => `<option value="${queue}">${queueLabel(queue)}</option>`).join('');
+  queueSelect.value = selectedQueue;
+
+  document.getElementById('launchStatus').className = 'launch-status';
+  document.getElementById('launchStatus').textContent = '';
+  document.getElementById('launchSubmitBtn').textContent = 'QUEUE ENTRANT';
+  document.getElementById('launchSubmitBtn').disabled = false;
+  updateLaunchPresetNote();
+  updateLaunchLobbyHint();
+  renderLaunchValidation(null);
+  renderLaunchCompare(null);
+  document.getElementById('launchModalBackdrop').classList.add('open');
+  await Promise.all([
+    fetchEntrantValidation(entrant.entrant_id),
+    fetchEntrantCompare(entrant.entrant_id),
+  ]);
+}
+
+function closeLaunchModal() {
+  launchEntrantState = null;
+  launchValidationState = null;
+  launchCompareState = null;
+  document.getElementById('launchModalBackdrop').classList.remove('open');
+}
+
+async function submitEntrantLaunch() {
+  if (!launchEntrantState) return;
+  const entrant = launchEntrantState;
+  const queue = document.getElementById('launchQueue').value;
+  const lobby = currentLobbyMeta();
+  const statusEl = document.getElementById('launchStatus');
+  const btn = document.getElementById('launchSubmitBtn');
+
+  entrantQueueBusy[entrant.entrant_id] = true;
+  btn.disabled = true;
+  btn.textContent = 'QUEUEING...';
+  statusEl.className = 'launch-status';
+  statusEl.textContent = 'Preparing launch...';
+  rerenderLeaderboardIfVisible();
+
+  try {
+    const formValues = collectLaunchFormValues();
+    const validation = await fetchEntrantValidation(entrant.entrant_id);
+    if (!validation.ready) {
+      throw new Error('Entrant validation failed. Fix the errors shown below before queueing.');
+    }
+    if (!(lobby.active && lobby.queue === queue && (!lobby.max || lobby.count < lobby.max))) {
+      statusEl.textContent = 'Creating a matching lobby...';
+      const createResp = await fetch('/api/games', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formValues.game_name || 'Entrant Match',
+          max_players: formValues.max_players,
+          min_players: 2,
+          turn_timeout: formValues.turn_timeout,
+          max_turns: formValues.max_turns,
+          game_mode: 'competitive_mode',
+          use_rich_state: true,
+          queue,
+          benchmark_tier: queue === 'showmatch' ? formValues.benchmark_tier : FOUNDER_DUEL_DEFAULTS.benchmark_tier,
+        }),
+      });
+      const createData = await createResp.json().catch(() => ({}));
+      if (!createResp.ok) throw new Error(createData.detail || 'Failed to create lobby');
+      applyLobbyState(createData, formValues.max_players);
+      startLobbyPoll();
+    }
+
+    statusEl.textContent = 'Queueing entrant into lobby...';
+    const payload = {
+      entrant_id: entrant.entrant_id,
+      agent_name: formValues.agent_name || defaultEntrantConfig(entrant).agent_name,
+      startup_name: formValues.startup_name || defaultEntrantConfig(entrant).startup_name,
+      sector: formValues.sector,
+      motto: formValues.motto,
+      strategy_description: formValues.strategy_description || defaultEntrantConfig(entrant).strategy_description,
+      launch: true,
+    };
+    const resp = await fetch(`/api/games/${soloGameId}/add-entrant`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken,
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Failed to queue entrant');
+
+    await pollLobby();
+    await fetchLeaderboard();
+    await Promise.all([
+      fetchEntrantValidation(entrant.entrant_id),
+      fetchEntrantCompare(entrant.entrant_id),
+    ]);
+    saveLaunchPresetFromModal(false);
+    statusEl.className = 'launch-status success';
+    statusEl.textContent = 'Entrant queued. Launch preset saved. Switching to lobby...';
+    switchView('lobby');
+    setTimeout(() => closeLaunchModal(), 250);
+  } catch (e) {
+    console.error('Queue entrant error:', e);
+    statusEl.className = 'launch-status error';
+    statusEl.textContent = e.message;
+    btn.disabled = false;
+    btn.textContent = 'QUEUE ENTRANT';
+  } finally {
+    delete entrantQueueBusy[entrant.entrant_id];
+    rerenderLeaderboardIfVisible();
+  }
+}
+
+function renderEntrantCard(entrant) {
+  const doctrine = entrant.compiled_doctrine?.doctrine || null;
+  const performance = entrant.current_version_performance || {};
+  const practiceProgress = performance.practice_progression || {};
+  const latestVerdict = practiceProgress.latest_verdict || null;
+  const nextTier = practiceProgress.next_tier || null;
+  const retryTier = latestVerdict?.benchmark_tier || null;
+  const primaryPracticeTier = nextTier || retryTier;
+  const secondaryPracticeTier = nextTier && retryTier && nextTier !== retryTier ? retryTier : null;
+  const practicePrimaryLabel = (practiceProgress.practice_games || 0) === 0 && primaryPracticeTier
+    ? `QUEUE ${benchmarkTierLabel(primaryPracticeTier).toUpperCase()}`
+    : null;
+  const preset = launchPresetFor(entrant.entrant_id);
+  const queueTargets = entrant.queue_targets || [];
+  const lastLaunch = entrant.last_launch || null;
+  const launchDiagnosis = lastLaunch?.diagnosis || null;
+  const lobby = currentLobbyMeta();
+  const existingStartup = Object.values(lobby.startups).find(item => item.entrant_id === entrant.entrant_id);
+  const practiceLadder = renderBenchmarkLadder(practiceProgress, { title: 'Practice Ladder', retryTier, compact: true });
+  let actionLabel = 'CREATE LOBBY';
+  let actionDisabled = false;
+  let actionHandler = `openLaunchModal('${entrant.entrant_id}')`;
+  let actionHint = 'Open launch setup to choose names, sector, and queue before joining a match.';
+
+  if (entrantQueueBusy[entrant.entrant_id]) {
+    actionLabel = 'QUEUEING...';
+    actionDisabled = true;
+    actionHandler = '';
+    actionHint = 'Submitting this entrant to the current lobby.';
+  } else if (lobby.active) {
+    if (existingStartup) {
+      actionLabel = 'ALREADY QUEUED';
+      actionDisabled = true;
+      actionHandler = '';
+      actionHint = `${existingStartup.startup_name || entrant.display_name} is already in the current lobby.`;
+    } else if (lobby.max && lobby.count >= lobby.max) {
+      actionLabel = 'LOBBY FULL';
+      actionDisabled = true;
+      actionHandler = '';
+      actionHint = `Current lobby is full (${lobby.count}/${lobby.max}).`;
+    } else if (!lobbyAcceptsEntrant(entrant.entrant_type, lobby.queue)) {
+      actionLabel = 'CONFIGURE LAUNCH';
+      actionDisabled = false;
+      actionHandler = `openLaunchModal('${entrant.entrant_id}')`;
+      actionHint = `Current lobby queue ${lobby.queue} does not accept ${entrant.entrant_type}. Choose a different queue or create a new lobby.`;
+    } else {
+      actionLabel = 'CONFIGURE & QUEUE';
+      actionDisabled = false;
+      actionHandler = `openLaunchModal('${entrant.entrant_id}')`;
+      actionHint = `Current ${lobby.queue} lobby is ready (${lobby.count}/${lobby.max}). Review launch settings, then queue this entrant.`;
+    }
+  }
+
+  return `<div class="entrant-card">
+    <div class="entrant-card-header">
+      <div>
+        <div class="entrant-name">${entrant.display_name}</div>
+        <div class="entrant-id">${entrant.entrant_id}</div>
+      </div>
+      <div class="detail-tags">
+        <div class="detail-tag">${entrant.entrant_type}</div>
+        <div class="detail-tag">v ${entrant.version_hash}</div>
+        ${entrant.version_count > 1 ? `<div class="detail-tag">${entrant.version_count} versions</div>` : ''}
+        ${practiceProgress.highest_cleared_tier ? `<div class="detail-tag">cleared ${practiceProgress.highest_cleared_tier}</div>` : ''}
+        ${practiceProgress.next_tier ? `<div class="detail-tag">next ${practiceProgress.next_tier}</div>` : ''}
+        ${preset ? `<div class="detail-tag">preset saved</div>` : ''}
+      </div>
+    </div>
+    <div class="entrant-meta">
+      <div><span class="entrant-label">Queues</span> ${queueTargets.length ? queueTargets.join(', ') : 'showmatch'}</div>
+      <div><span class="entrant-label">Registered</span> ${new Date(entrant.registered_at).toLocaleString()}</div>
+      ${lastLaunch?.game_id ? `<div><span class="entrant-label">Last launch</span> ${lastLaunch.game_id.slice(0, 8)} in ${lastLaunch.queue || 'unknown'}</div>` : ''}
+      <div><span class="entrant-label">Practice Progress</span> ${practiceProgress.benchmark_wins || 0}/${practiceProgress.practice_games || 0} clears${practiceProgress.cleared_tiers?.length ? ` (${practiceProgress.cleared_tiers.join(', ')})` : ''}</div>
+    </div>
+    ${launchDiagnosis ? `<div class="detail-tags" style="margin-top:10px">
+      ${renderDiagnosticChip(launchDiagnosis)}
+    </div>
+    <div class="entrant-hint" style="margin-top:8px">${launchDiagnosis.message || ''}</div>
+    ${lastLaunch?.stderr_tail ? `<div class="validation-pre" style="margin-top:8px">${lastLaunch.stderr_tail}</div>` : ''}` : ''}
+    ${practiceLadder}
+    ${doctrine ? `<div class="entrant-doctrine">
+      <div class="detail-tags">
+        <div class="detail-tag">style ${doctrine.primary_style || 'balanced'}</div>
+        <div class="detail-tag">risk ${doctrine.risk_posture || 'medium'}</div>
+        <div class="detail-tag">${doctrine.decision_style || 'concise'}</div>
+        ${(doctrine.preferred_foci || []).map(item => `<div class="detail-tag">${item}</div>`).join('')}
+      </div>
+      ${(doctrine.recovery_order || []).length ? `<div class="hint" style="margin-top:8px">Recovery: ${doctrine.recovery_order.join(' -> ')}</div>` : ''}
+    </div>` : `<div class="entrant-doctrine"><div class="hint">No compiled doctrine available.</div></div>`}
+    ${queueTargets.includes('showmatch') ? recommendedPracticeButtons(entrant.entrant_id, primaryPracticeTier, secondaryPracticeTier, practicePrimaryLabel) : ''}
+    <div class="entrant-actions">
+      <button class="btn btn-sm" ${actionDisabled ? 'disabled' : ''} ${actionHandler ? `onclick="${actionHandler}"` : ''}>${actionLabel}</button>
+      <div class="entrant-hint">${actionHint}</div>
+    </div>
+  </div>`;
+}
+
+function renderLeaderboard(data, entrants = []) {
+  const container = document.getElementById('leaderboardContent');
+  const rankings = data.agent_rankings || [];
+  const entries = data.leaderboard || [];
+  const entrantList = [...entrants].sort((a, b) => (b.registered_at || '').localeCompare(a.registered_at || ''));
+  let html = '';
+
+  if (rankings.length > 0) {
+    html += `<div class="lb-section">
+      <div class="lb-section-title">AGENT RANKINGS</div>
+      <table class="lb-table"><thead><tr>
+        <th>#</th><th>AGENT</th><th>GAMES</th><th>WINS</th><th>WIN RATE</th><th>BEST SCORE</th><th>AVG SCORE</th><th>BEST VAL</th><th>SURVIVED</th><th>SECTORS</th>
+      </tr></thead><tbody>
+      ${rankings.map((r, i) => `<tr>
+        <td style="font-weight:700;color:${i===0?'var(--gold)':i===1?'var(--silver)':i===2?'var(--bronze)':'var(--text-dim)'}">${i+1}</td>
+        <td style="font-weight:600">${r.agent_name}</td>
+        <td>${r.games_played}</td>
+        <td style="color:var(--green)">${r.wins}</td>
+        <td>${(r.win_rate*100).toFixed(0)}%<div class="win-rate-bar"><div class="win-rate-fill" style="width:${r.win_rate*100}%"></div></div></td>
+        <td>${r.competitive_games ? (r.best_score || 0).toFixed(1) : '-'}</td>
+        <td>${r.competitive_games ? (r.avg_score || 0).toFixed(1) : '-'}</td>
+        <td>${fmtMoney(r.best_valuation)}</td>
+        <td>${r.survivals||0}</td>
+        <td style="color:var(--text-dim)">${(r.sectors_played||[]).join(', ')}</td>
+      </tr>`).join('')}
+      </tbody></table></div>`;
+  }
+
+  if (entries.length > 0) {
+    html += `<div class="lb-section" style="margin-top:0">
+      <div class="lb-section-title">GAME HISTORY</div>
+      <table class="lb-table"><thead><tr>
+        <th>GAME</th><th>MODE</th><th>RANK</th><th>AGENT</th><th>STARTUP</th><th>SECTOR</th><th>SCORE</th><th>VALUATION</th><th>USERS</th><th>REVENUE</th><th>STATUS</th>
+      </tr></thead><tbody>
+      ${entries.map(e => `<tr>
+        <td style="color:var(--text-dim);font-size:10px">${e.game_name||e.game_id?.slice(0,8)||'?'}</td>
+        <td style="color:var(--text-dim)">${e.game_mode === 'competitive_mode' ? 'RANKED' : 'LEGACY'}</td>
+        <td>${e.rank || '-'}</td>
+        <td style="font-weight:600">${e.agent_name}</td>
+        <td>${e.startup_name}</td>
+        <td style="color:var(--text-dim)">${e.sector}</td>
+        <td style="font-weight:600">${e.game_mode === 'competitive_mode' ? (e.score || 0).toFixed(1) : '-'}</td>
+        <td style="font-weight:600">${fmtMoney(e.valuation)}</td>
+        <td>${fmtNum(e.users)}</td>
+        <td>${fmtMoney(e.revenue)}/mo</td>
+        <td><span class="rank-status ${e.survived?'alive':'dead'}">${e.was_winner?'WINNER':e.survived?'ALIVE':'DEAD'}</span></td>
+      </tr>`).join('')}
+      </tbody></table></div>`;
+  }
+
+  if (entrantList.length > 0) {
+    const lobby = currentLobbyMeta();
+    html += `<div class="lb-section" style="margin-top:0">
+      <div class="lb-section-title">REGISTERED ENTRANTS</div>
+      <div class="lb-subnote">${lobby.active ? `Current lobby ${soloGameId} is active (${lobby.count}/${lobby.max}, ${lobby.queue}). Open launch setup on any entrant to reuse it or create a new queue-specific lobby.` : 'No active lobby. Open launch setup on any entrant to create a match and queue it directly from this registry.'}</div>
+      <div class="entrant-grid">
+        ${entrantList.map(renderEntrantCard).join('')}
+      </div>
+    </div>`;
+  }
+
+  if (!rankings.length && !entries.length && !entrantList.length) {
+    html = '<div class="no-game"><div class="no-game-title">No Games Yet</div><div class="no-game-sub">Register an entrant or play a game to populate the ladder.</div></div>';
+  }
+  container.innerHTML = html;
+}
+
+// ──────────────────────────────────────────────────
+// SOLO MODE
+// ──────────────────────────────────────────────────
+function switchView(viewName) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const tab = document.querySelector(`[data-view="${viewName}"]`);
+  if (tab) tab.classList.add('active');
+  document.getElementById('view-' + viewName).classList.add('active');
+}
+
+function showCreateGame() {
+  if (lobbyInterval) { clearInterval(lobbyInterval); lobbyInterval = null; }
+  switchView('create');
+}
+
+function cancelCreate() {
+  switchView('live');
+}
+
+function setSpeed(el) {
+  document.querySelectorAll('.speed-opt').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  selectedSpeed = parseInt(el.dataset.speed);
+}
+
+async function createGame() {
+  const name = document.getElementById('createName').value || FOUNDER_DUEL_DEFAULTS.name;
+  const players = parseInt(document.getElementById('createPlayers').value) || FOUNDER_DUEL_DEFAULTS.max_players;
+  const turns = parseInt(document.getElementById('createTurns').value) || FOUNDER_DUEL_DEFAULTS.max_turns;
+  const benchmarkTier = document.getElementById('createBenchmarkTier').value || FOUNDER_DUEL_DEFAULTS.benchmark_tier;
+
+  try {
+    const resp = await fetch('/api/games', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name,
+        max_players: Math.min(8, Math.max(2, players)),
+        min_players: 2,
+        turn_timeout: selectedSpeed,
+        max_turns: turns,
+        game_mode: 'competitive_mode',
+        queue: FOUNDER_DUEL_DEFAULTS.practice_queue,
+        use_rich_state: true,
+        benchmark_tier: benchmarkTier,
+      }),
+    });
+    if (!resp.ok) throw new Error('Failed to create game');
+    const data = await resp.json();
+    applyLobbyState(data, Math.min(8, Math.max(2, players)));
+
+    switchView('lobby');
+    rerenderLeaderboardIfVisible();
+    startLobbyPoll();
+  } catch (e) {
+    console.error('Create game error:', e);
+    alert('Failed to create game: ' + e.message);
+  }
+}
+
+function startLobbyPoll() {
+  if (lobbyInterval) clearInterval(lobbyInterval);
+  lobbyInterval = setInterval(pollLobby, 2000);
+  pollLobby();
+}
+
+async function pollLobby() {
+  if (!soloGameId) return;
+  try {
+    const resp = await fetch(`/api/games/${soloGameId}`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    currentLobbyData = data;
+
+    if (data.phase === 'playing' || data.phase === 'finished') {
+      // Game started (maybe by fill-bots or externally)
+      clearInterval(lobbyInterval);
+      lobbyInterval = null;
+      gameId = soloGameId;
+      postGameShown = false;
+      rerenderLeaderboardIfVisible();
+      switchView('live');
+      return;
+    }
+
+    const startups = data.startups || {};
+    const count = Object.keys(startups).length;
+    const max = data.max_players || 4;
+    document.getElementById('lobbyCount').textContent = `Waiting for agents (${count}/${max})`;
+    if (data.queue === 'showmatch') {
+      document.getElementById('lobbyBenchmarkTier').value = data.benchmark_tier || FOUNDER_DUEL_DEFAULTS.benchmark_tier;
+      document.getElementById('lobbyBenchmarkHint').textContent = `${benchmarkTierLabel(data.benchmark_tier || FOUNDER_DUEL_DEFAULTS.benchmark_tier)} benchmark selected for this lobby.`;
+    }
+
+    const listEl = document.getElementById('lobbyAgents');
+    if (count === 0) {
+      listEl.innerHTML = '<div class="agent-list-empty">No agents connected yet</div>';
+    } else {
+      listEl.innerHTML = Object.values(startups).map(s =>
+        `<div class="agent-list-item"><div class="dot"></div><span style="font-weight:600">${s.agent_name || s.startup_name}</span><span style="color:var(--text-dim);font-size:10px;margin-left:auto">${s.startup_name} / ${s.sector}</span></div>`
+      ).join('');
+    }
+    rerenderLeaderboardIfVisible();
+  } catch (e) { console.error('Lobby poll error:', e); }
+}
+
+async function fillBotsAndStart() {
+  if (!soloGameId || !adminToken) return;
+  const btn = document.getElementById('fillBotsBtn');
+  const benchmarkTier = document.getElementById('lobbyBenchmarkTier').value || FOUNDER_DUEL_DEFAULTS.benchmark_tier;
+  btn.textContent = 'STARTING...';
+  btn.disabled = true;
+
+  try {
+    const resp = await fetch(`/api/games/${soloGameId}/fill-bots`, {
+      method: 'POST',
+      headers: { 'X-Admin-Token': adminToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ benchmark_tier: benchmarkTier }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to fill bots');
+    }
+    const data = await resp.json();
+    console.log('Bots added:', data);
+
+    // Switch to live view
+    if (lobbyInterval) { clearInterval(lobbyInterval); lobbyInterval = null; }
+    gameId = soloGameId;
+    postGameShown = false;
+    switchView('live');
+  } catch (e) {
+    console.error('Fill bots error:', e);
+    btn.textContent = 'FILL BOTS & START';
+    btn.disabled = false;
+    alert('Error: ' + e.message);
+  }
+}
+
+function cancelLobby() {
+  if (lobbyInterval) { clearInterval(lobbyInterval); lobbyInterval = null; }
+  soloGameId = null;
+  adminToken = null;
+  joinCode = null;
+  currentLobbyData = null;
+  rerenderLeaderboardIfVisible();
+  switchView('live');
+}
+
+function copyText(elementId) {
+  const text = document.getElementById(elementId).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById(elementId).nextElementSibling;
+    if (btn) { btn.textContent = 'copied!'; setTimeout(() => btn.textContent = 'copy', 1500); }
+  });
+}
+
+function copyCode() {
+  const codeEl = document.getElementById('lobbyCode');
+  const text = codeEl.textContent.replace('copy', '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = codeEl.querySelector('.copy-btn');
+    if (btn) { btn.textContent = 'copied!'; setTimeout(() => btn.textContent = 'copy', 1500); }
+  });
+}
+
+function renderDoctrinePreview(compiled) {
+  if (!compiled || !compiled.doctrine) {
+    return '<div class="preview-empty">No doctrine preview available for this entrant.</div>';
+  }
+  const doctrine = compiled.doctrine;
+  const preferredFoci = (doctrine.preferred_foci || []).map(item => `<span class="preview-chip">${item}</span>`).join('');
+  const recoveryOrder = (doctrine.recovery_order || []).map(item => `<span class="preview-chip">${item}</span>`).join('');
+  return `
+    <div class="preview-grid">
+      <div class="preview-pill"><strong>Style</strong><br>${doctrine.primary_style || 'balanced'}</div>
+      <div class="preview-pill"><strong>Risk</strong><br>${doctrine.risk_posture || 'medium'}</div>
+      <div class="preview-pill"><strong>Decision Style</strong><br>${doctrine.decision_style || 'concise'}</div>
+      <div class="preview-pill"><strong>Entry File</strong><br>${compiled.entry_file || 'SKILL.md'}</div>
+    </div>
+    <div class="preview-status" style="margin-top:10px">Preferred focus classes</div>
+    <div class="preview-list">${preferredFoci || '<span class="preview-chip">none</span>'}</div>
+    <div class="preview-status" style="margin-top:10px">Recovery order</div>
+    <div class="preview-list">${recoveryOrder || '<span class="preview-chip">none</span>'}</div>
+  `;
+}
+
+async function previewSkillDoctrine() {
+  const btn = document.getElementById('skillPreviewBtn');
+  const status = document.getElementById('skillPreviewStatus');
+  const output = document.getElementById('skillPreviewOutput');
+  const skillText = document.getElementById('skillPreviewText').value.trim();
+
+  if (!skillText) {
+    status.textContent = 'Paste a SKILL.md body first.';
+    output.innerHTML = '<div class="preview-error">Skill preview requires SKILL.md content.</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'PREVIEWING...';
+  status.textContent = 'Compiling doctrine preview...';
+
+  try {
+    const resp = await fetch('/api/entrants/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        manifest: {
+          schema_version: 'founder-arena.entrant.v1',
+          entrant_id: 'preview-skill',
+          display_name: 'Preview Skill',
+          entrant_type: 'skill_package',
+          skill: { entry_file: 'SKILL.md' },
+          runtime: {
+            timeout_seconds: 10,
+            max_actions_per_turn: 3,
+          },
+        },
+        inline_files: {
+          'SKILL.md': skillText,
+        },
+      }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Failed to preview doctrine');
+    output.innerHTML = renderDoctrinePreview(data.compiled_doctrine);
+    status.textContent = 'Preview ready. This is the bounded doctrine Founder Arena will use.';
+  } catch (e) {
+    output.innerHTML = `<div class="preview-error">${e.message}</div>`;
+    status.textContent = 'Preview failed.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'PREVIEW DOCTRINE';
+  }
+}
+
+// ──────────────────────────────────────────────────
+// RESIZE + POLL
+// ──────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  if (document.querySelector('[data-tab="chart"].active')) drawChart();
+});
+
+async function init() {
+  gameId = await findGame();
+  if (!gameId) {
+    // No game exists - show create view
+    switchView('create');
+  } else {
+    // Check if it's a lobby game
+    try {
+      const resp = await fetch(`/api/games/${gameId}`);
+      const data = await resp.json();
+      if (data.phase === 'lobby') {
+        soloGameId = gameId;
+        switchView('create');
+      }
+    } catch (e) {}
+  }
+  await fetchState();
+  setInterval(fetchState, 1500);
+}
+init();
+</script>
+</body>
+</html>

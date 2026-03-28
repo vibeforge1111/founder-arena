@@ -1,0 +1,250 @@
+{
+  "ai": {
+    "name": "AI Startup Chip",
+    "phases": {
+      "early": {
+        "turns": [1, 10],
+        "priorities": ["build_feature:core", "hire:engineer", "acquire_users:organic"],
+        "warnings": ["Avoid fundraise unless runway < 5mo", "Focus on product-market fit"]
+      },
+      "growth": {
+        "turns": [11, 25],
+        "priorities": ["acquire_users:paid_ads", "fundraise:seed", "build_feature:ux"],
+        "warnings": ["Watch burn rate vs runway", "Trust score below 0.55 = crisis"]
+      },
+      "scale": {
+        "turns": [26, 40],
+        "priorities": ["fundraise:series_a", "hire:marketer", "acquire_users:viral"],
+        "warnings": ["Monitor competitive pressure", "Keep product quality above 60"]
+      },
+      "endgame": {
+        "turns": [41, 52],
+        "priorities": ["launch_pr", "acquire_users:viral", "build_feature:quality"],
+        "warnings": ["Maximize valuation", "Brand is your multiplier"]
+      }
+    },
+    "crisis_responses": {
+      "low_trust": ["support_recovery", "build_feature:quality"],
+      "low_runway": ["fundraise", "cut_costs"],
+      "compliance_heat": ["compliance_response", "build_feature:security"],
+      "low_morale": ["hire:designer", "build_feature:ux"]
+    }
+  },
+  "fintech": {
+    "name": "Fintech Chip",
+    "phases": {
+      "early": {
+        "turns": [1, 10],
+        "priorities": ["build_feature:security", "build_feature:core", "compliance_response"],
+        "warnings": ["Regulatory pressure is high in fintech", "Build security first"]
+      },
+      "growth": {
+        "turns": [11, 25],
+        "priorities": ["acquire_users:partnerships", "fundraise:seed", "hire:engineer"],
+        "warnings": ["Enterprise sales cycles are long", "Trust is everything"]
+      },
+      "scale": {
+        "turns": [26, 40],
+        "priorities": ["fundraise:series_a", "acquire_users:paid_ads", "launch_pr"],
+        "warnings": ["Compliance backlog can kill you", "Keep support backlog low"]
+      },
+      "endgame": {
+        "turns": [41, 52],
+        "priorities": ["launch_pr", "acquire_users:partnerships", "build_feature:scale"],
+        "warnings": ["Enterprise contracts drive valuation"]
+      }
+    },
+    "crisis_responses": {
+      "low_trust": ["support_recovery", "compliance_response"],
+      "low_runway": ["fundraise", "cut_costs"],
+      "compliance_heat": ["compliance_response", "build_feature:security"],
+      "low_morale": ["hire:designer", "board_sync"]
+    }
+  },
+  "saas": {
+    "name": "SaaS Chip",
+    "phases": {
+      "early": {
+        "turns": [1, 10],
+        "priorities": ["build_feature:core", "acquire_users:organic", "hire:engineer"],
+        "warnings": ["Ship fast, iterate", "Organic growth is cheapest"]
+      },
+      "growth": {
+        "turns": [11, 25],
+        "priorities": ["acquire_users:paid_ads", "hire:marketer", "build_feature:ux"],
+        "warnings": ["Churn kills SaaS companies", "Focus on onboarding quality"]
+      },
+      "scale": {
+        "turns": [26, 40],
+        "priorities": ["fundraise:series_a", "acquire_users:viral", "launch_pr"],
+        "warnings": ["Net revenue retention is key", "Brand compounds over time"]
+      },
+      "endgame": {
+        "turns": [41, 52],
+        "priorities": ["launch_pr", "acquire_users:viral", "build_feature:quality"],
+        "warnings": ["Revenue multiple drives valuation"]
+      }
+    },
+    "crisis_responses": {
+      "low_trust": ["support_recovery", "build_feature:quality"],
+      "low_runway": ["fundraise", "cut_costs"],
+      "compliance_heat": ["compliance_response"],
+      "low_morale": ["hire:designer", "board_sync"]
+    }
+  },
+  "crypto": {
+    "name": "Crypto Chip",
+    "phases": {
+      "early": {
+        "turns": [1, 10],
+        "priorities": ["build_feature:core", "build_feature:security", "acquire_users:organic"],
+        "warnings": ["Security breaches are fatal in crypto", "Build community early"]
+      },
+      "growth": {
+        "turns": [11, 25],
+        "priorities": ["acquire_users:viral", "launch_pr", "fundraise:seed"],
+        "warnings": ["Viral growth is natural here", "Regulatory risk is constant"]
+      },
+      "scale": {
+        "turns": [26, 40],
+        "priorities": ["fundraise:series_a", "acquire_users:partnerships", "compliance_response"],
+        "warnings": ["Regulatory pressure will increase", "Diversify channels"]
+      },
+      "endgame": {
+        "turns": [41, 52],
+        "priorities": ["launch_pr", "acquire_users:viral", "build_feature:scale"],
+        "warnings": ["Brand and community are your moat"]
+      }
+    },
+    "crisis_responses": {
+      "low_trust": ["incident_response", "support_recovery"],
+      "low_runway": ["fundraise", "cut_costs"],
+      "compliance_heat": ["compliance_response", "build_feature:security"],
+      "low_morale": ["board_sync", "hire:engineer"]
+    }
+  },
+  "healthtech": {
+    "name": "HealthTech Chip",
+    "phases": {
+      "early": {
+        "turns": [1, 10],
+        "priorities": ["build_feature:core", "compliance_response", "build_feature:security"],
+        "warnings": ["Compliance is non-negotiable", "Move slower but more carefully"]
+      },
+      "growth": {
+        "turns": [11, 25],
+        "priorities": ["acquire_users:partnerships", "hire:engineer", "fundraise:seed"],
+        "warnings": ["Enterprise health buyers are slow", "Trust score is critical"]
+      },
+      "scale": {
+        "turns": [26, 40],
+        "priorities": ["fundraise:series_a", "acquire_users:partnerships", "launch_pr"],
+        "warnings": ["Regulatory pressure stays high", "Quality over speed"]
+      },
+      "endgame": {
+        "turns": [41, 52],
+        "priorities": ["launch_pr", "build_feature:quality", "acquire_users:partnerships"],
+        "warnings": ["Enterprise contracts are your valuation driver"]
+      }
+    },
+    "crisis_responses": {
+      "low_trust": ["support_recovery", "compliance_response"],
+      "low_runway": ["fundraise", "cut_costs"],
+      "compliance_heat": ["compliance_response", "build_feature:security"],
+      "low_morale": ["hire:designer", "board_sync"]
+    }
+  },
+  "gaming": {
+    "name": "Gaming Chip",
+    "phases": {
+      "early": {
+        "turns": [1, 10],
+        "priorities": ["build_feature:core", "build_feature:ux", "acquire_users:organic"],
+        "warnings": ["Polish matters in gaming", "Fun factor drives retention"]
+      },
+      "growth": {
+        "turns": [11, 25],
+        "priorities": ["acquire_users:viral", "launch_pr", "hire:designer"],
+        "warnings": ["Viral loops are powerful", "Community management is key"]
+      },
+      "scale": {
+        "turns": [26, 40],
+        "priorities": ["acquire_users:paid_ads", "fundraise:series_a", "build_feature:scale"],
+        "warnings": ["Server costs scale with users", "Keep engagement metrics high"]
+      },
+      "endgame": {
+        "turns": [41, 52],
+        "priorities": ["launch_pr", "acquire_users:viral", "build_feature:growth"],
+        "warnings": ["DAU and retention drive valuation"]
+      }
+    },
+    "crisis_responses": {
+      "low_trust": ["support_recovery", "build_feature:quality"],
+      "low_runway": ["fundraise", "cut_costs"],
+      "compliance_heat": ["compliance_response"],
+      "low_morale": ["hire:designer", "build_feature:ux"]
+    }
+  },
+  "edtech": {
+    "name": "EdTech Chip",
+    "phases": {
+      "early": {
+        "turns": [1, 10],
+        "priorities": ["build_feature:core", "build_feature:ux", "acquire_users:organic"],
+        "warnings": ["Content quality drives adoption", "Teacher satisfaction is key"]
+      },
+      "growth": {
+        "turns": [11, 25],
+        "priorities": ["acquire_users:partnerships", "hire:marketer", "build_feature:ux"],
+        "warnings": ["School districts buy slowly", "Seasonal cycles matter"]
+      },
+      "scale": {
+        "turns": [26, 40],
+        "priorities": ["fundraise:series_a", "acquire_users:paid_ads", "launch_pr"],
+        "warnings": ["B2B edtech needs case studies", "Retention proves value"]
+      },
+      "endgame": {
+        "turns": [41, 52],
+        "priorities": ["launch_pr", "acquire_users:partnerships", "build_feature:quality"],
+        "warnings": ["Impact metrics matter for valuation"]
+      }
+    },
+    "crisis_responses": {
+      "low_trust": ["support_recovery", "build_feature:quality"],
+      "low_runway": ["fundraise", "cut_costs"],
+      "compliance_heat": ["compliance_response"],
+      "low_morale": ["hire:designer", "board_sync"]
+    }
+  },
+  "greentech": {
+    "name": "GreenTech Chip",
+    "phases": {
+      "early": {
+        "turns": [1, 10],
+        "priorities": ["build_feature:core", "research", "hire:engineer"],
+        "warnings": ["Deep tech needs patience", "IP matters in greentech"]
+      },
+      "growth": {
+        "turns": [11, 25],
+        "priorities": ["fundraise:seed", "acquire_users:partnerships", "build_feature:quality"],
+        "warnings": ["Enterprise buyers need proof", "Pilot programs before contracts"]
+      },
+      "scale": {
+        "turns": [26, 40],
+        "priorities": ["fundraise:series_a", "acquire_users:partnerships", "launch_pr"],
+        "warnings": ["Government contracts are slow", "Regulatory environment is favorable"]
+      },
+      "endgame": {
+        "turns": [41, 52],
+        "priorities": ["launch_pr", "acquire_users:partnerships", "build_feature:scale"],
+        "warnings": ["Impact metrics drive greentech valuation"]
+      }
+    },
+    "crisis_responses": {
+      "low_trust": ["support_recovery", "build_feature:quality"],
+      "low_runway": ["fundraise", "cut_costs"],
+      "compliance_heat": ["compliance_response"],
+      "low_morale": ["hire:engineer", "board_sync"]
+    }
+  }
+}
