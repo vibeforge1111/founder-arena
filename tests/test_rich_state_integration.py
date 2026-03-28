@@ -759,6 +759,79 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertEqual(command[:2], ["python", "agent.py"])
         self.assertEqual(server.ENTRANTS["gh-test"]["last_launch"]["pid"], 4242)
         self.assertTrue(server.ENTRANTS["gh-test"]["last_launch"]["cwd"].endswith("arena"))
+        self.assertTrue(Path(server.ENTRANTS["gh-test"]["last_launch"]["stdout_path"]).exists())
+        self.assertTrue(Path(server.ENTRANTS["gh-test"]["last_launch"]["stderr_path"]).exists())
+        self.assertTrue(Path(server.ENTRANTS["gh-test"]["last_launch"]["launch_meta_path"]).exists())
+
+    def test_validate_registered_skill_entrant_reports_ready_and_log_warning(self) -> None:
+        register = self.client.post(
+            "/api/entrants",
+            json={
+                "manifest": {
+                    "schema_version": "founder-arena.entrant.v1",
+                    "entrant_id": "skill-validate",
+                    "display_name": "Skill Validate",
+                    "entrant_type": "skill_package",
+                    "queue_targets": ["skill_ranked"],
+                    "skill": {"entry_file": "SKILL.md"},
+                    "runtime": {"timeout_seconds": 10, "max_actions_per_turn": 3},
+                },
+                "inline_files": {
+                    "SKILL.md": "# Skill Validate\nprimary_style: lean\nrisk_posture: low\n"
+                },
+            },
+        )
+        self.assertEqual(register.status_code, 200)
+        entrant = server.ENTRANTS["skill-validate"]
+        run_dir = server.ENTRANT_RUN_ROOT / "skill-validate" / "game-123" / "run-1"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        stdout_path = run_dir / "stdout.log"
+        stderr_path = run_dir / "stderr.log"
+        stdout_path.write_text("joined ok\n", encoding="utf-8")
+        stderr_path.write_text("timeout warning\nretrying\n", encoding="utf-8")
+        entrant["last_launch"] = {
+            "game_id": "game-123",
+            "stdout_path": str(stdout_path),
+            "stderr_path": str(stderr_path),
+            "cwd": entrant["workspace"],
+            "command": ["python", "skill_runner.py"],
+            "launched_at": server._utc_now_iso(),
+        }
+        server.ENTRANTS["skill-validate"] = entrant
+
+        response = self.client.get("/api/entrants/skill-validate/validate")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ready"])
+        self.assertIn("Last launch produced stderr output", " ".join(payload["warnings"]))
+        self.assertIn("timeout warning", payload["last_launch"]["stderr_tail"])
+        self.assertEqual(payload["entry_command"], ["python", "skill_runner.py"])
+
+    def test_validate_registered_entrant_reports_missing_workspace(self) -> None:
+        server.ENTRANTS["missing-validate"] = {
+            "entrant_id": "missing-validate",
+            "display_name": "Missing Validate",
+            "entrant_type": "skill_package",
+            "manifest": {
+                "schema_version": "founder-arena.entrant.v1",
+                "entrant_id": "missing-validate",
+                "display_name": "Missing Validate",
+                "entrant_type": "skill_package",
+                "queue_targets": ["skill_ranked"],
+                "skill": {"entry_file": "SKILL.md"},
+                "runtime": {"entry_command": ["python", "skill_runner.py"], "timeout_seconds": 10, "max_actions_per_turn": 3},
+            },
+            "version_hash": "missing123",
+            "workspace": str(server.ENTRANT_ROOT / "missing-validate" / "missing123"),
+            "registered_at": server._utc_now_iso(),
+            "compiled_doctrine": None,
+        }
+
+        response = self.client.get("/api/entrants/missing-validate/validate")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload["ready"])
+        self.assertTrue(any("Workspace is missing or invalid" in item for item in payload["errors"]))
 
     def test_add_registered_entrant_returns_400_for_missing_workspace(self) -> None:
         missing_workspace = server.ENTRANT_ROOT / "missing-skill" / "deadbeef"

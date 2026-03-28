@@ -160,6 +160,7 @@ def my_strategy(state):
 | `POST /api/entrants/preview` | POST | Preview compiled doctrine for a `SKILL.md` entrant before registration |
 | `POST /api/entrants` | POST | Register a GitHub repo or `SKILL.md` entrant |
 | `GET /api/entrants` | GET | List registered entrants |
+| `GET /api/entrants/{id}/validate` | GET | Validate a registered entrant workspace, runtime, and recent retained logs |
 | `GET /api/entrants/{id}` | GET | Get entrant details, manifest, and compiled doctrine |
 | `POST /api/games` | POST | Create a simulator-backed game arena |
 | `GET /api/games` | GET | List all games |
@@ -256,6 +257,8 @@ Example response shape:
 ```
 
 Skill entrants now return `compiled_doctrine` on registration, `GET /api/entrants/{id}`, and `GET /api/entrants`. This keeps `SKILL.md` as a bounded strategy input rather than letting raw markdown silently alter ranked behavior.
+
+Use `GET /api/entrants/{id}/validate` before queueing to confirm that the workspace still exists, the runtime command is available, and the most recent retained stdout/stderr logs do not show obvious launch trouble.
 
 ### Join Game
 

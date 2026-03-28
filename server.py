@@ -1979,6 +1979,7 @@ RATE_LIMITER = RateLimiter()
 AUDIT_LOGGER = AuditLogger(Path(__file__).parent / "data" / "security_audit.jsonl")
 ENTRANT_ROOT = Path(__file__).parent / "data" / "entrants"
 ENTRANT_REGISTRY_PATH = ENTRANT_ROOT / "registry.json"
+ENTRANT_RUN_ROOT = Path(__file__).parent / "data" / "entrant_runs"
 
 
 def _load_entrant_registry() -> dict[str, dict]:
@@ -2048,6 +2049,125 @@ def _validate_entrant_manifest(manifest: dict) -> dict:
 
 def _entrant_workspace(entrant_id: str, version_hash: str) -> Path:
     return ENTRANT_ROOT / entrant_id / version_hash
+
+
+def _entrant_run_dir(entrant_id: str, game_id: str) -> Path:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    suffix = uuid.uuid4().hex[:6]
+    return ENTRANT_RUN_ROOT / entrant_id / game_id / f"{stamp}-{suffix}"
+
+
+def _tail_text_file(path_value: str | None, *, max_lines: int = 12, max_chars: int = 1200) -> str | None:
+    if not path_value:
+        return None
+    candidate = Path(path_value)
+    if not candidate.exists() or not candidate.is_file():
+        return None
+    text = candidate.read_text(encoding="utf-8", errors="replace").strip()
+    if not text:
+        return None
+    lines = text.splitlines()[-max_lines:]
+    joined = "\n".join(lines)
+    if len(joined) > max_chars:
+        joined = joined[-max_chars:]
+    return joined
+
+
+def _with_launch_diagnostics(entrant: dict) -> dict:
+    enriched = dict(entrant)
+    last_launch = dict(enriched.get("last_launch") or {})
+    if last_launch:
+        stdout_tail = _tail_text_file(last_launch.get("stdout_path"))
+        stderr_tail = _tail_text_file(last_launch.get("stderr_path"))
+        if stdout_tail is not None:
+            last_launch["stdout_tail"] = stdout_tail
+        if stderr_tail is not None:
+            last_launch["stderr_tail"] = stderr_tail
+        enriched["last_launch"] = last_launch
+    return enriched
+
+
+def _command_available(command: list[str], *, cwd: Path) -> bool:
+    if not command:
+        return False
+    executable = command[0]
+    candidate = Path(executable)
+    if candidate.is_absolute():
+        return candidate.exists()
+    if candidate.parent != Path("."):
+        return (cwd / candidate).exists()
+    return shutil.which(executable) is not None
+
+
+def _validate_registered_entrant(entrant: dict) -> dict:
+    errors: list[str] = []
+    warnings: list[str] = []
+    manifest = entrant.get("manifest") or {}
+    runtime = manifest.get("runtime") or {}
+    workspace = Path(str(entrant.get("workspace") or ""))
+    entry_command = list(runtime.get("entry_command") or [])
+    queue_targets = list(manifest.get("queue_targets") or [])
+
+    if not workspace.exists() or not workspace.is_dir():
+        errors.append(f"Workspace is missing or invalid: {workspace}")
+    if not entry_command:
+        errors.append("runtime.entry_command is empty")
+
+    launch_cwd = workspace
+    entrant_type = entrant.get("entrant_type")
+    if entrant_type == "skill_package":
+        skill_entry = ((manifest.get("skill") or {}).get("entry_file") or "").strip()
+        if not skill_entry:
+            errors.append("skill.entry_file is missing")
+        else:
+            skill_path = workspace / _safe_relative_path(skill_entry)
+            if not skill_path.exists():
+                errors.append(f"Declared skill entry file is missing: {skill_entry}")
+        if workspace.exists():
+            if not (workspace / "skill_runner.py").exists():
+                errors.append("skill_runner.py is missing from the entrant workspace")
+            if not (workspace / "example_agent.py").exists():
+                warnings.append("example_agent.py is missing from the entrant workspace and will be synced at launch")
+        launch_command = ["python", "skill_runner.py"]
+    else:
+        repo_subdir = ((manifest.get("repo") or {}).get("subdir") or "").strip()
+        if repo_subdir:
+            launch_cwd = workspace / _safe_relative_path(repo_subdir)
+            if workspace.exists() and not launch_cwd.exists():
+                errors.append(f"Declared repo.subdir does not exist: {repo_subdir}")
+        launch_command = entry_command
+
+    if launch_command and workspace.exists() and not _command_available(launch_command, cwd=launch_cwd):
+        errors.append(f"Runtime command is not available from workspace: {' '.join(launch_command)}")
+
+    if not queue_targets:
+        warnings.append("No queue_targets declared; this entrant will default to showmatch-only discovery.")
+
+    last_launch = dict((entrant.get("last_launch") or {}))
+    if last_launch:
+        stderr_tail = _tail_text_file(last_launch.get("stderr_path"))
+        if stderr_tail:
+            warnings.append("Last launch produced stderr output. Review retained logs before ranked use.")
+            last_launch["stderr_tail"] = stderr_tail
+        stdout_tail = _tail_text_file(last_launch.get("stdout_path"))
+        if stdout_tail:
+            last_launch["stdout_tail"] = stdout_tail
+
+    return {
+        "entrant_id": entrant.get("entrant_id"),
+        "entrant_type": entrant_type,
+        "ready": not errors,
+        "errors": errors,
+        "warnings": warnings,
+        "workspace": str(workspace),
+        "launch_cwd": str(launch_cwd),
+        "entry_command": launch_command,
+        "timeout_seconds": runtime.get("timeout_seconds"),
+        "max_actions_per_turn": runtime.get("max_actions_per_turn"),
+        "queue_targets": queue_targets,
+        "compiled_doctrine": entrant.get("compiled_doctrine"),
+        "last_launch": last_launch or None,
+    }
 
 
 def _register_skill_workspace(manifest: dict, inline_files: dict[str, str], workspace: Path) -> None:
@@ -2219,13 +2339,24 @@ def _launch_registered_entrant(game: Game, entrant: dict, add_req: AddEntrantReq
         if entrant.get("version_hash"):
             command.extend(["--entrant-version-hash", entrant["version_hash"]])
         command.extend(["--entrant-type", entrant["entrant_type"]])
-    process = subprocess.Popen(
-        command,
-        cwd=str(launch_cwd),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        env={**os.environ, "FOUNDER_ARENA_GAME_MODE": game.game_mode, "FOUNDER_ARENA_QUEUE": game.queue},
-    )
+    run_dir = _entrant_run_dir(entrant["entrant_id"], game.id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    stdout_path = run_dir / "stdout.log"
+    stderr_path = run_dir / "stderr.log"
+    launch_meta_path = run_dir / "launch.json"
+    stdout_handle = stdout_path.open("a", encoding="utf-8")
+    stderr_handle = stderr_path.open("a", encoding="utf-8")
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=str(launch_cwd),
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+            env={**os.environ, "FOUNDER_ARENA_GAME_MODE": game.game_mode, "FOUNDER_ARENA_QUEUE": game.queue},
+        )
+    finally:
+        stdout_handle.close()
+        stderr_handle.close()
     entrant["last_launch"] = {
         "game_id": game.id,
         "startup_name": add_req.startup_name,
@@ -2234,7 +2365,12 @@ def _launch_registered_entrant(game: Game, entrant: dict, add_req: AddEntrantReq
         "cwd": str(launch_cwd),
         "command": command,
         "launched_at": _utc_now_iso(),
+        "run_dir": str(run_dir),
+        "stdout_path": str(stdout_path),
+        "stderr_path": str(stderr_path),
+        "launch_meta_path": str(launch_meta_path),
     }
+    launch_meta_path.write_text(json.dumps(entrant["last_launch"], indent=2), encoding="utf-8")
     ENTRANTS[entrant["entrant_id"]] = entrant
     _save_entrant_registry(ENTRANTS)
     return command
@@ -2345,6 +2481,14 @@ async def preview_entrant(req: EntrantRegisterRequest, request: Request):
     }
 
 
+@app.get("/api/entrants/{entrant_id}/validate")
+async def validate_entrant(entrant_id: str):
+    entrant = ENTRANTS.get(entrant_id)
+    if not entrant:
+        raise HTTPException(404, "Entrant not found")
+    return _validate_registered_entrant(entrant)
+
+
 @app.get("/api/entrants")
 async def list_entrants():
     return {
@@ -2357,7 +2501,7 @@ async def list_entrants():
                 "registered_at": entrant["registered_at"],
                 "queue_targets": list((entrant.get("manifest") or {}).get("queue_targets") or []),
                 "compiled_doctrine": entrant.get("compiled_doctrine"),
-                "last_launch": entrant.get("last_launch"),
+                "last_launch": _with_launch_diagnostics(entrant).get("last_launch"),
             }
             for entrant in ENTRANTS.values()
         ]
@@ -2375,7 +2519,7 @@ async def get_entrant(entrant_id: str):
             entrant.get("manifest") or {},
             workspace=workspace,
         )
-    return entrant
+    return _with_launch_diagnostics(entrant)
 
 
 # ─── Game CRUD ───────────────────────────────────────────────────────────────

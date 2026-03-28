@@ -642,6 +642,32 @@
     color: var(--text-muted);
     line-height: 1.4;
   }
+  .validation-panel {
+    margin-top: 14px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.025);
+  }
+  .validation-line {
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-top: 6px;
+  }
+  .validation-line.error { color: #fca5a5; }
+  .validation-line.warn { color: #fde68a; }
+  .validation-pre {
+    margin-top: 8px;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.22);
+    color: var(--text-soft);
+    font-size: 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid var(--border);
+  }
 
   /* ─── SCROLLBAR ─── */
   ::-webkit-scrollbar { width: 4px; }
@@ -951,6 +977,13 @@ Protect trust, preserve runway, and keep the board aligned before scaling too ag
         </div>
       </div>
     </div>
+    <div class="launch-section">
+      <div class="conn-section-title">ENTRANT VALIDATION</div>
+      <div class="launch-meta">Founder Arena checks workspace health, runtime availability, and recent retained logs before queueing this entrant.</div>
+      <div class="validation-panel" id="launchValidationPanel">
+        <div class="preview-empty">Validation not loaded yet.</div>
+      </div>
+    </div>
     <div class="launch-status" id="launchStatus"></div>
     <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end">
       <button class="btn" onclick="closeLaunchModal()">CANCEL</button>
@@ -983,6 +1016,7 @@ let leaderboardDataCache = null;
 let entrantRegistryCache = [];
 let entrantQueueBusy = {};
 let launchEntrantState = null;
+let launchValidationState = null;
 const LAUNCH_PRESET_STORAGE_KEY = 'founder-arena.launch-presets.v1';
 const FOUNDER_DUEL_DEFAULTS = {
   name: 'Founder Duel',
@@ -1809,6 +1843,60 @@ function updateLaunchLobbyHint() {
   }
 }
 
+function renderLaunchValidation(validation) {
+  const panel = document.getElementById('launchValidationPanel');
+  if (!panel) return;
+  if (!validation) {
+    panel.innerHTML = '<div class="preview-empty">Validation not loaded yet.</div>';
+    return;
+  }
+  const readyLabel = validation.ready ? 'READY' : 'NOT READY';
+  const errors = validation.errors || [];
+  const warnings = validation.warnings || [];
+  const lastLaunch = validation.last_launch || {};
+  panel.innerHTML = `
+    <div class="detail-tags">
+      <div class="detail-tag">${readyLabel}</div>
+      ${validation.entry_command?.length ? `<div class="detail-tag">${validation.entry_command.join(' ')}</div>` : ''}
+      ${validation.timeout_seconds ? `<div class="detail-tag">${validation.timeout_seconds}s timeout</div>` : ''}
+    </div>
+    <div class="validation-line">Workspace: ${validation.workspace || '-'}</div>
+    <div class="validation-line">Launch cwd: ${validation.launch_cwd || '-'}</div>
+    ${errors.map(item => `<div class="validation-line error">Error: ${item}</div>`).join('')}
+    ${warnings.map(item => `<div class="validation-line warn">Warning: ${item}</div>`).join('')}
+    ${lastLaunch.stderr_tail ? `<div class="validation-line warn">Last stderr tail</div><div class="validation-pre">${lastLaunch.stderr_tail}</div>` : ''}
+    ${lastLaunch.stdout_tail ? `<div class="validation-line">Last stdout tail</div><div class="validation-pre">${lastLaunch.stdout_tail}</div>` : ''}
+    ${!errors.length && !warnings.length ? '<div class="validation-line">No validation issues detected.</div>' : ''}
+  `;
+}
+
+async function fetchEntrantValidation(entrantId) {
+  const panel = document.getElementById('launchValidationPanel');
+  if (panel) {
+    panel.innerHTML = '<div class="preview-empty">Loading validation...</div>';
+  }
+  try {
+    const resp = await fetch(`/api/entrants/${entrantId}/validate`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Failed to validate entrant');
+    launchValidationState = data;
+    renderLaunchValidation(data);
+    return data;
+  } catch (e) {
+    launchValidationState = {
+      ready: false,
+      errors: [e.message],
+      warnings: [],
+      workspace: '-',
+      launch_cwd: '-',
+      entry_command: [],
+      last_launch: null,
+    };
+    renderLaunchValidation(launchValidationState);
+    return launchValidationState;
+  }
+}
+
 function applyLobbyState(data, playerCountHint = null) {
   soloGameId = data.game_id;
   adminToken = data.admin_token;
@@ -1846,13 +1934,14 @@ function rerenderLeaderboardIfVisible() {
   }
 }
 
-function openLaunchModal(entrantId) {
+async function openLaunchModal(entrantId) {
   const entrant = (entrantRegistryCache || []).find(item => item.entrant_id === entrantId);
   if (!entrant) {
     alert('Entrant not found in registry.');
     return;
   }
   launchEntrantState = entrant;
+  launchValidationState = null;
   const defaults = defaultEntrantConfig(entrant);
   const preset = launchPresetFor(entrant.entrant_id);
   const queueOptions = queueOptionsForEntrant(entrant);
@@ -1884,11 +1973,14 @@ function openLaunchModal(entrantId) {
   document.getElementById('launchSubmitBtn').disabled = false;
   updateLaunchPresetNote();
   updateLaunchLobbyHint();
+  renderLaunchValidation(null);
   document.getElementById('launchModalBackdrop').classList.add('open');
+  await fetchEntrantValidation(entrant.entrant_id);
 }
 
 function closeLaunchModal() {
   launchEntrantState = null;
+  launchValidationState = null;
   document.getElementById('launchModalBackdrop').classList.remove('open');
 }
 
@@ -1909,6 +2001,10 @@ async function submitEntrantLaunch() {
 
   try {
     const formValues = collectLaunchFormValues();
+    const validation = await fetchEntrantValidation(entrant.entrant_id);
+    if (!validation.ready) {
+      throw new Error('Entrant validation failed. Fix the errors shown below before queueing.');
+    }
     if (!(lobby.active && lobby.queue === queue && (!lobby.max || lobby.count < lobby.max))) {
       statusEl.textContent = 'Creating a matching lobby...';
       const createResp = await fetch('/api/games', {
@@ -1954,6 +2050,7 @@ async function submitEntrantLaunch() {
 
     await pollLobby();
     await fetchLeaderboard();
+    await fetchEntrantValidation(entrant.entrant_id);
     saveLaunchPresetFromModal(false);
     statusEl.className = 'launch-status success';
     statusEl.textContent = 'Entrant queued. Launch preset saved. Switching to lobby...';
