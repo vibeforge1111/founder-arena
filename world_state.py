@@ -262,6 +262,7 @@ class RichStartupState:
         self.actions_submitted = False
         self.pending_actions: list[dict] = []
         self.turn_results: list[dict] = []
+        self.diagnostics: list[dict] = []
         self.spy_intel: list[dict] = []
         self.history: list[dict] = []
         self.team: list[TeamMember] = []
@@ -522,6 +523,7 @@ class RichStartupState:
             "entrant_version_hash": self.entrant_version_hash,
             "compiled_doctrine": deepcopy(self.compiled_doctrine),
             "death_reason": self.death_reason,
+            "diagnostics": deepcopy(self.diagnostics[-5:]),
             "cash": self.cash,
             "monthly_burn": self.monthly_burn,
             "revenue": self.revenue,

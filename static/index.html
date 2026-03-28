@@ -451,6 +451,13 @@
   .entrant-actions { margin-top: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .entrant-hint { font-size: 10px; color: var(--text-muted); line-height: 1.4; }
   .lb-subnote { font-size: 10px; color: var(--text-muted); margin: -4px 0 12px; }
+  .diag-chip { font-size: 9px; font-weight: 600; letter-spacing: 0.4px; padding: 3px 7px; border-radius: 999px; border: 1px solid var(--border); }
+  .diag-chip.error { color: #fecaca; border-color: rgba(248,113,113,0.45); background: rgba(127,29,29,0.24); }
+  .diag-chip.warn { color: #fde68a; border-color: rgba(245,158,11,0.45); background: rgba(120,53,15,0.22); }
+  .diag-chip.ok { color: #bbf7d0; border-color: rgba(34,197,94,0.4); background: rgba(20,83,45,0.22); }
+  .diag-chip.info { color: var(--text-dim); }
+  .diag-list { margin-top: 10px; display: grid; gap: 6px; }
+  .diag-item { font-size: 10px; color: var(--text-dim); line-height: 1.45; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,0.03); }
 
   .win-rate-bar { width: 50px; height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 5px; }
   .win-rate-fill { height: 100%; background: var(--green); border-radius: 2px; opacity: 0.8; }
@@ -1447,6 +1454,7 @@ function renderAgentDetail(sid) {
   const recentActions = actions.slice(-15).reverse();
   const dims = s.seven_dimension_scores?.dimensions || {};
   const doctrine = s.compiled_doctrine?.doctrine || null;
+  const diagnostics = s.diagnostics || [];
 
   let html = `<div class="agent-detail">
     <div class="detail-header">
@@ -1533,6 +1541,13 @@ function renderAgentDetail(sid) {
     </div>`;
   }
 
+  if (diagnostics.length > 0) {
+    html += `<div class="detail-section">
+      <div class="detail-section-title">DIAGNOSTICS</div>
+      ${renderDiagnosticsList(diagnostics)}
+    </div>`;
+  }
+
   if (Object.keys(dims).length > 0) {
     html += `<div class="detail-section">
       <div class="detail-section-title">7-DIM SCORE: ${(s.seven_dimension_scores?.total_score || 0).toFixed(1)}</div>
@@ -1561,6 +1576,27 @@ function renderAgentDetail(sid) {
 function makeProgressBar(label, value, colorVar) {
   const pct = Math.min(100, Math.max(0, value));
   return `<div class="progress-row"><div class="progress-label">${label}</div><div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:var(${colorVar})"></div></div><div class="progress-val">${Math.round(value)}</div></div>`;
+}
+
+function renderDiagnosticChip(diagnostic) {
+  if (!diagnostic) return '';
+  const level = diagnostic.level || diagnostic.severity || 'info';
+  const label = diagnostic.label || diagnostic.kind || 'diagnostic';
+  return `<span class="diag-chip ${level}">${label}</span>`;
+}
+
+function renderDiagnosticsList(diagnostics) {
+  if (!diagnostics || !diagnostics.length) {
+    return '<div class="hint">No diagnostics recorded.</div>';
+  }
+  return `<div class="diag-list">${diagnostics.map(item => `
+    <div class="diag-item">
+      <div class="detail-tags" style="margin-bottom:6px">
+        ${renderDiagnosticChip(item)}
+        ${item.turn ? `<div class="detail-tag">week ${item.turn}</div>` : ''}
+      </div>
+      <div>${item.message || ''}</div>
+    </div>`).join('')}</div>`;
 }
 
 function renderTurningPoint(point) {
@@ -1646,6 +1682,7 @@ function renderPostGame() {
     const actions = logs[sid] || [];
     const decision = latestDecisionFor(sid);
     const doctrine = s.compiled_doctrine?.doctrine || null;
+    const diagnostics = s.diagnostics || [];
 
     html += `<tr class="${isWinner ? 'winner-row' : ''}">
       <td class="rank-cell" style="color:${rank===1?'var(--gold)':rank===2?'var(--silver)':rank===3?'var(--bronze)':'var(--text-dim)'}">${rank}</td>
@@ -1678,6 +1715,8 @@ function renderPostGame() {
         <div class="detail-tag">${doctrine.decision_style || 'concise'}</div>
         ${(doctrine.preferred_foci || []).map(item => `<div class="detail-tag">${item}</div>`).join('')}
       </div>` : ''}
+      ${diagnostics.length ? `<div class="expand-actions-title">MATCH DIAGNOSTICS</div>
+      ${renderDiagnosticsList(diagnostics)}` : ''}
       ${decision ? `<div class="expand-actions-title">LAST PLAN</div>
       <div class="recent-action"><div class="recent-turn">${decision.confidence || 'mid'}</div><div class="recent-type">${decision.intent || 'No intent'}</div><div class="recent-msg">${decision.reasoning_summary || decision.expected_outcome || ''}</div><div class="recent-ok">${decision.watch_metric || '-'}</div></div>` : ''}
       ${actions.length ? `<div class="expand-actions-title">ACTION HISTORY (${actions.length} actions)</div>
@@ -2073,6 +2112,7 @@ function renderEntrantCard(entrant) {
   const preset = launchPresetFor(entrant.entrant_id);
   const queueTargets = entrant.queue_targets || [];
   const lastLaunch = entrant.last_launch || null;
+  const launchDiagnosis = lastLaunch?.diagnosis || null;
   const lobby = currentLobbyMeta();
   const existingStartup = Object.values(lobby.startups).find(item => item.entrant_id === entrant.entrant_id);
   let actionLabel = 'CREATE LOBBY';
@@ -2126,6 +2166,11 @@ function renderEntrantCard(entrant) {
       <div><span class="entrant-label">Registered</span> ${new Date(entrant.registered_at).toLocaleString()}</div>
       ${lastLaunch?.game_id ? `<div><span class="entrant-label">Last launch</span> ${lastLaunch.game_id.slice(0, 8)} in ${lastLaunch.queue || 'unknown'}</div>` : ''}
     </div>
+    ${launchDiagnosis ? `<div class="detail-tags" style="margin-top:10px">
+      ${renderDiagnosticChip(launchDiagnosis)}
+    </div>
+    <div class="entrant-hint" style="margin-top:8px">${launchDiagnosis.message || ''}</div>
+    ${lastLaunch?.stderr_tail ? `<div class="validation-pre" style="margin-top:8px">${lastLaunch.stderr_tail}</div>` : ''}` : ''}
     ${doctrine ? `<div class="entrant-doctrine">
       <div class="detail-tags">
         <div class="detail-tag">style ${doctrine.primary_style || 'balanced'}</div>

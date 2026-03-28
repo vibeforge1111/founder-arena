@@ -178,6 +178,7 @@ class Startup:
         self.actions_submitted = False
         self.pending_actions: list[dict] = []
         self.turn_results: list[dict] = []
+        self.diagnostics: list[dict] = []
         self.spy_intel: list[dict] = []
         # History for charts
         self.history: list[dict] = []
@@ -216,6 +217,7 @@ class Startup:
             "entrant_version_hash": self.entrant_version_hash,
             "compiled_doctrine": self.compiled_doctrine,
             "death_reason": self.death_reason,
+            "diagnostics": list(self.diagnostics[-5:]),
             "cash": self.cash, "monthly_burn": self.monthly_burn,
             "revenue": self.revenue, "runway": self.runway,
             "users": self.users, "product_quality": self.product_quality,
@@ -1014,6 +1016,32 @@ class Game:
     def has_agent_token(self, token: Optional[str]) -> bool:
         return bool(token and token in self.token_map)
 
+    def _record_startup_diagnostic(self, startup, *, kind: str, message: str, severity: str = "warn") -> None:
+        entry = {
+            "turn": self.turn,
+            "kind": kind,
+            "severity": severity,
+            "message": message,
+            "recorded_at": _utc_now_iso(),
+        }
+        existing = list(getattr(startup, "diagnostics", []))
+        if existing:
+            last = existing[-1]
+            if last.get("turn") == entry["turn"] and last.get("kind") == kind and last.get("message") == message:
+                return
+        existing.append(entry)
+        startup.diagnostics = existing[-10:]
+
+    def _submission_diagnostic(self, message: str) -> tuple[str, str]:
+        lowered = message.lower()
+        if "not available in ranked competitive mode" in lowered or "cannot be used more than once" in lowered or "cooldown" in lowered:
+            return ("illegal_action", "error")
+        if "decision_packet" in lowered:
+            return ("invalid_packet", "error")
+        if "max " in lowered and "actions per turn" in lowered:
+            return ("invalid_submission", "error")
+        return ("submission_error", "warn")
+
     def submit_actions(self, token: str, actions: list[dict], decision_packet: Optional[dict] = None) -> dict:
         if self.phase != GamePhase.PLAYING:
             raise ValueError("Game not in playing phase")
@@ -1024,15 +1052,25 @@ class Game:
             raise ValueError("Your startup is dead")
         if startup.actions_submitted:
             raise ValueError("Actions already submitted this turn")
-        decision = self._coerce_decision_packet(startup, actions, decision_packet) if self.game_mode == "competitive_mode" else None
-        effective_actions = actions[:MAX_ACTIONS_PER_TURN]
-        if decision is not None:
-            effective_actions = list(decision.get("actions", effective_actions))[:MAX_ACTIONS_PER_TURN]
+        try:
+            decision = self._coerce_decision_packet(startup, actions, decision_packet) if self.game_mode == "competitive_mode" else None
+            effective_actions = actions[:MAX_ACTIONS_PER_TURN]
+            if decision is not None:
+                effective_actions = list(decision.get("actions", effective_actions))[:MAX_ACTIONS_PER_TURN]
 
-        if len(effective_actions) > MAX_ACTIONS_PER_TURN:
-            raise ValueError(f"Max {MAX_ACTIONS_PER_TURN} actions per turn")
-        if self.game_mode == "competitive_mode":
-            self._validate_ranked_actions(startup, effective_actions)
+            if len(effective_actions) > MAX_ACTIONS_PER_TURN:
+                raise ValueError(f"Max {MAX_ACTIONS_PER_TURN} actions per turn")
+            if self.game_mode == "competitive_mode":
+                self._validate_ranked_actions(startup, effective_actions)
+        except ValueError as exc:
+            kind, severity = self._submission_diagnostic(str(exc))
+            self._record_startup_diagnostic(
+                startup,
+                kind=kind,
+                severity=severity,
+                message=str(exc),
+            )
+            raise
 
         startup.pending_actions = effective_actions
         startup.actions_submitted = True
@@ -1074,6 +1112,13 @@ class Game:
         if self.phase != GamePhase.PLAYING:
             return
         if time.time() > self.turn_deadline:
+            for startup in [s for s in self.startups.values() if s.alive and not s.actions_submitted]:
+                self._record_startup_diagnostic(
+                    startup,
+                    kind="timeout",
+                    severity="warn",
+                    message=f"Week {self.turn} auto-resolved after the turn timer expired before actions were submitted.",
+                )
             self._resolve_turn()
 
     def _resolve_turn(self):
@@ -2083,8 +2128,49 @@ def _with_launch_diagnostics(entrant: dict) -> dict:
             last_launch["stdout_tail"] = stdout_tail
         if stderr_tail is not None:
             last_launch["stderr_tail"] = stderr_tail
+        last_launch["diagnosis"] = _diagnose_launch_log(last_launch)
         enriched["last_launch"] = last_launch
     return enriched
+
+
+def _diagnose_launch_log(last_launch: dict) -> dict:
+    stderr_tail = (last_launch.get("stderr_tail") or "").lower()
+    stdout_tail = (last_launch.get("stdout_tail") or "").lower()
+    if "traceback" in stderr_tail or "exception" in stderr_tail or "module not found" in stderr_tail:
+        return {
+            "level": "error",
+            "label": "runtime crash",
+            "message": "Last launch emitted a Python exception or traceback.",
+        }
+    if "timeout" in stderr_tail or "timed out" in stderr_tail:
+        return {
+            "level": "warn",
+            "label": "runner timeout",
+            "message": "Last launch logs mention a timeout or stalled runner.",
+        }
+    if "invalid agent token" in stderr_tail or "403" in stderr_tail:
+        return {
+            "level": "warn",
+            "label": "join failure",
+            "message": "Last launch appears to have failed during join or authentication.",
+        }
+    if stderr_tail.strip():
+        return {
+            "level": "warn",
+            "label": "stderr output",
+            "message": "Last launch produced stderr output. Review the retained logs.",
+        }
+    if stdout_tail.strip():
+        return {
+            "level": "ok",
+            "label": "launch logged",
+            "message": "Last launch produced stdout output and no stderr.",
+        }
+    return {
+        "level": "info",
+        "label": "no log signal",
+        "message": "No retained stdout or stderr output for the last launch yet.",
+    }
 
 
 def _command_available(command: list[str], *, cwd: Path) -> bool:

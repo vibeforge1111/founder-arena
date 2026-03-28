@@ -807,6 +807,11 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertIn("timeout warning", payload["last_launch"]["stderr_tail"])
         self.assertEqual(payload["entry_command"], ["python", "skill_runner.py"])
 
+        listing = self.client.get("/api/entrants")
+        self.assertEqual(listing.status_code, 200)
+        listed = next(item for item in listing.json()["entrants"] if item["entrant_id"] == "skill-validate")
+        self.assertEqual(listed["last_launch"]["diagnosis"]["label"], "runner timeout")
+
     def test_validate_registered_entrant_reports_missing_workspace(self) -> None:
         server.ENTRANTS["missing-validate"] = {
             "entrant_id": "missing-validate",
@@ -1324,6 +1329,38 @@ class RichStateIntegrationTests(unittest.TestCase):
             game.submit_actions(startup_a.agent_token, [{"type": "pivot", "params": {"sector": "fintech"}}])
 
         self.assertIn("not available in ranked competitive mode", str(ctx.exception))
+        self.assertTrue(startup_a.diagnostics)
+        self.assertEqual(startup_a.diagnostics[-1]["kind"], "illegal_action")
+
+    def test_check_timeout_records_missing_submission_diagnostic(self) -> None:
+        game = server.Game(
+            name="Timeout Diagnostic Test",
+            max_players=2,
+            min_players=2,
+            turn_timeout=1,
+            max_turns=2,
+            seed=123,
+            use_rich_state=True,
+            game_mode="competitive_mode",
+            queue="github_ranked",
+        )
+        startup_a = game.add_startup("A1", "Alpha", "ai", "m1", "balanced")
+        startup_b = game.add_startup("A2", "Beta", "saas", "m2", "balanced")
+        game.start()
+        startup_a.actions_submitted = True
+        startup_a.pending_actions = [{"type": "build_feature", "params": {"focus": "core"}}]
+        game.turn_deadline = 0
+
+        with mock.patch.object(game.director, "decide_and_apply", return_value=None), mock.patch.object(
+            game.action_mapper,
+            "advance_week",
+            return_value={"action": "sim.advance", "success": True},
+        ):
+            game.check_timeout()
+
+        self.assertTrue(startup_b.diagnostics)
+        self.assertEqual(startup_b.diagnostics[-1]["kind"], "timeout")
+        self.assertIn("auto-resolved", startup_b.diagnostics[-1]["message"])
 
     def test_ranked_action_cooldowns_are_deterministic(self) -> None:
         action_params = {
