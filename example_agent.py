@@ -471,29 +471,44 @@ class FounderAgent:
                              team_size, runway, revenue, turn, hot_sectors, my):
         """Blitzscaling: raise big, spend big, grow fast."""
         actions = []
+        rich_state = my.get("rich_state", {})
+        trust = float(rich_state.get("customers", {}).get("trust_score", 0.7))
+        churn = float(rich_state.get("customers", {}).get("monthly_churn_rate", 0.04))
+        support_backlog = float(rich_state.get("operations", {}).get("support_backlog", 0.0))
+        quality_drag = quality < 58
 
-        # Always try to raise money first
+        # Always try to raise money first.
         if cash < 500000 and turn < 40:
             round_type = "series_a" if cash > 100000 else "seed" if cash > 20000 else "angel"
             actions.append({"type": "fundraise", "params": {"round": round_type}})
 
-        # Hire aggressively
-        if team_size < 8 and cash > 70000 and runway > 6:
+        # Hire aggressively only once the product can absorb the extra spend.
+        if (
+            team_size < 8
+            and cash > 70000
+            and runway > 6
+            and quality >= 55
+            and len(actions) < 3
+        ):
             role = random.choice(["engineer", "marketer", "salesperson"])
             actions.append({"type": "hire", "params": {"role": role}})
 
-        # Growth at all costs
-        if cash > 25000 and runway > 5:
-            actions.append({"type": "acquire_users", "params": {"channel": "paid_ads"}})
+        # Growth still matters, but quality and trust determine whether paid spend is actually efficient.
+        if cash > 25000 and runway > 5 and len(actions) < 3:
+            channel = "paid_ads" if quality >= 58 and trust >= 0.58 and churn < 0.055 and support_backlog < 28 else "organic"
+            actions.append({"type": "acquire_users", "params": {"channel": channel}})
 
-        # PR when possible
-        if len(actions) < 3 and cash > 15000 and runway > 4:
+        # PR only compounds when the product and customer story can carry it.
+        if len(actions) < 3 and quality >= 58 and trust >= 0.56 and cash > 15000 and runway > 4 and brand < 58:
             actions.append({"type": "launch_pr", "params": {}})
         if len(actions) < 3 and turn % 4 == 0:
             actions.append({"type": "board_sync", "params": {"update_type": "growth_update"}})
 
-        # Build only when nothing else to do
-        if len(actions) < 3 and cash > 20000 and runway > 4:
+        # If product quality is soft, spend the last slot tightening the product before another hype action.
+        if len(actions) < 3 and quality_drag and cash > 20000 and runway > 4:
+            focus = "quality" if quality < 52 else "growth"
+            actions.append({"type": "build_feature", "params": {"focus": focus}})
+        elif len(actions) < 3 and cash > 20000 and runway > 4:
             actions.append({"type": "build_feature", "params": {"focus": "growth"}})
 
         return actions[:3]

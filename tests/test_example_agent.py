@@ -243,6 +243,65 @@ class ExampleAgentTests(unittest.TestCase):
         self.assertEqual(action_types, ["acquire_users", "launch_pr", "build_feature"])
         self.assertNotIn("support_recovery", action_types)
 
+    def test_aggressive_strategy_repays_quality_and_trust_debt_before_full_hype_stack(self) -> None:
+        self.agent = FounderAgent(
+            name="Tester",
+            startup_name="AggroCo",
+            sector="fintech",
+            strategy="aggressive",
+            server="local://founder-arena",
+        )
+        state = {
+            "game_mode": "competitive_mode",
+            "turn": 18,
+            "my_startup_id": "s1",
+            "hot_sectors": ["fintech"],
+            "startups": {
+                "s1": {
+                    "cash": 95000,
+                    "users": 1200,
+                    "product_quality": 54,
+                    "morale": 66,
+                    "brand": 24,
+                    "team_size": 4,
+                    "runway": 7,
+                    "revenue": 12000,
+                    "sector": "fintech",
+                    "rich_state": {
+                        "customers": {
+                            "trust_score": 0.56,
+                            "monthly_churn_rate": 0.055,
+                        },
+                        "operations": {
+                            "support_backlog": 28,
+                        },
+                        "risk": {
+                            "regulatory_pressure": 0.18,
+                        },
+                    },
+                }
+            },
+        }
+        turn_packet = {
+            "visible_actions": [
+                "build_feature",
+                "acquire_users",
+                "launch_pr",
+                "support_recovery",
+                "fundraise",
+                "board_sync",
+                "hire",
+            ]
+        }
+
+        actions = self.agent.decide(state, turn_packet=turn_packet)
+        action_types = [action["type"] for action in actions]
+
+        self.assertIn("build_feature", action_types)
+        self.assertIn("acquire_users", action_types)
+        self.assertNotIn("launch_pr", action_types)
+        self.assertNotIn("hire", action_types)
+
     def test_chaos_limits_multiple_resilience_actions_when_state_is_healthy(self) -> None:
         self.agent = FounderAgent(
             name="Tester",
