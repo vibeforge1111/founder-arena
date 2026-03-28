@@ -1123,6 +1123,125 @@ class RichStateIntegrationTests(unittest.TestCase):
         self.assertGreater(replay["rankings"][1]["valuation"], replay["rankings"][0]["valuation"])
         self.assertTrue(any("WINS with 81.5 score" in entry for entry in game.narrative))
 
+    def test_showmatch_replay_labels_benchmark_pressure(self) -> None:
+        game = server.Game(
+            name="Practice Verdict Test",
+            max_players=2,
+            min_players=2,
+            turn_timeout=5,
+            max_turns=3,
+            seed=123,
+            use_rich_state=True,
+            game_mode="competitive_mode",
+            queue="showmatch",
+        )
+        startup_a = game.add_startup("BuilderBot", "BuilderCo", "ai", "m1", "balanced")
+        startup_b = game.add_startup("AlphaBot", "NeuralForge", "ai", "m2", "balanced")
+        startup_b.control_type = "benchmark"
+        startup_b.benchmark_profile = {
+            "label": "AlphaBot benchmark",
+            "strategy": "balanced",
+            "tier": "baseline",
+        }
+
+        scorecards = {
+            startup_a.id: {
+                "dimensions": {
+                    "cash_efficiency": 66.0,
+                    "revenue_quality": 67.0,
+                    "customer_health": 82.0,
+                    "product_health": 70.0,
+                    "team_health": 68.0,
+                    "risk_management": 69.0,
+                    "strategic_coherence": 73.0,
+                },
+                "total_score": 72.4,
+            },
+            startup_b.id: {
+                "dimensions": {
+                    "cash_efficiency": 78.0,
+                    "revenue_quality": 76.0,
+                    "customer_health": 74.0,
+                    "product_health": 74.0,
+                    "team_health": 70.0,
+                    "risk_management": 72.0,
+                    "strategic_coherence": 75.0,
+                },
+                "total_score": 79.1,
+            },
+        }
+
+        with mock.patch(
+            "server._compute_seven_dimension_scores",
+            side_effect=lambda startup: scorecards[startup.id],
+        ):
+            replay = game.get_replay()
+
+        self.assertEqual(replay["rankings"][0]["control_type"], "benchmark")
+        self.assertEqual(replay["rankings"][0]["benchmark_profile"]["label"], "AlphaBot benchmark")
+        self.assertEqual(replay["summary"]["practice_takeaway"]["category"], "benchmark_pressure")
+        self.assertEqual(replay["summary"]["practice_takeaway"]["benchmark_name"], "AlphaBot benchmark")
+        builder_outcome = replay["summary"]["startup_outcomes"][startup_a.id]
+        self.assertEqual(builder_outcome["practice_takeaway"]["category"], "benchmark_pressure")
+
+    def test_showmatch_replay_labels_execution_mistake_against_benchmark(self) -> None:
+        game = server.Game(
+            name="Practice Execution Test",
+            max_players=2,
+            min_players=2,
+            turn_timeout=5,
+            max_turns=3,
+            seed=123,
+            use_rich_state=True,
+            game_mode="competitive_mode",
+            queue="showmatch",
+        )
+        startup_a = game.add_startup("BuilderBot", "BuilderCo", "ai", "m1", "balanced")
+        startup_b = game.add_startup("AlphaBot", "NeuralForge", "ai", "m2", "balanced")
+        startup_b.control_type = "benchmark"
+        startup_b.benchmark_profile = {
+            "label": "AlphaBot benchmark",
+            "strategy": "balanced",
+            "tier": "baseline",
+        }
+        startup_a.diagnostics.append({"kind": "illegal_action", "message": "submitted blocked move"})
+
+        scorecards = {
+            startup_a.id: {
+                "dimensions": {
+                    "cash_efficiency": 52.0,
+                    "revenue_quality": 55.0,
+                    "customer_health": 71.0,
+                    "product_health": 63.0,
+                    "team_health": 66.0,
+                    "risk_management": 58.0,
+                    "strategic_coherence": 61.0,
+                },
+                "total_score": 61.0,
+            },
+            startup_b.id: {
+                "dimensions": {
+                    "cash_efficiency": 79.0,
+                    "revenue_quality": 77.0,
+                    "customer_health": 72.0,
+                    "product_health": 74.0,
+                    "team_health": 71.0,
+                    "risk_management": 73.0,
+                    "strategic_coherence": 75.0,
+                },
+                "total_score": 80.3,
+            },
+        }
+
+        with mock.patch(
+            "server._compute_seven_dimension_scores",
+            side_effect=lambda startup: scorecards[startup.id],
+        ):
+            replay = game.get_replay()
+
+        self.assertEqual(replay["summary"]["practice_takeaway"]["category"], "execution_mistake")
+        self.assertIn("illegal action", replay["summary"]["practice_takeaway"]["headline"])
+
     def test_low_trust_is_a_recoverable_crisis_not_an_instant_death(self) -> None:
         game = server.Game(
             name="Trust Recovery Test",

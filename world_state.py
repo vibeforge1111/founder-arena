@@ -254,6 +254,8 @@ class RichStartupState:
         self.entrant_type: str | None = None
         self.entrant_version_hash: str | None = None
         self.compiled_doctrine: dict | None = None
+        self.control_type = "entrant"
+        self.benchmark_profile: dict | None = None
         self.seed = seed
         self.rng = random.Random(seed)
         self.alive = True
@@ -522,6 +524,8 @@ class RichStartupState:
             "entrant_type": self.entrant_type,
             "entrant_version_hash": self.entrant_version_hash,
             "compiled_doctrine": deepcopy(self.compiled_doctrine),
+            "control_type": self.control_type,
+            "benchmark_profile": deepcopy(self.benchmark_profile),
             "death_reason": self.death_reason,
             "diagnostics": deepcopy(self.diagnostics[-5:]),
             "cash": self.cash,

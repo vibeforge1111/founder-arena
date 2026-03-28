@@ -81,6 +81,14 @@ BOT_CONFIGS = [
     {"name": "SteadyEddie", "startup": "GreenStack", "sector": "greentech", "motto": "Sustainable growth wins", "strategy": "lean"},
 ]
 
+BENCHMARK_TIER_BY_STRATEGY = {
+    "balanced": "baseline",
+    "aggressive": "pressure",
+    "lean": "discipline",
+    "chaos": "wildcard",
+}
+PRACTICE_FAILURE_KINDS = {"timeout", "illegal_action", "launch_error", "crash", "submission_error"}
+
 # ─── Pydantic Models (API) ──────────────────────────────────────────────────
 
 class CreateGameRequest(BaseModel):
@@ -155,6 +163,8 @@ class Startup:
         self.entrant_type: Optional[str] = None
         self.entrant_version_hash: Optional[str] = None
         self.compiled_doctrine: Optional[dict] = None
+        self.control_type = "entrant"
+        self.benchmark_profile: Optional[dict] = None
         self.alive = True
         self.death_reason = ""
         # Financials
@@ -217,6 +227,8 @@ class Startup:
             "entrant_id": self.entrant_id, "entrant_type": self.entrant_type,
             "entrant_version_hash": self.entrant_version_hash,
             "compiled_doctrine": self.compiled_doctrine,
+            "control_type": self.control_type,
+            "benchmark_profile": self.benchmark_profile,
             "death_reason": self.death_reason,
             "diagnostics": list(self.diagnostics[-5:]),
             "cash": self.cash, "monthly_burn": self.monthly_burn,
@@ -385,6 +397,18 @@ def _normalize_queue(queue: Optional[str]) -> str:
     if normalized not in SUPPORTED_QUEUES:
         raise ValueError(f"Invalid queue. Choose from: {SUPPORTED_QUEUES}")
     return normalized
+
+
+def _benchmark_profile_for_config(config: dict) -> dict:
+    strategy = str(config.get("strategy") or "balanced")
+    return {
+        "bot_id": str(config.get("name") or "benchmark").lower(),
+        "label": f"{config.get('name', 'Benchmark')} benchmark",
+        "strategy": strategy,
+        "tier": BENCHMARK_TIER_BY_STRATEGY.get(strategy, "practice"),
+        "startup": config.get("startup"),
+        "sector": config.get("sector"),
+    }
 
 
 def _titleize_slug(value: str) -> str:
@@ -1937,6 +1961,108 @@ class Game:
             return f"{startup.startup_name} lost ground on {edges} versus {comparison.startup_name}."
         return f"{startup.startup_name} trailed {comparison.startup_name} on overall score balance."
 
+    def _practice_takeaway_for(self, *, startup, comparison, strengths: list[dict], gaps: list[dict], is_winner: bool, score_gap: float) -> Optional[dict]:
+        if self.queue != "showmatch":
+            return None
+        if getattr(startup, "control_type", "entrant") == "benchmark":
+            return None
+        benchmark_profile = getattr(comparison, "benchmark_profile", None)
+        if not benchmark_profile:
+            return None
+
+        benchmark_label = benchmark_profile.get("label") or comparison.agent_name
+        benchmark_strategy = benchmark_profile.get("strategy") or comparison.strategy
+        gap_labels = [item["label"] for item in gaps[:2]]
+        strength_labels = [item["label"] for item in strengths[:2]]
+        failure = next(
+            (
+                item for item in reversed(getattr(startup, "diagnostics", []))
+                if str(item.get("kind") or "") in PRACTICE_FAILURE_KINDS
+            ),
+            None,
+        )
+        absolute_gap = round(abs(score_gap), 2)
+
+        if is_winner:
+            headline = (
+                f"{startup.startup_name} cleared {benchmark_label} by {absolute_gap:.1f} score"
+                f" through {' and '.join(strength_labels)}."
+                if strength_labels
+                else f"{startup.startup_name} cleared {benchmark_label} by {absolute_gap:.1f} score."
+            )
+            return {
+                "category": "benchmark_cleared",
+                "category_label": "Benchmark Cleared",
+                "headline": headline,
+                "benchmark_name": benchmark_label,
+                "benchmark_strategy": benchmark_strategy,
+                "benchmark_tier": benchmark_profile.get("tier"),
+                "score_gap": absolute_gap,
+                "focus_items": strength_labels[:2],
+            }
+
+        if failure:
+            headline = (
+                f"{startup.startup_name} lost to {benchmark_label} after "
+                f"{str(failure.get('kind') or 'execution issue').replace('_', ' ')} pressure: "
+                f"{failure.get('message') or 'the turn failed to land cleanly.'}"
+            )
+            return {
+                "category": "execution_mistake",
+                "category_label": "Execution Mistake",
+                "headline": headline,
+                "benchmark_name": benchmark_label,
+                "benchmark_strategy": benchmark_strategy,
+                "benchmark_tier": benchmark_profile.get("tier"),
+                "score_gap": absolute_gap,
+                "focus_items": gap_labels[:2],
+            }
+
+        if not startup.alive and startup.death_reason:
+            return {
+                "category": "execution_mistake",
+                "category_label": "Execution Mistake",
+                "headline": (
+                    f"{startup.startup_name} fell out with {startup.death_reason} before it could hold "
+                    f"off {benchmark_label}."
+                ),
+                "benchmark_name": benchmark_label,
+                "benchmark_strategy": benchmark_strategy,
+                "benchmark_tier": benchmark_profile.get("tier"),
+                "score_gap": absolute_gap,
+                "focus_items": gap_labels[:2],
+            }
+
+        if absolute_gap <= 12.0 and strength_labels:
+            focus = " and ".join(gap_labels or ["late-match pressure"])
+            return {
+                "category": "benchmark_pressure",
+                "category_label": "Benchmark Pressure",
+                "headline": (
+                    f"{startup.startup_name} stayed close to {benchmark_label}, but benchmark pressure on {focus} "
+                    f"kept it from converting the match."
+                ),
+                "benchmark_name": benchmark_label,
+                "benchmark_strategy": benchmark_strategy,
+                "benchmark_tier": benchmark_profile.get("tier"),
+                "score_gap": absolute_gap,
+                "focus_items": gap_labels[:2] or strength_labels[:1],
+            }
+
+        focus = " and ".join(gap_labels or ["core score dimensions"])
+        return {
+            "category": "archetype_weakness",
+            "category_label": "Archetype Weakness",
+            "headline": (
+                f"{benchmark_label} exposed weaker {focus} in {startup.startup_name}'s current plan."
+            ),
+            "benchmark_name": benchmark_label,
+            "benchmark_strategy": benchmark_strategy,
+            "benchmark_tier": benchmark_profile.get("tier"),
+            "score_gap": absolute_gap,
+            "focus_items": gap_labels[:2],
+        }
+
     def _startup_outcome_summary(self, ranked: list) -> dict[str, dict]:
         outcomes: dict[str, dict] = {}
         for index, startup in enumerate(ranked):
@@ -1971,12 +2097,20 @@ class Game:
                 ),
                 "strengths": strengths,
                 "gaps": gaps,
+                "practice_takeaway": self._practice_takeaway_for(
+                    startup=startup,
+                    comparison=comparison,
+                    strengths=strengths,
+                    gaps=gaps,
+                    is_winner=index == 0,
+                    score_gap=score_gap,
+                ),
             }
         return outcomes
 
     def _build_replay_summary(self, ranked: list) -> dict:
         if not ranked:
-            return {"winner_summary": "", "final_margin": None, "turning_points": [], "startup_outcomes": {}}
+            return {"winner_summary": "", "final_margin": None, "turning_points": [], "startup_outcomes": {}, "practice_takeaway": None}
 
         winner = ranked[0]
         runner_up = ranked[1] if len(ranked) > 1 else None
@@ -2054,13 +2188,19 @@ class Game:
             if runner_up and final_margin is not None
             else f"{winner.startup_name} won the match."
         )
+        startup_outcomes = self._startup_outcome_summary(ranked)
+        practice_takeaway = next(
+            (item.get("practice_takeaway") for item in startup_outcomes.values() if item.get("practice_takeaway")),
+            None,
+        )
         return {
             "winner_summary": winner_summary,
             "final_margin": final_margin,
             "winner_score": round(winner_score, 2),
             "runner_up_score": round(runner_score, 2) if runner_up else None,
             "turning_points": turning_points[:3],
-            "startup_outcomes": self._startup_outcome_summary(ranked),
+            "startup_outcomes": startup_outcomes,
+            "practice_takeaway": practice_takeaway,
         }
 
     def get_replay(self) -> dict:
@@ -2083,6 +2223,8 @@ class Game:
                  "entrant_type": getattr(s, "entrant_type", None),
                  "entrant_version_hash": getattr(s, "entrant_version_hash", None),
                  "compiled_doctrine": getattr(s, "compiled_doctrine", None),
+                 "control_type": getattr(s, "control_type", "entrant"),
+                 "benchmark_profile": getattr(s, "benchmark_profile", None),
                  "alive": s.alive, "death_reason": s.death_reason,
                  "users": s.users, "revenue": s.revenue, "cash": s.cash,
                  "total_raised": s.total_raised, "features_built": s.features_built,
@@ -3086,6 +3228,8 @@ async def fill_bots(game_id: str, request: Request,
             cfg["name"], cfg["startup"], cfg["sector"],
             cfg["motto"], cfg["strategy"],
         )
+        startup.control_type = "benchmark"
+        startup.benchmark_profile = _benchmark_profile_for_config(cfg)
         # Create a FounderAgent with pre-set tokens for the play loop
         agent = FounderAgent(
             name=cfg["name"],

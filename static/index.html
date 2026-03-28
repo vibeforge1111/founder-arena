@@ -1695,10 +1695,26 @@ function renderOutcomeRead(title, outcome) {
   </div>`;
 }
 
+function renderPracticeTakeawayCard(takeaway) {
+  if (!takeaway) return '';
+  return `<div class="postgame-summary-card">
+    <div class="postgame-summary-label">Practice Verdict</div>
+    <div class="postgame-summary-value">${takeaway.category_label || 'Practice Read'}</div>
+    <div class="postgame-summary-body">${takeaway.headline || ''}</div>
+    <div class="postgame-summary-tags">
+      ${takeaway.benchmark_name ? `<div class="detail-tag">${takeaway.benchmark_name}</div>` : ''}
+      ${takeaway.benchmark_strategy ? `<div class="detail-tag">${takeaway.benchmark_strategy}</div>` : ''}
+      ${takeaway.benchmark_tier ? `<div class="detail-tag">${takeaway.benchmark_tier}</div>` : ''}
+      ${takeaway.score_gap != null ? `<div class="detail-tag">gap ${Number(takeaway.score_gap).toFixed(1)}</div>` : ''}
+    </div>
+  </div>`;
+}
+
 function renderOutcomeDetail(outcome) {
   if (!outcome) return '';
   const strengths = outcome.strengths || [];
   const gaps = outcome.gaps || [];
+  const takeaway = outcome.practice_takeaway || null;
   return `<div class="expand-actions-title">RESULT READ</div>
     <div class="recent-action">
       <div class="recent-turn">${(outcome.result || 'result').replace('_', ' ')}</div>
@@ -1707,7 +1723,8 @@ function renderOutcomeDetail(outcome) {
       <div class="recent-ok">${outcome.score_gap == null ? '-' : Math.abs(outcome.score_gap).toFixed(1)}</div>
     </div>
     ${strengths.length ? `<div class="detail-tags" style="margin-top:10px">${strengths.map(item => `<div class="detail-tag">edge ${item.label} +${item.weighted_delta.toFixed(1)}</div>`).join('')}</div>` : ''}
-    ${gaps.length ? `<div class="detail-tags" style="margin-top:8px">${gaps.map(item => `<div class="detail-tag">watch ${item.label} ${item.weighted_delta.toFixed(1)}</div>`).join('')}</div>` : ''}`;
+    ${gaps.length ? `<div class="detail-tags" style="margin-top:8px">${gaps.map(item => `<div class="detail-tag">watch ${item.label} ${item.weighted_delta.toFixed(1)}</div>`).join('')}</div>` : ''}
+    ${takeaway ? `<div class="expand-actions-title" style="margin-top:12px">PRACTICE TAKEAWAY</div><div class="recent-action"><div class="recent-turn">${takeaway.category_label || 'practice'}</div><div class="recent-type">${takeaway.benchmark_name || 'benchmark'}</div><div class="recent-msg">${takeaway.headline || ''}</div><div class="recent-ok">${takeaway.score_gap == null ? '-' : Number(takeaway.score_gap).toFixed(1)}</div></div>` : ''}`;
 }
 
 // ──────────────────────────────────────────────────
@@ -1721,6 +1738,7 @@ function renderPostGame() {
   const replaySummary = gameData.summary || {};
   const turningPoints = replaySummary.turning_points || [];
   const startupOutcomes = replaySummary.startup_outcomes || {};
+  const practiceTakeaway = replaySummary.practice_takeaway || null;
 
   const sorted = Object.entries(startups).sort((a, b) => {
     if (a[1].alive !== b[1].alive) return a[1].alive ? -1 : 1;
@@ -1761,6 +1779,7 @@ function renderPostGame() {
           <div class="detail-tag">${gameData.total_turns || gameData.turn || 0} turns</div>
         </div>
       </div>
+      ${practiceTakeaway ? renderPracticeTakeawayCard(practiceTakeaway) : ''}
       ${renderOutcomeRead('Winner Read', winnerOutcome)}
       ${runnerUpOutcome ? renderOutcomeRead('Challenger Read', runnerUpOutcome) : ''}
       ${turningPoints.map(renderTurningPoint).join('')}
