@@ -214,146 +214,113 @@ export class StartupPod {
     neck.position.y = 1.29;
     this.characterGroup.add(neck);
 
-    // === HEAD (composite: cranium + jaw for proper shape) ===
+    // === HEAD — single smooth egg shape, no seams ===
     this.head = new THREE.Group();
-    this.head.position.y = 1.58;
+    this.head.position.y = 1.55;
     this.characterGroup.add(this.head);
 
-    // Cranium — upper part of head, slightly wider
-    const craniumGeo = new THREE.SphereGeometry(0.24, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.65);
-    const cranium = new THREE.Mesh(craniumGeo, skinMat);
-    cranium.position.y = 0.02;
-    cranium.scale.set(1, 1.0, 0.93);
-    cranium.castShadow = true;
-    this.head.add(cranium);
+    // Main head — one sphere, slightly taller than wide (egg/capsule feel)
+    const headGeo = new THREE.SphereGeometry(0.24, 20, 16);
+    const headMesh = new THREE.Mesh(headGeo, skinMat);
+    headMesh.scale.set(1.0, 1.12, 0.95);
+    headMesh.castShadow = true;
+    this.head.add(headMesh);
 
-    // Jaw / lower face — gives the head a proper chin shape instead of a sphere
-    const jawGeo = new THREE.BoxGeometry(0.36, 0.18, 0.32, 2, 2, 2);
-    this._roundifyGeometry(jawGeo, 0.06);
-    const jaw = new THREE.Mesh(jawGeo, skinMat);
-    jaw.position.set(0, -0.08, -0.02);
-    jaw.scale.set(1, 0.85, 0.8);
-    this.head.add(jaw);
+    // Subtle chin bump — blends into the sphere, no hard edge
+    const chinGeo = new THREE.SphereGeometry(0.1, 10, 8);
+    const chin = new THREE.Mesh(chinGeo, skinMat);
+    chin.position.set(0, -0.18, -0.08);
+    chin.scale.set(1.2, 0.6, 0.7);
+    this.head.add(chin);
 
-    // Cheeks — subtle volume
+    // Ears — small rounded bumps
     for (const side of [-1, 1]) {
-      const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), skinMat);
-      cheek.position.set(side * 0.15, -0.04, -0.12);
-      cheek.scale.set(0.8, 0.7, 0.5);
-      this.head.add(cheek);
-    }
-
-    // Ears — flat discs on the sides
-    for (const side of [-1, 1]) {
-      const earGeo = new THREE.CylinderGeometry(0.04, 0.035, 0.02, 8);
-      const ear = new THREE.Mesh(earGeo, skinMat);
-      ear.position.set(side * 0.23, 0, 0);
-      ear.rotation.z = side * Math.PI / 2;
+      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), skinMat);
+      ear.position.set(side * 0.235, -0.02, 0.02);
+      ear.scale.set(0.5, 0.8, 0.7);
       this.head.add(ear);
     }
 
-    // === FACE FEATURES (positioned relative to head group) ===
-
-    // Eyes — large, expressive, the heart of the character
+    // === FACE — big expressive eyes are the focal point ===
     const whitesMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff, roughness: 0.15, metalness: 0.0,
+      color: 0xffffff, roughness: 0.1, metalness: 0.0,
     });
     const irisColors = [0x3a7a4a, 0x3a5a8b, 0x7a5a2a, 0x2a7a7a, 0x5a3a7a];
     const irisColor = irisColors[this._rngInt(irisColors.length)];
 
     for (const side of [-1, 1]) {
-      // Eye socket — slight recess
-      const socket = new THREE.Mesh(
-        new THREE.SphereGeometry(0.055, 10, 8),
-        new THREE.MeshStandardMaterial({
-          color: new THREE.Color(this._skinTone).clone().multiplyScalar(0.85),
-          roughness: 0.6,
-        })
-      );
-      socket.position.set(side * 0.085, 0.01, -0.19);
-      socket.scale.set(0.9, 0.75, 0.3);
-      this.head.add(socket);
-
-      // Eye white
-      const white = new THREE.Mesh(new THREE.SphereGeometry(0.048, 12, 10), whitesMat);
-      white.position.set(side * 0.085, 0.01, -0.2);
-      white.scale.set(0.9, 0.7, 0.35);
+      // Eye white — big, round, prominent
+      const white = new THREE.Mesh(new THREE.SphereGeometry(0.065, 14, 12), whitesMat);
+      white.position.set(side * 0.09, 0.02, -0.2);
+      white.scale.set(0.85, 0.9, 0.4);
       this.head.add(white);
 
-      // Iris
-      const irisMat = new THREE.MeshStandardMaterial({ color: irisColor, roughness: 0.2 });
-      const iris = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), irisMat);
-      iris.position.set(side * 0.085, 0.01, -0.225);
-      iris.scale.set(0.85, 0.7, 0.35);
+      // Iris — large, colorful
+      const irisMat = new THREE.MeshStandardMaterial({ color: irisColor, roughness: 0.15 });
+      const iris = new THREE.Mesh(new THREE.SphereGeometry(0.042, 12, 10), irisMat);
+      iris.position.set(side * 0.09, 0.01, -0.225);
+      iris.scale.set(0.8, 0.85, 0.35);
       this.head.add(iris);
 
-      // Pupil
-      const pupilMat = new THREE.MeshStandardMaterial({ color: 0x060610, roughness: 0.1 });
-      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), pupilMat);
-      pupil.position.set(side * 0.085, 0.01, -0.235);
+      // Pupil — dark center
+      const pupilMat = new THREE.MeshStandardMaterial({ color: 0x050510, roughness: 0.05 });
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), pupilMat);
+      pupil.position.set(side * 0.09, 0.008, -0.235);
+      pupil.scale.set(0.7, 0.8, 0.3);
       this.head.add(pupil);
       if (side === -1) this._leftPupil = pupil;
       else this._rightPupil = pupil;
 
-      // Eye shine — two dots for liveliness
+      // Eye shine — two bright dots for life
       const shineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const shine = new THREE.Mesh(new THREE.SphereGeometry(0.007, 6, 4), shineMat);
-      shine.position.set(side * 0.08 - 0.012, 0.025, -0.24);
+      const shine = new THREE.Mesh(new THREE.SphereGeometry(0.01, 6, 5), shineMat);
+      shine.position.set(side * 0.075, 0.035, -0.238);
       this.head.add(shine);
-      const shine2 = new THREE.Mesh(new THREE.SphereGeometry(0.004, 4, 3), shineMat);
-      shine2.position.set(side * 0.09 + 0.01, 0.0, -0.24);
+      const shine2 = new THREE.Mesh(new THREE.SphereGeometry(0.006, 5, 4), shineMat);
+      shine2.position.set(side * 0.1, 0.005, -0.238);
       this.head.add(shine2);
 
-      // Upper eyelid — gives expression (half-closed look vs wide open)
+      // Upper eyelid — thin line above eye
       const lidMat = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(this._skinTone).clone().multiplyScalar(0.9),
+        color: new THREE.Color(this._skinTone).clone().multiplyScalar(0.88),
         roughness: 0.5,
       });
-      const lid = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.02), lidMat);
-      lid.position.set(side * 0.085, 0.045, -0.22);
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.012, 0.025), lidMat);
+      lid.position.set(side * 0.09, 0.065, -0.215);
       this.head.add(lid);
     }
 
-    // Eyebrows — thicker, more expressive
+    // Eyebrows — expressive arches
     const browMat = new THREE.MeshStandardMaterial({ color: this._hairColor, roughness: 0.7 });
     for (const side of [-1, 1]) {
-      const browGeo = new THREE.BoxGeometry(0.065, 0.018, 0.022, 1, 1, 1);
-      this._roundifyGeometry(browGeo, 0.004);
+      const browGeo = new THREE.BoxGeometry(0.07, 0.02, 0.025, 1, 1, 1);
+      this._roundifyGeometry(browGeo, 0.005);
       const brow = new THREE.Mesh(browGeo, browMat);
-      brow.position.set(side * 0.085, 0.075, -0.21);
-      brow.rotation.z = side * 0.1;
+      brow.position.set(side * 0.09, 0.09, -0.2);
+      brow.rotation.z = side * 0.12;
       this.head.add(brow);
     }
 
-    // Nose — blocky wedge with bridge
-    const noseGeo = new THREE.BoxGeometry(0.04, 0.05, 0.04, 1, 1, 1);
-    this._roundifyGeometry(noseGeo, 0.01);
-    const nose = new THREE.Mesh(noseGeo, skinMat);
+    // Nose — small rounded bump
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), skinMat);
     nose.position.set(0, -0.04, -0.23);
+    nose.scale.set(0.8, 0.65, 0.6);
     this.head.add(nose);
-    // Nose tip
-    const noseTip = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 5), skinMat);
-    noseTip.position.set(0, -0.055, -0.245);
-    noseTip.scale.set(1, 0.7, 0.6);
-    this.head.add(noseTip);
 
-    // Mouth — slight smile curve
+    // Mouth — simple curved smile line
     const mouthMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(this._skinTone).clone().multiplyScalar(0.55),
+      color: new THREE.Color(this._skinTone).clone().multiplyScalar(0.5),
       roughness: 0.5,
     });
-    // Upper lip
-    const upperLip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.008, 0.012), mouthMat);
-    upperLip.position.set(0, -0.1, -0.21);
-    this.head.add(upperLip);
-    // Lower lip — slightly fuller
-    const lowerLipMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(this._skinTone).clone().multiplyScalar(0.65),
-      roughness: 0.4,
-    });
-    const lowerLip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.012, 0.01), lowerLipMat);
-    lowerLip.position.set(0, -0.115, -0.21);
-    this.head.add(lowerLip);
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.008, 0.01), mouthMat);
+    mouth.position.set(0, -0.1, -0.22);
+    this.head.add(mouth);
+    // Smile corners — two tiny spheres angled up
+    for (const side of [-1, 1]) {
+      const corner = new THREE.Mesh(new THREE.SphereGeometry(0.005, 4, 3), mouthMat);
+      corner.position.set(side * 0.032, -0.096, -0.22);
+      this.head.add(corner);
+    }
 
     // === HAIR ===
     this._buildHairStyled();
@@ -420,109 +387,31 @@ export class StartupPod {
       this.head.add(stache);
     }
 
-    // === ARMS (proper shoulder -> upper arm -> elbow -> forearm -> hand) ===
+    // === ARMS — Minecraft/Roblox style: one box per arm ===
+    // Simple, clean, iconic. Each arm is a single rectangular box
+    // pivoted at the shoulder and angled down to the desk.
 
     for (const side of [-1, 1]) {
-      // === HIERARCHICAL ARM: shoulder → upperArm → forearmGroup → hand ===
-      // Everything parents into the level above so rotations cascade properly.
-
-      // Shoulder pivot — positioned at the shoulder joint in characterGroup space
-      const shoulderPivot = new THREE.Group();
-      shoulderPivot.position.set(side * 0.22, 1.18, 0);
-      this.characterGroup.add(shoulderPivot);
-
-      // Shoulder ball — visual joint
-      const shoulderBall = new THREE.Mesh(
-        new THREE.SphereGeometry(0.058, 10, 8),
-        clothesMat
-      );
-      shoulderPivot.add(shoulderBall);
-
-      // Upper arm — hangs down from shoulder pivot
-      const upperGeo = new THREE.BoxGeometry(0.09, 0.24, 0.09, 2, 2, 2);
-      this._roundifyGeometry(upperGeo, 0.018);
-      const upper = new THREE.Mesh(upperGeo, clothesMat);
-      upper.position.set(side * 0.04, -0.13, -0.02);
-      upper.castShadow = true;
-      shoulderPivot.add(upper);
-
-      // Set shoulder rotation — arms angled slightly out and forward
-      shoulderPivot.rotation.z = side * 0.2;
-      shoulderPivot.rotation.x = -0.35;
-
-      if (side === -1) this.leftUpperArm = shoulderPivot;
-      else this.rightUpperArm = shoulderPivot;
-
-      // Elbow pivot — at the bottom of the upper arm
-      const elbowPivot = new THREE.Group();
-      elbowPivot.position.set(side * 0.04, -0.26, -0.02);
-      shoulderPivot.add(elbowPivot);
-
-      // Elbow ball — visible skin-colored joint
-      const elbowBall = new THREE.Mesh(
-        new THREE.SphereGeometry(0.045, 10, 8),
-        skinMat
-      );
-      elbowPivot.add(elbowBall);
-
-      // Forearm — skin colored, extends from elbow
-      const foreGeo = new THREE.BoxGeometry(0.08, 0.22, 0.08, 2, 2, 2);
-      this._roundifyGeometry(foreGeo, 0.014);
-      const fore = new THREE.Mesh(foreGeo, skinMat);
-      fore.position.set(0, -0.12, 0);
-      fore.castShadow = true;
-      elbowPivot.add(fore);
-
-      // Bend elbow so forearm reaches forward to desk
-      elbowPivot.rotation.x = -1.15;
-      elbowPivot.rotation.z = side * -0.08;
-
-      if (side === -1) this.leftArm = elbowPivot;
-      else this.rightArm = elbowPivot;
-
-      // Wrist pivot — at end of forearm
-      const wristPivot = new THREE.Group();
-      wristPivot.position.set(0, -0.24, 0);
-      elbowPivot.add(wristPivot);
-
-      // Wrist ball — visible joint
-      const wristBall = new THREE.Mesh(
-        new THREE.SphereGeometry(0.032, 8, 6),
-        skinMat
-      );
-      wristPivot.add(wristBall);
-
-      // Hand — palm down, slightly flattened
-      const palmGeo = new THREE.BoxGeometry(0.065, 0.022, 0.055, 2, 1, 1);
-      this._roundifyGeometry(palmGeo, 0.005);
-      const palm = new THREE.Mesh(palmGeo, skinMat);
-      palm.position.set(0, -0.02, -0.015);
-      wristPivot.add(palm);
-
-      // Fingers — 4 small blocky nubs extending from palm
-      for (let f = 0; f < 4; f++) {
-        const fingerGeo = new THREE.BoxGeometry(0.012, 0.015, 0.032, 1, 1, 1);
-        this._roundifyGeometry(fingerGeo, 0.003);
-        const finger = new THREE.Mesh(fingerGeo, skinMat);
-        const fx = -0.022 + f * 0.015;
-        finger.position.set(fx, -0.025, -0.055);
-        wristPivot.add(finger);
-      }
-
-      // Thumb — offset to side
-      const thumbGeo = new THREE.BoxGeometry(0.015, 0.014, 0.025, 1, 1, 1);
-      this._roundifyGeometry(thumbGeo, 0.003);
-      const thumb = new THREE.Mesh(thumbGeo, skinMat);
-      thumb.position.set(side * 0.035, -0.02, -0.03);
-      thumb.rotation.z = side * 0.4;
-      wristPivot.add(thumb);
-
-      // Flatten wrist so hand is palm-down on desk
-      wristPivot.rotation.x = 1.15;
-
-      if (side === -1) this._leftHand = wristPivot;
-      else this._rightHand = wristPivot;
+      const armGeo = new THREE.BoxGeometry(0.1, 0.42, 0.1);
+      const arm = new THREE.Mesh(armGeo, skinMat);
+      // Pivot point is at the top of the box (shoulder).
+      // Shift geometry so top is at origin, arm hangs downward.
+      armGeo.translate(0, -0.21, 0);
+      // Position at shoulder
+      arm.position.set(side * 0.26, 1.2, -0.02);
+      // Rotate forward so arm reaches toward desk/keyboard
+      arm.rotation.x = 0.85;
+      arm.rotation.z = side * -0.1;
+      arm.castShadow = true;
+      this.characterGroup.add(arm);
+      if (side === -1) this.leftArm = arm;
+      else this.rightArm = arm;
     }
+    // Clear unused refs
+    this.leftUpperArm = null;
+    this.rightUpperArm = null;
+    this._leftHand = null;
+    this._rightHand = null;
 
     // === LEGS (seated) — blocky ===
     const legGeo = new THREE.BoxGeometry(0.1, 0.35, 0.1, 1, 1, 1);
@@ -578,69 +467,69 @@ export class StartupPod {
 
     switch (this._hairStyle) {
       case 'short': {
-        const geo = new THREE.SphereGeometry(0.245, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.52);
+        const geo = new THREE.SphereGeometry(0.25, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.52);
         const hair = new THREE.Mesh(geo, hairMat);
-        hair.position.y = 1.63;
+        hair.position.y = 1.60;
         hair.scale.set(1.0, 0.92, 0.98);
         this.characterGroup.add(hair);
         break;
       }
       case 'medium': {
-        const geo = new THREE.SphereGeometry(0.26, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.58);
+        const geo = new THREE.SphereGeometry(0.265, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.58);
         const hair = new THREE.Mesh(geo, hairMat);
-        hair.position.y = 1.62;
+        hair.position.y = 1.59;
         hair.scale.set(1.04, 0.98, 1.08);
         this.characterGroup.add(hair);
         for (const side of [-1, 1]) {
           const s = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), hairMat);
-          s.position.set(side * 0.2, 1.56, 0.02);
+          s.position.set(side * 0.2, 1.53, 0.02);
           s.scale.set(0.6, 1.1, 0.9);
           this.characterGroup.add(s);
         }
         break;
       }
       case 'buzz': {
-        const geo = new THREE.SphereGeometry(0.243, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.48);
+        const geo = new THREE.SphereGeometry(0.248, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.48);
         const buzz = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
           color: this._hairColor, roughness: 0.9,
         }));
-        buzz.position.y = 1.63;
+        buzz.position.y = 1.60;
         this.characterGroup.add(buzz);
         break;
       }
       case 'pompadour': {
         const back = new THREE.Mesh(
-          new THREE.SphereGeometry(0.25, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.52),
+          new THREE.SphereGeometry(0.255, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.52),
           hairMat
         );
-        back.position.y = 1.63;
+        back.position.y = 1.60;
         this.characterGroup.add(back);
         const front = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), hairMat);
-        front.position.set(0, 1.76, -0.12);
+        front.position.set(0, 1.73, -0.12);
         front.scale.set(1.3, 0.7, 0.9);
         this.characterGroup.add(front);
         break;
       }
       case 'bun': {
         const base = new THREE.Mesh(
-          new THREE.SphereGeometry(0.245, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.48),
+          new THREE.SphereGeometry(0.25, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.48),
           hairMat
         );
-        base.position.y = 1.63;
+        base.position.y = 1.60;
         this.characterGroup.add(base);
         const bun = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), hairMat);
-        bun.position.set(0, 1.8, 0.06);
+        bun.position.set(0, 1.77, 0.06);
         this.characterGroup.add(bun);
         break;
       }
       case 'sidePart': {
-        const geo = new THREE.SphereGeometry(0.255, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
+        const geo = new THREE.SphereGeometry(0.26, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.55);
         const hair = new THREE.Mesh(geo, hairMat);
-        hair.position.y = 1.62;
+        hair.position.y = 1.59;
         hair.scale.set(1.02, 0.94, 1.03);
         this.characterGroup.add(hair);
         const swept = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), hairMat);
-        swept.position.set(-0.15, 1.66, -0.14);
+        swept.position.set(-0.15, 1.63, -0.14);
         swept.scale.set(1.1, 0.5, 0.7);
         this.characterGroup.add(swept);
         break;
@@ -875,6 +764,36 @@ export class StartupPod {
     );
     canTop.position.set(-0.7, 0.9, -0.35);
     this.group.add(canTop);
+
+    // === Keyboard — on desk near character edge, where hands land ===
+    const kbMat = new THREE.MeshStandardMaterial({
+      color: 0x2a2a32, roughness: 0.35, metalness: 0.3,
+    });
+    const keyboard = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.018, 0.18), kbMat);
+    keyboard.position.set(0, 0.815, 0.45);
+    keyboard.castShadow = true;
+    this.group.add(keyboard);
+
+    // Key rows — 3 subtle rows of raised bumps
+    const keyMat = new THREE.MeshStandardMaterial({
+      color: 0x3a3a44, roughness: 0.5, metalness: 0.2,
+    });
+    for (let row = 0; row < 3; row++) {
+      const keys = new THREE.Mesh(
+        new THREE.BoxGeometry(0.44, 0.006, 0.04),
+        keyMat
+      );
+      keys.position.set(0, 0.827, 0.38 + row * 0.055);
+      this.group.add(keys);
+    }
+
+    // Spacebar
+    const spacebar = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 0.006, 0.03),
+      keyMat
+    );
+    spacebar.position.set(0, 0.827, 0.55);
+    this.group.add(spacebar);
   }
 
   _buildAccentLight() {
@@ -1043,35 +962,18 @@ export class StartupPod {
     // Eye tracking (pupils follow head direction slightly)
     if (this._leftPupil && this._rightPupil) {
       const eyeShift = Math.sin(elapsed * 0.3 + this._bobOffset) * 0.005;
-      this._leftPupil.position.x = -0.085 + eyeShift;
-      this._rightPupil.position.x = 0.085 + eyeShift;
+      this._leftPupil.position.x = -0.09 + eyeShift;
+      this._rightPupil.position.x = 0.09 + eyeShift;
     }
 
-    // Typing animation — elbow pivots oscillate, wrists bob slightly
-    const typePhase = Math.sin(elapsed * 7 + this._bobOffset);
-    const typePhase2 = Math.sin(elapsed * 7 + this._bobOffset + Math.PI * 0.7);
+    // Typing animation — alternating arm rotation (Minecraft-style)
+    const typePhase = Math.sin(elapsed * 6 + this._bobOffset);
+    const typePhase2 = Math.sin(elapsed * 6 + this._bobOffset + Math.PI * 0.7);
     if (this.leftArm) {
-      this.leftArm.rotation.x = -1.15 + typePhase * 0.06;
+      this.leftArm.rotation.x = 0.85 + typePhase * 0.04;
     }
     if (this.rightArm) {
-      this.rightArm.rotation.x = -1.15 + typePhase2 * 0.06;
-    }
-    if (this._leftHand) {
-      this._leftHand.rotation.x = 1.15 + typePhase * 0.03;
-    }
-    if (this._rightHand) {
-      this._rightHand.rotation.x = 1.15 + typePhase2 * 0.03;
-    }
-
-    // Subtle shoulder breathing — shoulder pivots sway gently
-    const breathe = Math.sin(elapsed * 1.2 + this._bobOffset) * 0.01;
-    if (this.leftUpperArm) {
-      this.leftUpperArm.rotation.z = 0.2 + breathe;
-      this.leftUpperArm.rotation.x = -0.35 + breathe * 0.5;
-    }
-    if (this.rightUpperArm) {
-      this.rightUpperArm.rotation.z = -0.2 - breathe;
-      this.rightUpperArm.rotation.x = -0.35 + breathe * 0.5;
+      this.rightArm.rotation.x = 0.85 + typePhase2 * 0.04;
     }
 
     // Highlighted pulse
