@@ -40,26 +40,27 @@ export class RankingsPanel {
       const dead = s.alive === false;
       const selected = s.id === selectedId;
 
-      const cashColor = (s.runway || 0) < 4 ? '#EF4444' : (s.runway || 0) < 7 ? '#FB923C' : '#22C55E';
       const pq = s.product_quality || 0;
       const mo = s.morale || 0;
       const br = s.brand || 0;
+      const initial = (s.startup_name || '?')[0].toUpperCase();
+      const posLabel = i === 0 ? '&#128081;' : i + 1;
 
       return `
         <div class="rank-item ${dead ? 'dead' : ''} ${selected ? 'selected' : ''}"
              data-id="${s.id}">
-          <div class="rank-pos">${i + 1}</div>
-          <div class="rank-color" style="background:${color}"></div>
+          <div class="rank-pos">${posLabel}</div>
+          <div class="rank-avatar" style="background:${color}">${initial}</div>
           <div class="rank-info">
             <div class="rank-name">${s.startup_name || 'Unknown'}</div>
-            <div class="rank-meta">${s.agent_name || ''} &middot; ${s.sector || ''} ${dead ? '&middot; DEAD' : ''}</div>
+            <div class="rank-meta">${s.agent_name || ''} &middot; ${s.sector || ''} ${dead ? '&middot; &#9760; DEAD' : ''}</div>
             <div class="mini-bars">
-              <div class="mini-bar"><div class="mini-bar-fill" style="width:${pq}%;background:#3B82F6"></div></div>
-              <div class="mini-bar"><div class="mini-bar-fill" style="width:${mo}%;background:#22C55E"></div></div>
-              <div class="mini-bar"><div class="mini-bar-fill" style="width:${br}%;background:#F0B429"></div></div>
+              <div class="mini-bar"><div class="mini-bar-fill" style="width:${pq}%;background:#4A9EFF"></div></div>
+              <div class="mini-bar"><div class="mini-bar-fill" style="width:${mo}%;background:#34D058"></div></div>
+              <div class="mini-bar"><div class="mini-bar-fill" style="width:${br}%;background:#FFB800"></div></div>
             </div>
           </div>
-          <div class="rank-val" style="color:${dead ? '#555' : '#F0B429'}">${formatMoney(s.valuation)}</div>
+          <div class="rank-val" style="color:${dead ? '#444' : '#FFB800'}">${formatMoney(s.valuation)}</div>
         </div>
       `;
     }).join('');

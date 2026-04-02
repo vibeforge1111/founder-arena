@@ -12,3 +12,9 @@ data/
 .DS_Store
 Thumbs.db
 node_modules/
+
+# Claude Code evolution system (personal session data)
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/memory/observations.jsonl
+.claude/memory/corrections.jsonl

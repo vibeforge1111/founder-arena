@@ -27,34 +27,43 @@ export class GameControls {
   showCreateGame() {
     this._modal.innerHTML = `
       <h2>Create New Game</h2>
-      <label>GAME NAME</label>
-      <input type="text" id="cg-name" value="Founder Arena" />
 
-      <label>GAME MODE</label>
-      <select id="cg-mode">
-        <option value="competitive_mode">Competitive (1v1 Duel)</option>
-        <option value="legacy_arena">Legacy Arena (FFA)</option>
-      </select>
+      <div class="game-card">
+        <div class="game-card-title" style="color:#4A9EFF">Game Settings</div>
+        <label>GAME NAME</label>
+        <input type="text" id="cg-name" value="Founder Arena" />
 
-      <label>MAX TURNS</label>
-      <select id="cg-turns">
-        <option value="32" selected>32 (Standard)</option>
-        <option value="16">16 (Quick)</option>
-        <option value="52">52 (Full Year)</option>
-      </select>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label>GAME MODE</label>
+            <select id="cg-mode">
+              <option value="competitive_mode">Competitive (1v1 Duel)</option>
+              <option value="legacy_arena">Legacy Arena (FFA)</option>
+            </select>
+          </div>
+          <div>
+            <label>MAX TURNS</label>
+            <select id="cg-turns">
+              <option value="32" selected>32 (Standard)</option>
+              <option value="16">16 (Quick)</option>
+              <option value="52">52 (Full Year)</option>
+            </select>
+          </div>
+        </div>
 
-      <label>BENCHMARK TIER</label>
-      <select id="cg-tier">
-        <option value="baseline">Baseline (Balanced)</option>
-        <option value="pressure">Pressure (Aggressive)</option>
-        <option value="discipline">Discipline (Lean)</option>
-        <option value="wildcard">Wildcard (Chaos)</option>
-        <option value="gauntlet">Gauntlet (All Strategies)</option>
-      </select>
+        <label>BENCHMARK TIER</label>
+        <select id="cg-tier">
+          <option value="baseline">Baseline (Balanced)</option>
+          <option value="pressure">Pressure (Aggressive)</option>
+          <option value="discipline">Discipline (Lean)</option>
+          <option value="wildcard">Wildcard (Chaos)</option>
+          <option value="gauntlet">Gauntlet (All Strategies)</option>
+        </select>
+      </div>
 
       <div class="modal-actions">
         <button class="btn-secondary" id="cg-cancel">Cancel</button>
-        <button class="btn-primary" id="cg-create">Create & Launch</button>
+        <button class="btn-game btn-game-blue" id="cg-create" style="flex:2">Create & Launch</button>
       </div>
     `;
     this.open();
@@ -89,15 +98,21 @@ export class GameControls {
 
     this._modal.innerHTML = `
       <h2>Game Lobby</h2>
-      <div style="font-size:10px;color:#888;margin-bottom:12px">
-        Game ID: <strong style="color:#eee">${gameId}</strong>
-        &middot; Join Code: <strong style="color:#eee">${joinCode}</strong>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px 12px">
+          <div style="font-size:8px;color:var(--text-muted);letter-spacing:1px;font-weight:600">GAME ID</div>
+          <div style="font-size:11px;font-weight:700;margin-top:2px">${gameId}</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px 12px">
+          <div style="font-size:8px;color:var(--text-muted);letter-spacing:1px;font-weight:600">JOIN CODE</div>
+          <div style="font-size:11px;font-weight:700;margin-top:2px;color:#FFB800">${joinCode}</div>
+        </div>
       </div>
 
-      <div style="border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;margin-bottom:12px;background:rgba(255,255,255,0.02)">
-        <div style="font-size:10px;font-weight:700;color:#A78BFA;letter-spacing:1px;margin-bottom:10px">DEPLOY YOUR AGENT</div>
+      <div class="game-card">
+        <div class="game-card-title" style="color:#A78BFA">Deploy Your Agent</div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
           <div>
             <label style="font-size:9px">AGENT NAME</label>
             <input type="text" id="da-agent-name" value="MyFounder" style="font-size:11px" />
@@ -108,7 +123,7 @@ export class GameControls {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
           <div>
             <label style="font-size:9px">SECTOR</label>
             <select id="da-sector" style="font-size:11px">
@@ -147,19 +162,19 @@ preferred_foci: product growth resilience
 We believe in building reliable products with sustainable growth.
 Quality over quantity. Trust is everything.</textarea>
 
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn-primary" id="da-deploy" style="background:#A78BFA;flex:1">Deploy Agent</button>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn-game btn-game-purple" id="da-deploy" style="flex:1;padding:10px">Deploy Agent</button>
         </div>
         <div id="da-status" style="font-size:9px;margin-top:6px;min-height:14px"></div>
       </div>
 
       <div class="lobby-list" id="lobby-agents">
-        <div style="font-size:10px;color:#555;padding:8px">Waiting for agents...</div>
+        <div style="font-size:10px;color:var(--text-muted);padding:10px;text-align:center">Waiting for agents...</div>
       </div>
 
       <div class="modal-actions">
         <button class="btn-secondary" id="lobby-cancel">Close</button>
-        <button class="btn-primary" id="lobby-fill" style="background:#22C55E">Fill Bots & Start</button>
+        <button class="btn-game btn-game-green" id="lobby-fill" style="flex:2">Fill Bots & Start</button>
       </div>
     `;
     this.open();
@@ -249,8 +264,10 @@ Quality over quantity. Trust is everything.</textarea>
   async quickPlayVsBots() {
     this._modal.innerHTML = `
       <h2 style="text-align:center">Quick Play vs Bots</h2>
-      <div style="border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;margin-bottom:12px;background:rgba(255,255,255,0.02)">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+
+      <div class="game-card">
+        <div class="game-card-title" style="color:#34D058">Your Setup</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
           <div>
             <label style="font-size:9px">YOUR AGENT NAME</label>
             <input type="text" id="qp-agent" value="MyFounder" style="font-size:11px" />
@@ -260,7 +277,7 @@ Quality over quantity. Trust is everything.</textarea>
             <input type="text" id="qp-startup" value="NeuralForge" style="font-size:11px" />
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
           <div>
             <label style="font-size:9px">SECTOR</label>
             <select id="qp-sector" style="font-size:11px">
@@ -292,16 +309,16 @@ preferred_foci: product growth resilience
 Build great products. Grow sustainably. Win.</textarea>
       </div>
 
-      <div id="qp-progress" style="margin-bottom:12px">
-        <div id="qp-step" style="font-size:10px;color:#888;text-align:center">Ready to launch</div>
-        <div style="background:rgba(255,255,255,0.06);border-radius:4px;height:6px;margin-top:6px;overflow:hidden">
-          <div id="qp-bar" style="height:100%;width:0%;background:#22C55E;border-radius:4px;transition:width 0.4s ease"></div>
+      <div id="qp-progress" style="margin-bottom:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px">
+        <div id="qp-step" style="font-size:10px;color:var(--text-muted);text-align:center;font-weight:600">Ready to launch</div>
+        <div class="progress-bar-track" style="margin-top:8px">
+          <div id="qp-bar" class="progress-bar-fill" style="width:0%"></div>
         </div>
       </div>
 
       <div class="modal-actions">
         <button class="btn-secondary" id="qp-cancel">Cancel</button>
-        <button class="btn-primary" id="qp-go" style="background:#22C55E;flex:1">Launch Game</button>
+        <button class="btn-game btn-game-green" id="qp-go" style="flex:2">&#9654; Launch Game</button>
       </div>
     `;
     this.open();
@@ -365,14 +382,17 @@ Build great products. Grow sustainably. Win.</textarea>
   showJoinExisting() {
     this._modal.innerHTML = `
       <h2>Watch Existing Game</h2>
-      <label>GAME ID</label>
-      <input type="text" id="je-id" placeholder="Enter game ID" />
-      <label>SPECTATOR TOKEN</label>
-      <input type="text" id="je-token" placeholder="Enter spectator token" />
+      <div class="game-card">
+        <div class="game-card-title" style="color:#22D3EE">Spectator Mode</div>
+        <label>GAME ID</label>
+        <input type="text" id="je-id" placeholder="Enter game ID" />
+        <label>SPECTATOR TOKEN</label>
+        <input type="text" id="je-token" placeholder="Enter spectator token" />
+      </div>
 
       <div class="modal-actions">
         <button class="btn-secondary" id="je-cancel">Cancel</button>
-        <button class="btn-primary" id="je-watch">Watch Game</button>
+        <button class="btn-clean" id="je-watch" style="flex:2;border-color:rgba(34,211,238,0.3);color:#22D3EE">&#128065; Watch Game</button>
       </div>
     `;
     this.open();
@@ -402,24 +422,29 @@ Build great products. Grow sustainably. Win.</textarea>
 
     this._modal.innerHTML = `
       <h2 style="text-align:center">Game Over</h2>
-      <div style="text-align:center;margin:16px 0">
-        <div style="font-size:24px;font-weight:800;color:#F0B429">${winner?.startup_name || 'Unknown'}</div>
-        <div style="font-size:11px;color:#888;margin-top:4px">Winner - ${winner?.agent_name || ''}</div>
+
+      <div style="text-align:center;margin:20px 0;padding:20px;background:linear-gradient(180deg,rgba(255,184,0,0.08) 0%,rgba(255,184,0,0.02) 100%);border:1px solid rgba(255,184,0,0.15);border-radius:16px">
+        <div style="font-size:28px;margin-bottom:6px">&#128081;</div>
+        <div style="font-size:22px;font-weight:900;color:#FFB800;text-shadow:0 0 20px rgba(255,184,0,0.3)">${winner?.startup_name || 'Unknown'}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px;font-weight:500">Champion &middot; ${winner?.agent_name || ''}</div>
+        <div style="font-size:20px;font-weight:900;color:#FFB800;margin-top:8px">${formatMoneySimple(winner?.valuation)}</div>
       </div>
 
       <div style="margin:16px 0">
         ${podium.map((s, i) => {
-          const medals = ['#F0B429', '#94A3B8', '#CD7F32'];
+          const medals = ['#FFB800', '#94A3B8', '#CD7F32'];
           const labels = ['1st', '2nd', '3rd'];
+          const icons = ['&#129351;', '&#129352;', '&#129353;'];
           return `
-            <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;margin-bottom:4px;
-                        background:rgba(255,255,255,0.03);border-radius:8px">
-              <div style="font-size:14px;font-weight:800;color:${medals[i]};width:30px">${labels[i]}</div>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:4px;
+                        background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:12px;transition:all 0.15s"
+                 onmouseover="this.style.background='rgba(255,255,255,0.07)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+              <div style="font-size:18px;width:30px;text-align:center">${icons[i]}</div>
               <div style="flex:1">
-                <div style="font-size:11px;font-weight:600">${s.startup_name}</div>
-                <div style="font-size:9px;color:#666">${s.agent_name} &middot; ${s.sector}</div>
+                <div style="font-size:12px;font-weight:700">${s.startup_name}</div>
+                <div style="font-size:9px;color:var(--text-muted)">${s.agent_name} &middot; ${s.sector}</div>
               </div>
-              <div style="font-size:12px;font-weight:700;color:#F0B429">${formatMoneySimple(s.valuation)}</div>
+              <div style="font-size:14px;font-weight:900;color:${medals[i]};text-shadow:0 0 8px ${medals[i]}33">${formatMoneySimple(s.valuation)}</div>
             </div>
           `;
         }).join('')}
@@ -427,7 +452,7 @@ Build great products. Grow sustainably. Win.</textarea>
 
       <div class="modal-actions">
         <button class="btn-secondary" id="pg-close">Close</button>
-        <button class="btn-primary" id="pg-new">New Game</button>
+        <button class="btn-game btn-game-blue" id="pg-new" style="flex:2">&#9654; New Game</button>
       </div>
     `;
     this.open();

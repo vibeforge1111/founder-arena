@@ -38,13 +38,16 @@ export class HUD {
     this._header = document.createElement('div');
     this._header.className = 'header';
     this._header.innerHTML = `
-      <div class="logo">FOUNDER ARENA <span>THREE.JS</span></div>
+      <div class="logo">
+        <div class="logo-icon">FA</div>
+        <div class="logo-text">FOUNDER ARENA<span>STARTUP SIMULATOR</span></div>
+      </div>
       <div class="header-status" id="header-status">
         <span class="dot"></span>READY
       </div>
-      <button class="header-btn" id="btn-quick-play" style="background:rgba(34,197,94,0.2);color:#22C55E;border:1px solid rgba(34,197,94,0.3)">PLAY vs BOTS</button>
-      <button class="header-btn" id="btn-new-game">NEW GAME</button>
-      <button class="header-btn" id="btn-watch" style="background:rgba(255,255,255,0.08);color:#999">WATCH</button>
+      <button class="btn-game btn-game-green" id="btn-quick-play">&#9654; PLAY vs BOTS</button>
+      <button class="btn-clean" id="btn-new-game">+ NEW GAME</button>
+      <button class="btn-ghost" id="btn-watch">&#128065; WATCH</button>
     `;
     this.container.appendChild(this._header);
 
@@ -68,14 +71,14 @@ export class HUD {
     const maxTurns = state.gameData?.max_turns || 32;
 
     if (phase === 'playing') {
-      this._statusEl.innerHTML = `<span class="dot" style="background:#22C55E"></span>LIVE &middot; Week ${turn}/${maxTurns}`;
+      this._statusEl.innerHTML = `<span class="dot" style="background:#34D058;box-shadow:0 0 8px rgba(52,208,88,0.6)"></span>LIVE &middot; Week ${turn}/${maxTurns}`;
     } else if (phase === 'lobby') {
       const count = Object.keys(state.gameData?.startups || {}).length;
-      this._statusEl.innerHTML = `<span class="dot" style="background:#F0B429"></span>LOBBY &middot; ${count} agents`;
+      this._statusEl.innerHTML = `<span class="dot" style="background:#FFB800;box-shadow:0 0 8px rgba(255,184,0,0.6)"></span>LOBBY &middot; ${count} agents`;
     } else if (phase === 'finished') {
-      this._statusEl.innerHTML = `<span class="dot" style="background:#EF4444"></span>FINISHED`;
+      this._statusEl.innerHTML = `<span class="dot" style="background:#EF4444;box-shadow:0 0 8px rgba(239,68,68,0.6)"></span>FINISHED`;
     } else if (state.gameId) {
-      this._statusEl.innerHTML = `<span class="dot" style="background:#3B82F6"></span>CONNECTING...`;
+      this._statusEl.innerHTML = `<span class="dot" style="background:#4A9EFF;box-shadow:0 0 8px rgba(74,158,255,0.6)"></span>CONNECTING...`;
     } else {
       this._statusEl.innerHTML = `<span class="dot"></span>READY`;
     }

@@ -6,6 +6,7 @@ import { StartupPod } from './StartupPod.js';
 import { MarketBoard } from './MarketBoard.js';
 import { SkylineBackground } from './SkylineBackground.js';
 import { ParticleEffect } from './effects.js';
+import { PostProcessing } from './PostProcessing.js';
 import { getAgentColor } from '../utils/colors.js';
 
 export class SceneManager {
@@ -77,6 +78,12 @@ export class SceneManager {
     this.particles = new ParticleEffect(this.scene);
     this._lastTurn = 0;
 
+    // Post-processing pipeline (bloom + vignette + color grading)
+    this.postProcessing = new PostProcessing(this.renderer, this.scene, this.camera);
+
+    // Environment map for reflections (procedural)
+    this._buildEnvMap();
+
     // Raycaster for click selection
     this.raycaster = new THREE.Raycaster();
     this._mouse = new THREE.Vector2();
@@ -88,52 +95,68 @@ export class SceneManager {
   }
 
   _setupLights() {
-    // Ambient - bright office
-    const ambient = new THREE.AmbientLight(0x556688, 1.0);
+    // ============================================
+    // Premium startup office lighting
+    // Warm, bright, clean — like a WeWork on a good day.
+    // Characters and desks should be clearly visible.
+    // ============================================
+
+    // Ambient — warm base so nothing is pitch black
+    const ambient = new THREE.AmbientLight(0x667788, 0.8);
     this.scene.add(ambient);
 
-    // Hemisphere light - sky blue top, warm ground bounce
-    const hemi = new THREE.HemisphereLight(0x88aadd, 0x443322, 0.7);
+    // Hemisphere — warm sky / neutral ground
+    const hemi = new THREE.HemisphereLight(0x99aabb, 0x554433, 0.6);
     this.scene.add(hemi);
 
-    // Main directional (strong overhead)
-    const dirLight = new THREE.DirectionalLight(0xfff0dd, 1.5);
-    dirLight.position.set(12, 22, 8);
+    // Main directional — bright, warm key light (like big office windows)
+    const dirLight = new THREE.DirectionalLight(0xfff5e6, 2.0);
+    dirLight.position.set(15, 20, 10);
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 2048;
-    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.mapSize.width = 4096;
+    dirLight.shadow.mapSize.height = 4096;
     dirLight.shadow.camera.near = 0.5;
     dirLight.shadow.camera.far = 60;
     dirLight.shadow.camera.left = -25;
     dirLight.shadow.camera.right = 25;
     dirLight.shadow.camera.top = 25;
     dirLight.shadow.camera.bottom = -25;
-    dirLight.shadow.bias = -0.001;
+    dirLight.shadow.bias = -0.0005;
+    dirLight.shadow.normalBias = 0.02;
     this.scene.add(dirLight);
 
     // Warm fill from opposite side
-    const fillLight = new THREE.DirectionalLight(0xffcc88, 0.5);
+    const fillLight = new THREE.DirectionalLight(0xffcc88, 0.6);
     fillLight.position.set(-12, 8, -8);
     this.scene.add(fillLight);
 
-    // Cool rim backlight
-    const rimLight = new THREE.PointLight(0x6688ee, 0.6, 50);
+    // Cool rim backlight — subtle edge separation
+    const rimLight = new THREE.PointLight(0x6688cc, 0.5, 50);
     rimLight.position.set(-10, 14, 10);
     this.scene.add(rimLight);
 
-    // Warm accent from front
-    const warmAccent = new THREE.PointLight(0xffaa66, 0.5, 35);
-    warmAccent.position.set(8, 6, 15);
-    this.scene.add(warmAccent);
+    // Front fill — so faces are visible
+    const frontFill = new THREE.PointLight(0xffeedd, 0.6, 35);
+    frontFill.position.set(8, 6, 15);
+    this.scene.add(frontFill);
 
-    // Central overhead office light (bright)
-    const overhead = new THREE.PointLight(0xffffff, 0.8, 30);
+    // Central overhead — bright office light
+    const overhead = new THREE.PointLight(0xfff5ee, 1.2, 30);
     overhead.position.set(0, 10, 0);
     this.scene.add(overhead);
 
-    // Extra fill from behind camera
-    const backFill = new THREE.PointLight(0xddddff, 0.3, 40);
-    backFill.position.set(15, 8, 15);
+    // Subtle blue/purple accent underglow (startup neon vibe)
+    const neonBlue = new THREE.PointLight(0x3355ff, 0.15, 18);
+    neonBlue.position.set(-8, 0.3, -8);
+    this.scene.add(neonBlue);
+
+    const neonPurple = new THREE.PointLight(0x7733ee, 0.12, 18);
+    neonPurple.position.set(8, 0.3, 8);
+    this.scene.add(neonPurple);
+
+    // Back fill from camera side
+    const backFill = new THREE.PointLight(0xddddf0, 0.35, 45);
+    backFill.position.set(18, 10, 18);
     this.scene.add(backFill);
   }
 
@@ -251,7 +274,8 @@ export class SceneManager {
     // Update particle effects
     this.particles.update(dt);
 
-    this.renderer.render(this.scene, this.camera);
+    // Render with post-processing pipeline
+    this.postProcessing.render();
     this.labelRenderer.render(this.scene, this.camera);
   }
 
@@ -293,5 +317,36 @@ export class SceneManager {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
     this.labelRenderer.setSize(w, h);
+    this.postProcessing.setSize(w, h);
+  }
+
+  _buildEnvMap() {
+    // Procedural environment cubemap for subtle reflections on metallic surfaces
+    const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+    pmremGenerator.compileEquirectangularShader();
+
+    const envScene = new THREE.Scene();
+    // Dark blue gradient sky
+    envScene.background = new THREE.Color(0x101025);
+
+    // Add some warm and cool colored lights to create interesting reflections
+    const warmLight = new THREE.PointLight(0xffaa66, 2, 100);
+    warmLight.position.set(10, 10, 10);
+    envScene.add(warmLight);
+
+    const coolLight = new THREE.PointLight(0x4466ff, 2, 100);
+    coolLight.position.set(-10, 8, -10);
+    envScene.add(coolLight);
+
+    const topLight = new THREE.PointLight(0xffffff, 1, 100);
+    topLight.position.set(0, 15, 0);
+    envScene.add(topLight);
+
+    // Generate environment map
+    const envMap = pmremGenerator.fromScene(envScene, 0.04).texture;
+    this.scene.environment = envMap;
+
+    pmremGenerator.dispose();
+    envScene.clear();
   }
 }

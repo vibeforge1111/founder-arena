@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(python -m py_compile *)",
+      "Bash(python -m pytest *)",
+      "Bash(pytest *)",
+      "Bash(python server.py *)",
+      "Bash(uvicorn *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git branch *)",
+      "Bash(git show *)",
+      "Bash(git stash *)",
+      "Bash(gh issue *)",
+      "Bash(gh pr *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(dir *)",
+      "Bash(find *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(grep *)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(rm -r *)",
+      "Bash(del /s *)",
+      "Bash(sudo *)",
+      "Bash(eval *)",
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
+      "Bash(npm publish *)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"[EVOLUTION BOOT] Session started at $(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ). Learned rules: $(wc -l < \"%CLAUDE_PROJECT_DIR%/.claude/memory/learned-rules.md\" 2>/dev/null || echo 0) lines. Corrections logged: $(wc -l < \"%CLAUDE_PROJECT_DIR%/.claude/memory/corrections.jsonl\" 2>/dev/null || echo 0). Observations logged: $(wc -l < \"%CLAUDE_PROJECT_DIR%/.claude/memory/observations.jsonl\" 2>/dev/null || echo 0). Sessions: $(wc -l < \"%CLAUDE_PROJECT_DIR%/.claude/memory/sessions.jsonl\" 2>/dev/null || echo 0). READ .claude/memory/learned-rules.md BEFORE STARTING WORK. RUN VERIFICATION SWEEP ON ALL RULES WITH verify: LINES.\"",
+            "timeout": 5,
+            "statusMessage": "Booting evolution engine..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"[EVOLUTION REMINDER] Before editing: check if this file has path-scoped rules in .claude/rules/. Check learned-rules.md for relevant patterns.\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"[EVOLUTION CHECKPOINT] Session ending. If corrections were received or observations made, ensure they are logged to .claude/memory/. Write session scorecard to sessions.jsonl.\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

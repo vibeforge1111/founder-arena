@@ -42,17 +42,18 @@ export class AgentDetailPanel {
       ? Object.entries(scores).map(([key, val]) => {
           const pct = Math.round((Number(val) || 0) * 100);
           const label = key.replace(/_/g, ' ');
+          const barColor = pct >= 70 ? '#34D058' : pct >= 40 ? '#FFB800' : '#EF4444';
           return `
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
-              <span style="font-size:8px;color:#666;width:70px;text-transform:capitalize">${label}</span>
-              <div style="flex:1;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden">
-                <div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;padding:3px 0">
+              <span style="font-size:8px;color:var(--text-muted);width:70px;text-transform:capitalize;font-weight:600">${label}</span>
+              <div style="flex:1;height:5px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;box-shadow:0 0 6px ${barColor}44;transition:width 0.4s"></div>
               </div>
-              <span style="font-size:9px;color:#888;width:28px;text-align:right">${pct}%</span>
+              <span style="font-size:9px;color:var(--text-dim);width:30px;text-align:right;font-weight:700">${pct}%</span>
             </div>
           `;
         }).join('')
-      : '<div style="font-size:9px;color:#555">Not available yet</div>';
+      : '<div style="font-size:9px;color:var(--text-muted)">Not available yet</div>';
 
     // Strategy + motto
     const strategy = s.strategy || 'balanced';
@@ -71,7 +72,7 @@ export class AgentDetailPanel {
       <div class="stat-grid">
         <div class="stat-cell">
           <div class="stat-label">Valuation</div>
-          <div class="stat-value" style="color:#F0B429">${formatMoney(s.valuation)}</div>
+          <div class="stat-value" style="color:#FFB800">${formatMoney(s.valuation)}</div>
         </div>
         <div class="stat-cell">
           <div class="stat-label">Cash</div>
@@ -79,47 +80,56 @@ export class AgentDetailPanel {
         </div>
         <div class="stat-cell">
           <div class="stat-label">Revenue</div>
-          <div class="stat-value" style="color:#22C55E">${formatMoney(s.revenue)}</div>
+          <div class="stat-value" style="color:#34D058">${formatMoney(s.revenue)}</div>
         </div>
         <div class="stat-cell">
           <div class="stat-label">Runway</div>
-          <div class="stat-value" style="color:${(s.runway || 0) < 4 ? '#EF4444' : '#eee'}">${formatRunway(s.runway)}</div>
+          <div class="stat-value" style="color:${(s.runway || 0) < 4 ? '#EF4444' : (s.runway || 0) < 7 ? '#FB923C' : '#34D058'}">${formatRunway(s.runway)}</div>
         </div>
         <div class="stat-cell">
           <div class="stat-label">Users</div>
-          <div class="stat-value">${formatNumber(s.users)}</div>
+          <div class="stat-value" style="color:#22D3EE">${formatNumber(s.users)}</div>
         </div>
         <div class="stat-cell">
           <div class="stat-label">Product</div>
-          <div class="stat-value" style="color:#3B82F6">${s.product_quality || 0}%</div>
+          <div class="stat-value" style="color:#4A9EFF">${s.product_quality || 0}%</div>
         </div>
         <div class="stat-cell">
           <div class="stat-label">Morale</div>
-          <div class="stat-value" style="color:#22C55E">${s.morale || 0}%</div>
+          <div class="stat-value" style="color:#34D058">${s.morale || 0}%</div>
         </div>
         <div class="stat-cell">
           <div class="stat-label">Brand</div>
-          <div class="stat-value" style="color:#F0B429">${s.brand || 0}%</div>
+          <div class="stat-value" style="color:#FFB800">${s.brand || 0}%</div>
         </div>
       </div>
 
       <div class="panel-title" style="margin-top:8px">FUNDING</div>
-      <div style="font-size:10px;color:#aaa;margin-bottom:8px">
-        Round: <strong>${s.funding_round || 'pre-seed'}</strong> &middot;
-        Raised: <strong>${formatMoney(s.total_raised)}</strong> &middot;
-        Dilution: <strong>${Math.round((s.dilution || 0) * 100)}%</strong>
+      <div style="display:flex;gap:6px;margin-bottom:12px">
+        <div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.04);border-radius:10px;padding:8px 10px;text-align:center">
+          <div style="font-size:8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Round</div>
+          <div style="font-size:11px;font-weight:800;margin-top:2px;color:#A78BFA;text-transform:capitalize">${s.funding_round || 'pre-seed'}</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.04);border-radius:10px;padding:8px 10px;text-align:center">
+          <div style="font-size:8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Raised</div>
+          <div style="font-size:11px;font-weight:800;margin-top:2px;color:#FFB800">${formatMoney(s.total_raised)}</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.04);border-radius:10px;padding:8px 10px;text-align:center">
+          <div style="font-size:8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Dilution</div>
+          <div style="font-size:11px;font-weight:800;margin-top:2px;color:${(s.dilution || 0) > 0.4 ? '#EF4444' : 'var(--text)'}">${Math.round((s.dilution || 0) * 100)}%</div>
+        </div>
       </div>
 
       <div class="panel-title">TEAM (${(s.team || []).length})</div>
-      <div style="margin-bottom:10px">${team || '<div style="font-size:9px;color:#555">No team members</div>'}</div>
+      <div style="margin-bottom:12px">${team || '<div style="font-size:9px;color:var(--text-muted)">No team members</div>'}</div>
 
       <div class="panel-title">PERFORMANCE</div>
       <div style="margin-bottom:8px">${scoreHtml}</div>
 
       ${s.alive === false ? `
-        <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:10px;margin-top:8px">
-          <div style="font-size:10px;font-weight:700;color:#EF4444">ELIMINATED</div>
-          <div style="font-size:9px;color:#888;margin-top:4px">${s.death_reason || 'Startup failed'}</div>
+        <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);border-radius:12px;padding:12px;margin-top:10px">
+          <div style="font-size:11px;font-weight:800;color:#EF4444;display:flex;align-items:center;gap:6px">&#9760; ELIMINATED</div>
+          <div style="font-size:9px;color:var(--text-muted);margin-top:4px">${s.death_reason || 'Startup failed'}</div>
         </div>
       ` : ''}
     `;

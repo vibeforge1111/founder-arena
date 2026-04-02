@@ -9,42 +9,70 @@ export class MarketBoard {
   }
 
   _build() {
-    // Board frame
-    const frameGeo = new THREE.BoxGeometry(5, 3, 0.15);
+    // Board frame — sleek, thin bezel
+    const frameGeo = new THREE.BoxGeometry(5.2, 3.2, 0.1);
     const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x1a1a2e,
-      roughness: 0.3,
-      metalness: 0.7,
+      color: 0x111120,
+      roughness: 0.2,
+      metalness: 0.8,
     });
     const frame = new THREE.Mesh(frameGeo, frameMat);
     frame.position.y = 2.5;
     frame.castShadow = true;
     this.group.add(frame);
 
-    // Screen surface
-    const screenGeo = new THREE.PlaneGeometry(4.6, 2.6);
+    // Screen surface — brighter, more emissive
+    const screenGeo = new THREE.PlaneGeometry(4.8, 2.8);
     const screenMat = new THREE.MeshStandardMaterial({
-      color: 0x0a0a1a,
-      emissive: new THREE.Color(0x0a1025),
-      emissiveIntensity: 0.8,
-      roughness: 0.1,
-      metalness: 0.2,
+      color: 0x060a18,
+      emissive: new THREE.Color(0x0c1833),
+      emissiveIntensity: 1.2,
+      roughness: 0.05,
+      metalness: 0.1,
     });
     const screen = new THREE.Mesh(screenGeo, screenMat);
-    screen.position.set(0, 2.5, 0.08);
+    screen.position.set(0, 2.5, 0.052);
     this.group.add(screen);
 
-    // Support pole
-    const poleGeo = new THREE.CylinderGeometry(0.06, 0.08, 1.0, 8);
-    const poleMat = new THREE.MeshStandardMaterial({ color: 0x333345, metalness: 0.8 });
-    const pole = new THREE.Mesh(poleGeo, poleMat);
-    pole.position.y = 0.5;
-    this.group.add(pole);
+    // Edge glow strip around screen
+    const edgeMat = new THREE.MeshStandardMaterial({
+      color: 0x3366ff,
+      emissive: new THREE.Color(0x2255ff),
+      emissiveIntensity: 1.0,
+    });
+    // Bottom edge
+    const bottomEdge = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.03, 0.02), edgeMat);
+    bottomEdge.position.set(0, 0.92, 0.06);
+    this.group.add(bottomEdge);
+    // Top edge
+    const topEdge = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.03, 0.02), edgeMat);
+    topEdge.position.set(0, 4.08, 0.06);
+    this.group.add(topEdge);
 
-    // Top light
-    const light = new THREE.PointLight(0x4466ff, 0.5, 8);
-    light.position.set(0, 4.5, 1);
+    // Support — dual poles
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x333345, metalness: 0.8, roughness: 0.2 });
+    for (const xOff of [-1.2, 1.2]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.0, 8), poleMat);
+      pole.position.set(xOff, 0.5, 0);
+      this.group.add(pole);
+    }
+    // Base plate
+    const basePlate = new THREE.Mesh(
+      new THREE.BoxGeometry(3.0, 0.04, 0.6),
+      poleMat
+    );
+    basePlate.position.y = 0.02;
+    this.group.add(basePlate);
+
+    // Top light — blue wash on screen
+    const light = new THREE.PointLight(0x4466ff, 0.6, 10);
+    light.position.set(0, 4.5, 1.5);
     this.group.add(light);
+
+    // Screen light spill on floor
+    const floorLight = new THREE.PointLight(0x223388, 0.3, 6);
+    floorLight.position.set(0, 0.5, -0.5);
+    this.group.add(floorLight);
 
     // CSS2D Label
     const el = document.createElement('div');
