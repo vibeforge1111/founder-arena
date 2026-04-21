@@ -37,6 +37,8 @@ class FounderAgent:
         self.entrant_id = None
         self.entrant_version_hash = None
         self.entrant_type = None
+        self.heartbeat_interval = 2.5
+        self._last_heartbeat_at = 0.0
 
     def join_game(self, game_id: str, join_code: str):
         """Join an existing game."""
@@ -60,6 +62,7 @@ class FounderAgent:
         data = resp.json()
         self.agent_token = data["agent_token"]
         self.startup_id = data["startup_id"]
+        self.send_heartbeat(force=True)
         print(f"[{self.name}] Joined as {self.startup_name} (id: {self.startup_id})")
         return data
 
@@ -68,11 +71,26 @@ class FounderAgent:
         self.game_id = game_id
         self.agent_token = agent_token
         self.startup_id = startup_id
+        self.send_heartbeat(force=True)
         print(f"[{self.name}] Attached to existing startup session (id: {self.startup_id or 'unknown'})")
         return {
             "agent_token": self.agent_token,
             "startup_id": self.startup_id,
         }
+
+    def send_heartbeat(self, force: bool = False) -> dict | None:
+        if not self.game_id or not self.agent_token:
+            return None
+        now = time.time()
+        if not force and now - self._last_heartbeat_at < self.heartbeat_interval:
+            return None
+        resp = self.client.post(
+            f"{self.server}/api/games/{self.game_id}/heartbeat",
+            headers={"X-Agent-Token": self.agent_token},
+        )
+        resp.raise_for_status()
+        self._last_heartbeat_at = now
+        return resp.json()
 
     def get_turn_packet(self) -> dict | None:
         """Get the competitive-mode turn packet when supported."""
@@ -738,6 +756,7 @@ class FounderAgent:
 
     def play_turn(self) -> bool:
         """Play a single turn. Returns False if game is over."""
+        self.send_heartbeat()
         state = self.get_state()
         self.game_mode = state.get("game_mode", self.game_mode)
 
@@ -762,6 +781,7 @@ class FounderAgent:
             try:
                 decision_packet = self._build_decision_packet(state, turn_packet, actions)
                 result = self.submit_actions(actions, decision_packet=decision_packet)
+                self.send_heartbeat(force=True)
                 action_names = [a["type"] for a in actions]
                 print(f"[{self.name}] Turn {state['turn']}: {', '.join(action_names)} -> {result.get('status', 'ok')}")
             except httpx.HTTPStatusError as e:

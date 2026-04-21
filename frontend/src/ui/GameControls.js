@@ -25,6 +25,10 @@ export class GameControls {
 
   close() {
     this._overlay.classList.add('hidden');
+    if (this._lobbyUpdateInterval) {
+      clearInterval(this._lobbyUpdateInterval);
+      this._lobbyUpdateInterval = null;
+    }
   }
 
   _quoteArg(value) {
@@ -52,6 +56,56 @@ export class GameControls {
     if (!wrap || !code) return;
     wrap.style.display = 'block';
     code.textContent = command;
+  }
+
+  _runnerToneColor(tone) {
+    return {
+      positive: '#22C55E',
+      warning: '#F59E0B',
+      danger: '#EF4444',
+      neutral: '#94A3B8',
+    }[tone] || '#94A3B8';
+  }
+
+  _formatHeartbeatAge(ageSeconds) {
+    if (ageSeconds == null) return 'No heartbeat yet';
+    if (ageSeconds <= 1) return 'Heartbeat just now';
+    if (ageSeconds < 60) return `Heartbeat ${ageSeconds}s ago`;
+    const minutes = Math.round(ageSeconds / 60);
+    return `Heartbeat ${minutes}m ago`;
+  }
+
+  _fallbackRunnerPresence() {
+    return {
+      status: 'reserved',
+      label: 'Slot reserved',
+      tone: 'neutral',
+      detail: 'No local runner has attached to this startup yet.',
+      heartbeat_age_seconds: null,
+    };
+  }
+
+  _renderRunnerPresence(presence, { compact = false } = {}) {
+    const runner = presence || this._fallbackRunnerPresence();
+    const color = this._runnerToneColor(runner.tone);
+    const ageLabel = this._formatHeartbeatAge(runner.heartbeat_age_seconds);
+    if (compact) {
+      return `
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+          <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;background:${color}1A;border:1px solid ${color}33;color:${color};font-size:8px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase">${runner.label}</span>
+          <span style="font-size:8px;color:var(--text-muted)">${ageLabel}</span>
+        </div>
+      `;
+    }
+    return `
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;background:${color}1A;border:1px solid ${color}33;color:${color};font-size:8px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase">${runner.label}</span>
+          <span style="font-size:9px;color:var(--text-muted)">${ageLabel}</span>
+        </div>
+        <div style="font-size:10px;color:var(--text);line-height:1.5">${runner.detail || ''}</div>
+      </div>
+    `;
   }
 
   showCreateGame() {
@@ -198,6 +252,11 @@ export class GameControls {
           <pre id="da-command" style="white-space:pre-wrap;word-break:break-word;font-size:10px;line-height:1.45;color:var(--text);margin:0"></pre>
         </div>
 
+        <div id="da-runner-wrap" style="display:${reservation ? 'block' : 'none'};margin-top:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:10px 12px">
+          <div style="font-size:9px;color:var(--text-muted);letter-spacing:0.7px;font-weight:700;margin-bottom:6px">LOCAL RUNNER STATUS</div>
+          <div id="da-runner-presence" style="font-size:10px;color:var(--text)">${this._renderRunnerPresence(this._fallbackRunnerPresence())}</div>
+        </div>
+
         <div style="display:flex;gap:8px;margin-top:10px">
           <button class="btn-game btn-game-purple" id="da-deploy" style="flex:1;padding:10px">${reservation ? 'Slot Reserved' : 'Reserve Slot'}</button>
         </div>
@@ -214,6 +273,33 @@ export class GameControls {
       </div>
     `;
     this.open();
+
+    if (reservation) {
+      const command = this._exampleAgentCommand({
+        agentName: defaultAgentName,
+        startupName: defaultStartupName,
+        sector: defaultSector,
+        motto: defaultMotto,
+        strategy: defaultStrategy,
+        agentToken: reservation.agent_token,
+        startupId: reservation.startup_id,
+      });
+      this._showAttachCommand(command);
+      this._modal.querySelectorAll('#da-agent-name, #da-startup-name, #da-sector, #da-motto, #da-strategy').forEach(el => {
+        el.disabled = true;
+        el.style.opacity = '0.5';
+      });
+      const deployButton = this._modal.querySelector('#da-deploy');
+      const status = this._modal.querySelector('#da-status');
+      if (deployButton) {
+        deployButton.disabled = true;
+        deployButton.style.background = '#22C55E';
+      }
+      if (status) {
+        status.style.color = '#22C55E';
+        status.textContent = 'Slot reserved. Start your local runner before starting the match.';
+      }
+    }
 
     // Deploy agent handler
     this._modal.querySelector('#da-deploy').addEventListener('click', async () => {
@@ -245,6 +331,10 @@ export class GameControls {
         btn.textContent = 'Slot Reserved';
         btn.style.background = '#22C55E';
         this._showAttachCommand(command);
+        const runnerWrap = this._modal.querySelector('#da-runner-wrap');
+        const runnerPresence = this._modal.querySelector('#da-runner-presence');
+        if (runnerWrap) runnerWrap.style.display = 'block';
+        if (runnerPresence) runnerPresence.innerHTML = this._renderRunnerPresence(this._fallbackRunnerPresence());
 
         // Disable deploy section after success
         this._modal.querySelectorAll('#da-agent-name, #da-startup-name, #da-sector, #da-motto, #da-strategy').forEach(el => {
@@ -279,24 +369,46 @@ export class GameControls {
       const state = this.store.state;
       if (state.view !== 'lobby') {
         clearInterval(this._lobbyUpdateInterval);
+        this._lobbyUpdateInterval = null;
         return;
       }
       const startups = state.gameData?.startups || {};
       const agentList = this._modal.querySelector('#lobby-agents');
+      const runnerPresenceCard = this._modal.querySelector('#da-runner-presence');
       if (!agentList) return;
 
       const entries = Object.values(startups);
-      if (entries.length === 0) return;
+      const myStartupName = this._modal.querySelector('#da-startup-name')?.value;
+      const myEntry = entries.find((s) => (
+        s.id === this.store.state.myStartupId ||
+        s.startup_name === myStartupName
+      ));
+
+      if (runnerPresenceCard) {
+        runnerPresenceCard.innerHTML = this._renderRunnerPresence(myEntry?.runner_presence || this._fallbackRunnerPresence());
+      }
+
+      if (entries.length === 0) {
+        agentList.innerHTML = '<div style="font-size:10px;color:var(--text-muted);padding:10px;text-align:center">Waiting for agents...</div>';
+        return;
+      }
 
       agentList.innerHTML = entries.map(s => {
-        const isMe = s.id === this.store.state.myStartupId ||
-                     s.startup_name === this._modal.querySelector('#da-startup-name')?.value;
+        const isMe = s.id === this.store.state.myStartupId || s.startup_name === myStartupName;
+        const runnerPresence = s.runner_presence || this._fallbackRunnerPresence();
         return `
-          <div class="lobby-agent" style="${isMe ? 'border-left:2px solid #A78BFA;padding-left:6px' : ''}">
-            <div class="dot" style="background:${s.alive !== false ? '#22C55E' : '#EF4444'}"></div>
-            <span style="font-weight:600">${s.startup_name || 'Unknown'}</span>
-            ${isMe ? '<span style="color:#A78BFA;font-size:8px;margin-left:4px">YOU</span>' : ''}
-            <span style="color:#666;margin-left:auto">${s.sector || ''}</span>
+          <div class="lobby-agent" style="align-items:flex-start;${isMe ? 'border-left:2px solid #A78BFA;padding-left:6px' : ''}">
+            <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span style="font-weight:600">${s.startup_name || 'Unknown'}</span>
+                ${isMe ? '<span style="color:#A78BFA;font-size:8px">YOU</span>' : ''}
+                <span style="color:#666;font-size:8px;text-transform:uppercase;letter-spacing:0.5px">${s.sector || ''}</span>
+              </div>
+              <div style="font-size:8px;color:var(--text-muted)">${runnerPresence.detail || ''}</div>
+            </div>
+            <div style="margin-left:auto">
+              ${this._renderRunnerPresence(runnerPresence, { compact: true })}
+            </div>
           </div>
         `;
       }).join('');

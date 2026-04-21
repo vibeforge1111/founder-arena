@@ -51,6 +51,7 @@ LAST_NAMES = [
 MAX_TURNS = 52
 MAX_ACTIONS_PER_TURN = 3
 TURN_TIMEOUT_SECONDS = 30
+RUNNER_HEARTBEAT_STALE_SECONDS = 8
 DEFAULT_GAME_MODE = "legacy_arena"
 SUPPORTED_GAME_MODES = ["legacy_arena", "competitive_mode"]
 SUPPORTED_QUEUES = ["showmatch", "github_ranked", "skill_ranked"]
@@ -178,6 +179,12 @@ class Startup:
         self.compiled_doctrine: Optional[dict] = None
         self.control_type = "entrant"
         self.benchmark_profile: Optional[dict] = None
+        self.runner_connected_at: Optional[str] = None
+        self.runner_last_heartbeat_at: Optional[str] = None
+        self.runner_last_activity_turn: Optional[int] = None
+        self.runner_last_activity_phase: Optional[str] = None
+        self.runner_last_activity_source: Optional[str] = None
+        self.runner_last_action_turn: Optional[int] = None
         self.alive = True
         self.death_reason = ""
         # Financials
@@ -242,6 +249,12 @@ class Startup:
             "compiled_doctrine": self.compiled_doctrine,
             "control_type": self.control_type,
             "benchmark_profile": self.benchmark_profile,
+            "runner_connected_at": self.runner_connected_at,
+            "runner_last_heartbeat_at": self.runner_last_heartbeat_at,
+            "runner_last_activity_turn": self.runner_last_activity_turn,
+            "runner_last_activity_phase": self.runner_last_activity_phase,
+            "runner_last_activity_source": self.runner_last_activity_source,
+            "runner_last_action_turn": self.runner_last_action_turn,
             "death_reason": self.death_reason,
             "diagnostics": list(self.diagnostics[-5:]),
             "cash": self.cash, "monthly_burn": self.monthly_burn,
@@ -396,6 +409,16 @@ def _clamp_score(value: float) -> float:
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _seconds_since_iso(value: Optional[str]) -> Optional[int]:
+    if not value:
+        return None
+    try:
+        stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return max(0, int((datetime.now(timezone.utc) - stamp).total_seconds()))
 
 
 def _normalize_game_mode(game_mode: Optional[str]) -> str:
@@ -1142,6 +1165,7 @@ class Game:
 
         startup.pending_actions = effective_actions
         startup.actions_submitted = True
+        self._mark_runner_activity(startup, source="action", action_submitted=True)
         if decision is not None:
             self.decision_log.setdefault(startup.id, []).append(decision)
 
@@ -1988,6 +2012,89 @@ class Game:
             "challenge_info": getattr(startup, "challenge_info", None),
         }
 
+    def _mark_runner_activity(self, startup, *, source: str, action_submitted: bool = False) -> None:
+        now_iso = _utc_now_iso()
+        if not getattr(startup, "runner_connected_at", None):
+            startup.runner_connected_at = now_iso
+        startup.runner_last_heartbeat_at = now_iso
+        startup.runner_last_activity_turn = self.turn
+        startup.runner_last_activity_phase = self.phase.value
+        startup.runner_last_activity_source = source
+        if action_submitted:
+            startup.runner_last_action_turn = self.turn
+
+    def _runner_presence_for(self, startup) -> dict:
+        if startup.control_type == "benchmark":
+            return {
+                "status": "benchmark",
+                "label": "Arena bot",
+                "tone": "neutral",
+                "detail": "Built-in benchmark runner managed by the arena.",
+                "connected_at": None,
+                "last_heartbeat_at": None,
+                "heartbeat_age_seconds": None,
+                "last_activity_turn": None,
+                "last_action_turn": None,
+                "last_activity_source": "benchmark",
+            }
+
+        heartbeat_age = _seconds_since_iso(getattr(startup, "runner_last_heartbeat_at", None))
+        stale_after = max(RUNNER_HEARTBEAT_STALE_SECONDS, int(self.turn_timeout) + 2)
+        heartbeat_live = heartbeat_age is not None and heartbeat_age <= stale_after
+
+        if not getattr(startup, "runner_connected_at", None):
+            status = "reserved"
+            label = "Slot reserved"
+            tone = "neutral"
+            detail = "No local runner has attached to this startup yet."
+        elif self.phase == GamePhase.FINISHED:
+            status = "completed"
+            label = "Runner completed"
+            tone = "positive"
+            detail = "Runner attached during the match and reached the final result."
+        elif not heartbeat_live:
+            status = "stalled"
+            label = "Runner stalled"
+            tone = "warning"
+            detail = (
+                f"Last heartbeat was {heartbeat_age}s ago."
+                if heartbeat_age is not None
+                else "Runner connection metadata is incomplete."
+            )
+        elif self.phase == GamePhase.LOBBY:
+            status = "attached"
+            label = "Runner attached"
+            tone = "positive"
+            detail = "Heartbeat is live. This startup is ready for match start."
+        elif startup.actions_submitted or getattr(startup, "runner_last_action_turn", None) == self.turn:
+            status = "acted"
+            label = "Actions submitted"
+            tone = "positive"
+            detail = f"Runner already locked its plan for Week {self.turn}."
+        elif getattr(startup, "runner_last_activity_turn", None) == self.turn:
+            status = "live"
+            label = "Runner live"
+            tone = "positive"
+            detail = f"Heartbeat is active for Week {self.turn}."
+        else:
+            status = "attached"
+            label = "Runner attached"
+            tone = "neutral"
+            detail = "Runner is connected and waiting for the next turn update."
+
+        return {
+            "status": status,
+            "label": label,
+            "tone": tone,
+            "detail": detail,
+            "connected_at": getattr(startup, "runner_connected_at", None),
+            "last_heartbeat_at": getattr(startup, "runner_last_heartbeat_at", None),
+            "heartbeat_age_seconds": heartbeat_age,
+            "last_activity_turn": getattr(startup, "runner_last_activity_turn", None),
+            "last_action_turn": getattr(startup, "runner_last_action_turn", None),
+            "last_activity_source": getattr(startup, "runner_last_activity_source", None),
+        }
+
     def get_state(self, agent_token: Optional[str] = None) -> dict:
         """Get game state. If agent_token provided, includes private view."""
         state = {
@@ -2036,6 +2143,7 @@ class Game:
             if self.use_rich_state:
                 if sid == my_startup_id or self.phase == GamePhase.FINISHED:
                     state["startups"][sid].update(self._director_payload_for(s))
+            state["startups"][sid]["runner_presence"] = self._runner_presence_for(s)
 
         if self.game_mode == "competitive_mode":
             if my_startup_id:
@@ -2057,6 +2165,7 @@ class Game:
         for sid, startup in self.startups.items():
             payload = startup.snapshot()
             payload.update(self._score_payload_for(startup))
+            payload["runner_presence"] = self._runner_presence_for(startup)
             if self.use_rich_state:
                 payload.update(self._director_payload_for(startup))
             startup_payload[sid] = payload
@@ -3614,6 +3723,9 @@ async def get_state(game_id: str, request: Request, x_agent_token: Optional[str]
     if not game.has_agent_token(token):
         _audit(request, "state_denied", game_id=game_id, reason="invalid_agent_token")
         raise HTTPException(403, "Invalid agent token")
+    startup = game.get_startup_by_token(token)
+    if startup:
+        game._mark_runner_activity(startup, source="state")
     _audit(request, "state_read", game_id=game_id, agent_token_fingerprint=token_fingerprint(token))
     return game.get_state(token)
 
@@ -3629,6 +3741,9 @@ async def get_turn_packet(game_id: str, request: Request, x_agent_token: Optiona
     if not game.has_agent_token(token):
         _audit(request, "turn_packet_denied", game_id=game_id, reason="invalid_agent_token")
         raise HTTPException(403, "Invalid agent token")
+    startup = game.get_startup_by_token(token)
+    if startup:
+        game._mark_runner_activity(startup, source="turn_packet")
     try:
         packet = game.get_turn_packet(token)
     except ValueError as e:
@@ -3636,6 +3751,29 @@ async def get_turn_packet(game_id: str, request: Request, x_agent_token: Optiona
         raise HTTPException(400, str(e))
     _audit(request, "turn_packet_read", game_id=game_id, agent_token_fingerprint=token_fingerprint(token))
     return packet
+
+
+@app.post("/api/games/{game_id}/heartbeat")
+async def heartbeat_runner(game_id: str, request: Request, x_agent_token: Optional[str] = Header(None, alias="X-Agent-Token")):
+    game = games.get(game_id)
+    if not game:
+        raise HTTPException(404, "Game not found")
+    game.check_timeout()
+    token = _require_header_token(x_agent_token, header_name="X-Agent-Token")
+    _enforce_rate_limit(request, scope="runner_heartbeat", identity=token_fingerprint(token) or _client_ip(request), limit=240, window_seconds=60)
+    startup = game.get_startup_by_token(token)
+    if not startup:
+        _audit(request, "runner_heartbeat_denied", game_id=game_id, reason="invalid_agent_token")
+        raise HTTPException(403, "Invalid agent token")
+    game._mark_runner_activity(startup, source="heartbeat")
+    _audit(request, "runner_heartbeat", game_id=game_id, startup_id=startup.id, agent_token_fingerprint=token_fingerprint(token))
+    return {
+        "status": "ok",
+        "startup_id": startup.id,
+        "phase": game.phase.value,
+        "turn": game.turn,
+        "runner_presence": game._runner_presence_for(startup),
+    }
 
 
 @app.post("/api/games/{game_id}/action")
