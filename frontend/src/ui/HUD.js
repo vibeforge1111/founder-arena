@@ -145,6 +145,18 @@ export class HUD {
       .replace(/\b\w/g, (ch) => ch.toUpperCase());
   }
 
+  _queryUrlFromPayload(query) {
+    if (!query || typeof window === 'undefined') return '';
+    const url = new URL(window.location.href);
+    url.search = '';
+    Object.entries(query).forEach(([key, value]) => {
+      if (value != null && value !== '') {
+        url.searchParams.set(key, String(value));
+      }
+    });
+    return url.toString();
+  }
+
   _socialCaption(summary, fallbackHeadline, storyHook) {
     return [
       fallbackHeadline || null,
@@ -289,6 +301,7 @@ export class HUD {
           <div style="font-size:9px;color:${card.accent};font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${card.label}</div>
           <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.4;margin-top:10px">${card.item.headline || `${card.item.winner_startup} replay`}</div>
           <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:8px">${card.item.matchup_label || card.item.game_name || 'Featured replay'}</div>
+          ${card.item.artifact_focus?.label ? `<div style="font-size:8px;color:#FCD34D;font-weight:800;letter-spacing:0.7px;text-transform:uppercase;margin-top:8px">${card.item.artifact_focus.label}</div>` : ''}
           <div style="font-size:9px;color:var(--text-muted);line-height:1.45;margin-top:6px">${card.item.story_hook || card.item.winner_summary || 'Replay story is loading.'}</div>
         </button>
       `;
@@ -604,10 +617,10 @@ export class HUD {
     }
 
     const replayUrl = `${window.location.origin}${window.location.pathname}?game=${encodeURIComponent(item.game_id)}${item.spectator_token ? `&spectator=${encodeURIComponent(item.spectator_token)}` : ''}&phase=replay`;
-    const cardUrl = `${replayUrl}&layout=card`;
-    const socialUrl = `${replayUrl}&layout=social`;
+    const cardUrl = this._queryUrlFromPayload(item.artifacts?.card_query) || `${replayUrl}&layout=card`;
+    const socialUrl = this._queryUrlFromPayload(item.artifacts?.social_query) || `${replayUrl}&layout=social`;
     const embedSnippet = this._buildReplayEmbedSnippet(cardUrl, `${slotTitle} | Founder Arena`);
-    const socialCaption = [
+    const socialCaption = item.social_caption || [
       item.headline || `${item.winner_startup} won the match.`,
       item.winner_summary || null,
       item.story_hook ? `Story hook: ${item.story_hook}` : null,
@@ -622,7 +635,7 @@ export class HUD {
         linear-gradient(180deg, rgba(8,15,24,0.94), rgba(8,12,18,0.98));border-color:rgba(255,255,255,0.08)">
         <div class="spectator-entry-topline">
           <span class="spectator-entry-badge">${isSocialLayout ? `${slotTitle} Social` : slotTitle}</span>
-          <span class="spectator-entry-meta">Canonical slot page &middot; ${item.format_label || 'Featured Replay'} &middot; ${item.queue || 'showmatch'}</span>
+          <span class="spectator-entry-meta">Canonical slot page &middot; ${item.format_label || 'Featured Replay'} &middot; ${item.queue || 'showmatch'}${item.artifact_focus?.label ? ` &middot; ${item.artifact_focus.label}` : ''}</span>
         </div>
         <div class="spectator-entry-hero" style="align-items:flex-start">
           <div style="flex:1 1 520px;min-width:0">
@@ -679,9 +692,9 @@ export class HUD {
         </div>
 
         <div style="display:grid;grid-template-columns:${isSocialLayout ? '1fr' : 'minmax(0,1fr) minmax(280px,0.9fr)'};gap:16px;margin-top:18px">
-          <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
-            <div style="font-size:9px;color:#A78BFA;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Editorial Summary</div>
-            <div style="font-size:10px;color:var(--text-dim);line-height:1.7;white-space:pre-wrap;margin-top:12px">${[
+            <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+              <div style="font-size:9px;color:#A78BFA;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Editorial Summary</div>
+            <div style="font-size:10px;color:var(--text-dim);line-height:1.7;white-space:pre-wrap;margin-top:12px">${item.caption || [
               `${item.headline || `${item.winner_startup} won the match.`}`,
               item.winner_summary || null,
               item.story_hook ? `Why it matters: ${item.story_hook}` : null,
@@ -740,7 +753,7 @@ export class HUD {
       this.store.watchGame(item.game_id, item.spectator_token || null, {
         viaSharedLink: true,
         requestedPhase: 'replay',
-        layout: 'social',
+        layout: item.artifact_focus?.layout || 'social',
         slot,
       });
     });

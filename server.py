@@ -4053,6 +4053,65 @@ def _featured_showmatch_descriptor(game: "Game", ranked: list, summary: dict) ->
     }
 
 
+def _featured_share_package(game: "Game", ranked: list, summary: dict, descriptor: dict, story_hook: str, top_turning_point: Optional[dict], top_runner_issue: Optional[dict], top_loser: Optional[dict]) -> dict:
+    winner = ranked[0] if ranked else None
+    runner_up = ranked[1] if len(ranked) > 1 else None
+    final_margin = float(summary.get("final_margin") or 0.0)
+    headline = (
+        f"{winner.startup_name} beat {runner_up.startup_name} by {final_margin:.1f} score"
+        if winner and runner_up and game.game_mode == "competitive_mode"
+        else f"{winner.startup_name if winner else game.name} won Founder Arena"
+    )
+    caption_parts = [
+        f"{descriptor.get('format_label', 'Featured Replay')}: {descriptor.get('matchup_label', winner.startup_name if winner else game.name)}",
+        summary.get("winner_summary") or headline,
+        f"Turning point: {top_turning_point.get('headline')}" if top_turning_point and top_turning_point.get("headline") else None,
+        f"Runner issue: {top_runner_issue.get('headline')}" if top_runner_issue and top_runner_issue.get("headline") else None,
+        (
+            f"Why they lost: {((top_loser or {}).get('runner_failure') or {}).get('headline') or (top_loser or {}).get('headline')}"
+            if top_loser and ((((top_loser or {}).get("runner_failure") or {}).get("headline")) or top_loser.get("headline"))
+            else None
+        ),
+        f"Practice takeaway: {summary.get('practice_takeaway', {}).get('headline')}" if (summary.get("practice_takeaway") or {}).get("headline") else None,
+    ]
+    social_caption_parts = [
+        headline,
+        summary.get("winner_summary") or None,
+        f"Story hook: {story_hook}" if story_hook else None,
+        f"Turning point: {top_turning_point.get('headline')}" if top_turning_point and top_turning_point.get("headline") else None,
+        f"Takeaway: {summary.get('practice_takeaway', {}).get('headline')}" if (summary.get("practice_takeaway") or {}).get("headline") else None,
+    ]
+    return {
+        "headline": headline,
+        "caption": "\n".join(part for part in caption_parts if part),
+        "social_caption": "\n".join(part for part in social_caption_parts if part),
+        "artifact_focus": {
+            "label": "Social Ready",
+            "layout": "social",
+            "phase": "replay",
+        },
+        "artifacts": {
+            "replay_query": {
+                "game": game.id,
+                "spectator": game.spectator_token,
+                "phase": "replay",
+            },
+            "card_query": {
+                "game": game.id,
+                "spectator": game.spectator_token,
+                "phase": "replay",
+                "layout": "card",
+            },
+            "social_query": {
+                "game": game.id,
+                "spectator": game.spectator_token,
+                "phase": "replay",
+                "layout": "social",
+            },
+        },
+    }
+
+
 def _featured_game_entry(game: "Game") -> Optional[dict]:
     if game.phase != GamePhase.FINISHED:
         return None
@@ -4081,6 +4140,16 @@ def _featured_game_entry(game: "Game") -> Optional[dict]:
         or summary.get("winner_summary")
         or f"{winner.startup_name} won the match."
     )
+    share_package = _featured_share_package(
+        game,
+        ranked,
+        summary,
+        descriptor,
+        story_hook,
+        top_turning_point,
+        top_runner_issue,
+        top_loser,
+    )
     return {
         "game_id": game.id,
         "game_name": game.name,
@@ -4102,6 +4171,7 @@ def _featured_game_entry(game: "Game") -> Optional[dict]:
         "runner_issue_headline": (top_runner_issue or {}).get("headline"),
         "practice_takeaway": (summary.get("practice_takeaway") or {}).get("headline"),
         "players": len(ranked),
+        **share_package,
         **descriptor,
     }
 
