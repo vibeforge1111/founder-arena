@@ -1806,23 +1806,180 @@ class Game:
             startup.seven_dimension_scores = _compute_seven_dimension_scores(startup)
         return startup.seven_dimension_scores
 
+    def _metric_delta_for(self, startup) -> float:
+        history = getattr(startup, "history", []) or []
+        if not history:
+            return 0.0
+        metric_key = "score" if self.game_mode == "competitive_mode" else "valuation"
+        current_value = float(history[-1].get(metric_key, self._official_metric_value_for(startup)) or 0.0)
+        previous_value = float(history[-2].get(metric_key, current_value) or current_value) if len(history) > 1 else current_value
+        return round(current_value - previous_value, 2)
+
+    def _pressure_snapshot_for(self, startup) -> dict:
+        pressure = self._action_pressure_snapshot(startup)
+        severity = round(float(getattr(startup, "stress_index", 0.0) or 0.0), 2)
+        tags: list[dict] = []
+
+        if not startup.alive:
+            tags.append({"label": "Eliminated", "tone": "danger"})
+            return {
+                "pressure_level": "danger",
+                "risk_tags": tags,
+                "watch_text": startup.death_reason or "The startup is out of the match.",
+                "stress_index": severity,
+            }
+
+        runway = float(pressure.get("runway", getattr(startup, "runway", 0.0)) or 0.0)
+        trust_score = float(pressure.get("trust_score", 0.7) or 0.0)
+        support_backlog = float(pressure.get("support_backlog", 0.0) or 0.0)
+        regulatory_pressure = float(pressure.get("regulatory_pressure", 0.0) or 0.0)
+
+        if runway < 4:
+            tags.append({"label": "Runway Risk", "tone": "danger"})
+        elif runway < 7:
+            tags.append({"label": "Short Runway", "tone": "warning"})
+
+        if trust_score < 0.45:
+            tags.append({"label": "Trust Drop", "tone": "danger"})
+        elif trust_score < 0.62:
+            tags.append({"label": "Trust Soft", "tone": "warning"})
+
+        if support_backlog > 30:
+            tags.append({"label": "Backlog Spike", "tone": "danger"})
+        elif support_backlog > 18:
+            tags.append({"label": "Support Load", "tone": "warning"})
+
+        if regulatory_pressure > 0.75:
+            tags.append({"label": "Compliance Heat", "tone": "danger"})
+        elif regulatory_pressure > 0.35:
+            tags.append({"label": "Reg Pressure", "tone": "warning"})
+
+        if severity > 0.72:
+            tags.append({"label": "High Pressure", "tone": "danger"})
+        elif severity > 0.38:
+            tags.append({"label": "Pressure Arc", "tone": "warning"})
+
+        delta = self._metric_delta_for(startup)
+        if not tags and delta >= 0.8:
+            tags.append({"label": "Momentum", "tone": "positive"})
+        elif not tags:
+            tags.append({"label": "Stable", "tone": "neutral"})
+
+        tone_rank = {"danger": 3, "warning": 2, "positive": 1, "neutral": 0}
+        pressure_level = max((tag["tone"] for tag in tags), key=lambda tone: tone_rank.get(tone, 0))
+        watch_text = None
+        current_arc = self._arc_summary_for(startup)
+        if current_arc and current_arc.get("headline"):
+            watch_text = current_arc["headline"]
+        else:
+            watch_items = self._watch_items_for(startup)
+            if watch_items:
+                watch_text = watch_items[0]
+        return {
+            "pressure_level": pressure_level,
+            "risk_tags": tags[:3],
+            "watch_text": watch_text,
+            "stress_index": severity,
+        }
+
     def _score_payload_for(self, startup) -> dict:
         return {
             "seven_dimension_scores": self._scorecard_for(startup),
             "score": self._score_value_for(startup),
+            "score_delta": self._metric_delta_for(startup) if self.game_mode == "competitive_mode" else None,
+            "valuation_delta": self._metric_delta_for(startup) if self.game_mode != "competitive_mode" else None,
+            **self._pressure_snapshot_for(startup),
         }
 
     def _rankings_payload(self) -> list[dict]:
-        return [
-            {
-                "startup_id": startup.id,
-                "rank": index + 1,
-                "score": self._score_value_for(startup),
-                "valuation": startup.calc_valuation(),
-                "alive": startup.alive,
+        payload: list[dict] = []
+        for index, startup in enumerate(self._ranked_startups()):
+            pressure = self._pressure_snapshot_for(startup)
+            payload.append(
+                {
+                    "startup_id": startup.id,
+                    "rank": index + 1,
+                    "score": self._score_value_for(startup),
+                    "valuation": startup.calc_valuation(),
+                    "alive": startup.alive,
+                    "score_delta": self._metric_delta_for(startup) if self.game_mode == "competitive_mode" else None,
+                    "pressure_level": pressure["pressure_level"],
+                    "risk_tags": pressure["risk_tags"],
+                }
+            )
+        return payload
+
+    def _competitive_live_summary(self) -> Optional[dict]:
+        if self.game_mode != "competitive_mode":
+            return None
+
+        ranked = self._ranked_startups()
+        if not ranked:
+            return None
+
+        leader = ranked[0]
+        challenger = ranked[1] if len(ranked) > 1 else None
+        leader_score = round(self._score_value_for(leader), 2)
+        leader_delta = self._metric_delta_for(leader)
+        leader_pressure = self._pressure_snapshot_for(leader)
+        leader_arc = self._arc_summary_for(leader)
+
+        if challenger is None:
+            return {
+                "leader_startup_id": leader.id,
+                "leader_startup_name": leader.startup_name,
+                "leader_agent_name": leader.agent_name,
+                "leader_score": leader_score,
+                "leader_delta": leader_delta,
+                "margin": None,
+                "why_ahead": f"{leader.startup_name} is the only active startup on the board.",
+                "flip_watch": leader_pressure.get("watch_text") or "The next swing starts when another founder joins.",
+                "leader_pressure": leader_pressure,
+                "challenger_pressure": None,
             }
-            for index, startup in enumerate(self._ranked_startups())
-        ]
+
+        challenger_score = round(self._score_value_for(challenger), 2)
+        challenger_delta = self._metric_delta_for(challenger)
+        margin = round(leader_score - challenger_score, 2)
+        edge_summary = self._score_edge_summary(leader, challenger)
+        strengths = [item["label"] for item in edge_summary.get("strengths", [])[:2]]
+        gaps = [item["label"] for item in edge_summary.get("gaps", [])[:2]]
+        challenger_pressure = self._pressure_snapshot_for(challenger)
+        challenger_arc = self._arc_summary_for(challenger)
+
+        if strengths:
+            why_ahead = f"{leader.startup_name} leads on {' and '.join(strengths)}."
+        else:
+            why_ahead = f"{leader.startup_name} is ahead on overall score balance."
+
+        if gaps:
+            flip_watch = f"{challenger.startup_name} can flip this by punishing {gaps[0]}."
+        elif leader_pressure.get("pressure_level") == "danger":
+            flip_watch = f"{leader.startup_name} is exposed: {leader_pressure.get('watch_text') or 'pressure is rising.'}"
+        elif challenger_pressure.get("pressure_level") in {"danger", "warning"} and challenger_arc and challenger_arc.get("headline"):
+            flip_watch = f"Watch {challenger.startup_name}: {challenger_arc['headline']}"
+        elif leader_arc and leader_arc.get("headline"):
+            flip_watch = f"Watch the leader arc: {leader_arc['headline']}"
+        else:
+            flip_watch = f"{challenger.startup_name} needs a cleaner turn to close the {margin:.1f} score gap."
+
+        return {
+            "leader_startup_id": leader.id,
+            "leader_startup_name": leader.startup_name,
+            "leader_agent_name": leader.agent_name,
+            "leader_score": leader_score,
+            "leader_delta": leader_delta,
+            "leader_pressure": leader_pressure,
+            "challenger_startup_id": challenger.id,
+            "challenger_startup_name": challenger.startup_name,
+            "challenger_agent_name": challenger.agent_name,
+            "challenger_score": challenger_score,
+            "challenger_delta": challenger_delta,
+            "challenger_pressure": challenger_pressure,
+            "margin": margin,
+            "why_ahead": why_ahead,
+            "flip_watch": flip_watch,
+        }
 
     def _director_payload_for(self, startup) -> dict:
         return {
@@ -1869,21 +2026,23 @@ class Game:
                     state["startups"][sid]["current_arc"] = self._arc_summary_for(s)
             else:
                 state["startups"][sid] = s.public_view()
-                if self.phase == GamePhase.FINISHED:
+                if self.game_mode == "competitive_mode" or self.phase == GamePhase.FINISHED:
                     state["startups"][sid].update(self._score_payload_for(s))
-                    if self.game_mode == "competitive_mode":
-                        state["startups"][sid]["latest_decision"] = self._public_decision_summary(
-                            (self.decision_log.get(sid) or [None])[-1]
-                        )
-                        state["startups"][sid]["current_arc"] = self._arc_summary_for(s)
+                if self.game_mode == "competitive_mode":
+                    state["startups"][sid]["latest_decision"] = self._public_decision_summary(
+                        (self.decision_log.get(sid) or [None])[-1]
+                    )
+                    state["startups"][sid]["current_arc"] = self._arc_summary_for(s)
             if self.use_rich_state:
                 if sid == my_startup_id or self.phase == GamePhase.FINISHED:
                     state["startups"][sid].update(self._director_payload_for(s))
 
-        if self.game_mode == "competitive_mode" and my_startup_id:
-            state["turn_packet"] = self._build_turn_packet(self.startups[my_startup_id])
+        if self.game_mode == "competitive_mode":
+            if my_startup_id:
+                state["turn_packet"] = self._build_turn_packet(self.startups[my_startup_id])
             state["rank_basis"] = "score"
             state["rankings"] = self._rankings_payload()
+            state["live_summary"] = self._competitive_live_summary()
         if self.phase == GamePhase.FINISHED:
             state["summary"] = self._build_replay_summary(self._ranked_startups())
 
@@ -1921,6 +2080,7 @@ class Game:
             "seven_dimension_scores": {sid: self._scorecard_for(s) for sid, s in self.startups.items()},
             "rank_basis": "score" if self.game_mode == "competitive_mode" else "valuation",
             "rankings": self._rankings_payload(),
+            "live_summary": self._competitive_live_summary() if self.game_mode == "competitive_mode" else None,
             "action_logs": self.action_log,
             "arc_feed": self._arc_feed(),
             "shared_market": self._shared_market_snapshot(),

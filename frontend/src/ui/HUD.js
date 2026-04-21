@@ -51,6 +51,10 @@ export class HUD {
     `;
     this.container.appendChild(this._header);
 
+    this._matchStrip = document.createElement('div');
+    this._matchStrip.className = 'match-strip hidden';
+    this.container.appendChild(this._matchStrip);
+
     this._statusEl = this._header.querySelector('#header-status');
 
     this._header.querySelector('#btn-quick-play').addEventListener('click', () => {
@@ -62,6 +66,52 @@ export class HUD {
     this._header.querySelector('#btn-watch').addEventListener('click', () => {
       this.controls.showJoinExisting();
     });
+  }
+
+  _formatDelta(value) {
+    const num = Number(value || 0);
+    if (Math.abs(num) < 0.05) return 'Flat';
+    return `${num > 0 ? '+' : ''}${num.toFixed(1)}`;
+  }
+
+  _pressurePills(pressure) {
+    const tags = pressure?.risk_tags || [];
+    return tags.slice(0, 2).map((tag) =>
+      `<span class="signal-pill signal-pill-${tag.tone || 'neutral'}">${tag.label || tag}</span>`
+    ).join('');
+  }
+
+  _updateMatchStrip(state) {
+    const summary = state.gameData?.live_summary;
+    const phase = state.gameData?.phase;
+    if (!summary || (phase !== 'playing' && phase !== 'finished')) {
+      this._matchStrip.classList.add('hidden');
+      this._matchStrip.innerHTML = '';
+      return;
+    }
+
+    const leaderTags = this._pressurePills(summary.leader_pressure);
+    const challengerTags = this._pressurePills(summary.challenger_pressure);
+    this._matchStrip.classList.remove('hidden');
+    this._matchStrip.innerHTML = `
+      <div class="match-strip-card emphasis">
+        <div class="match-strip-label">Leader</div>
+        <div class="match-strip-score">${summary.leader_startup_name}</div>
+        <div class="match-strip-sub">${summary.leader_score?.toFixed(1)} score &middot; ${this._formatDelta(summary.leader_delta)} this turn</div>
+        ${leaderTags ? `<div class="signal-pills">${leaderTags}</div>` : ''}
+      </div>
+      <div class="match-strip-card">
+        <div class="match-strip-label">Why Ahead</div>
+        <div class="match-strip-body">${summary.why_ahead || 'Match edge not available yet.'}</div>
+        <div class="match-strip-sub">Margin: ${summary.margin != null ? `${summary.margin.toFixed(1)} score` : 'No challenger yet'}</div>
+      </div>
+      <div class="match-strip-card">
+        <div class="match-strip-label">What Could Flip</div>
+        <div class="match-strip-body">${summary.flip_watch || 'No immediate flip signal recorded.'}</div>
+        ${summary.challenger_startup_name ? `<div class="match-strip-sub">${summary.challenger_startup_name} &middot; ${summary.challenger_score?.toFixed(1)} score &middot; ${this._formatDelta(summary.challenger_delta)} this turn</div>` : ''}
+        ${challengerTags ? `<div class="signal-pills">${challengerTags}</div>` : ''}
+      </div>
+    `;
   }
 
   update(state) {
@@ -82,6 +132,8 @@ export class HUD {
     } else {
       this._statusEl.innerHTML = `<span class="dot"></span>READY`;
     }
+
+    this._updateMatchStrip(state);
 
     // Update panels
     this.rankings.update(state);
