@@ -29,6 +29,7 @@ export class GameStore {
         viaSharedLink: false,
         requestedPhase: null,
         layout: null,
+        slot: null,
       },
       error: null,
     };
@@ -59,6 +60,11 @@ export class GameStore {
       url.searchParams.set('layout', this.state.entryContext.layout);
     } else {
       url.searchParams.delete('layout');
+    }
+    if (this.state.entryContext?.slot) {
+      url.searchParams.set('slot', this.state.entryContext.slot);
+    } else {
+      url.searchParams.delete('slot');
     }
     window.history.replaceState({}, '', `${url.pathname}${url.search}`);
   }
@@ -123,6 +129,31 @@ export class GameStore {
       url.searchParams.delete('layout');
     } else if (this.state.entryContext?.layout) {
       url.searchParams.set('layout', this.state.entryContext.layout);
+    }
+    if (options.slot) {
+      url.searchParams.set('slot', options.slot);
+    } else if (options.slot === null) {
+      url.searchParams.delete('slot');
+    } else if (this.state.entryContext?.slot) {
+      url.searchParams.set('slot', this.state.entryContext.slot);
+    }
+    return url.toString();
+  }
+
+  getFeaturedSlotUrl(slot, options = {}) {
+    if (typeof window === 'undefined') return '';
+    const url = new URL(window.location.href);
+    url.searchParams.delete('game');
+    url.searchParams.delete('spectator');
+    url.searchParams.delete('phase');
+    url.searchParams.delete('layout');
+    if (slot) {
+      url.searchParams.set('slot', slot);
+    } else {
+      url.searchParams.delete('slot');
+    }
+    if (options.layout) {
+      url.searchParams.set('layout', options.layout);
     }
     return url.toString();
   }
@@ -231,10 +262,29 @@ export class GameStore {
         viaSharedLink: Boolean(options.viaSharedLink),
         requestedPhase: options.requestedPhase || null,
         layout: options.layout || null,
+        slot: options.slot || null,
       },
       error: null,
     });
     this.startPolling();
+  }
+
+  openFeaturedSlot(slot, options = {}) {
+    this.stopPolling();
+    this.update({
+      gameId: null,
+      spectatorToken: null,
+      gameData: null,
+      selectedStartupId: null,
+      view: 'landing',
+      entryContext: {
+        viaSharedLink: Boolean(options.viaSharedLink ?? true),
+        requestedPhase: null,
+        layout: options.layout || null,
+        slot: slot || null,
+      },
+      error: null,
+    });
   }
 
   selectStartup(startupId) {

@@ -63,6 +63,10 @@ export class HUD {
     this._featuredReplayPage.className = 'spectator-entry hidden';
     this.container.appendChild(this._featuredReplayPage);
 
+    this._featuredSlotPage = document.createElement('div');
+    this._featuredSlotPage.className = 'spectator-entry hidden';
+    this.container.appendChild(this._featuredSlotPage);
+
     this._discoveryShelf = document.createElement('div');
     this._discoveryShelf.className = 'spectator-entry hidden';
     this.container.appendChild(this._discoveryShelf);
@@ -123,6 +127,20 @@ export class HUD {
     return this._isFeaturedReplayPage(state) && state.entryContext?.layout === 'card';
   }
 
+  _isFeaturedSlotPage(state) {
+    return Boolean(
+      !state.gameId &&
+      state.entryContext?.slot &&
+      state.featuredFeed
+    );
+  }
+
+  _slotTitle(slot) {
+    return String(slot || '')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (ch) => ch.toUpperCase());
+  }
+
   _buildReplayEmbedSnippet(url, title = 'Founder Arena Featured Replay') {
     if (!url) return '';
     return `<iframe src="${url}" title="${title}" width="720" height="900" style="width:100%;max-width:720px;height:900px;border:0;border-radius:16px;overflow:hidden;" loading="lazy"></iframe>`;
@@ -131,7 +149,8 @@ export class HUD {
   _syncReplayLayoutChrome(state) {
     const featuredReplayPage = this._isFeaturedReplayPage(state);
     const cardLayout = this._isReplayCardLayout(state);
-    const hideMainPanels = featuredReplayPage;
+    const featuredSlotPage = this._isFeaturedSlotPage(state);
+    const hideMainPanels = featuredReplayPage || featuredSlotPage;
     this.rankings.el.style.display = hideMainPanels ? 'none' : '';
     this.timeline._wrapper.style.display = hideMainPanels ? 'none' : '';
     this.detail.el.style.display = hideMainPanels ? 'none' : '';
@@ -146,7 +165,7 @@ export class HUD {
 
   _updateDiscoveryShelf(state) {
     const hasFocusedGame = Boolean(state.gameId || state.gameData);
-    if (hasFocusedGame) {
+    if (hasFocusedGame || this._isFeaturedSlotPage(state)) {
       this._discoveryShelf.classList.add('hidden');
       this._discoveryShelf.innerHTML = '';
       return;
@@ -178,19 +197,22 @@ export class HUD {
         label: 'Daily Featured Duel',
         accent: '#FFB800',
         item: featuredFeed.daily_featured_duel,
-        mode: 'replay',
+        mode: 'slot',
+        slot: 'daily_featured_duel',
       },
       {
         label: 'Weekly Upset Recap',
         accent: '#A78BFA',
         item: featuredFeed.weekly_upset_recap,
-        mode: 'replay',
+        mode: 'slot',
+        slot: 'weekly_upset_recap',
       },
       {
         label: 'Beat This Benchmark',
         accent: '#22D3EE',
         item: featuredFeed.benchmark_challenge,
-        mode: 'replay',
+        mode: 'slot',
+        slot: 'benchmark_challenge',
       },
     ];
 
@@ -248,7 +270,7 @@ export class HUD {
         `;
       }
       return `
-        <button class="btn-clean discovery-link" data-mode="${card.mode}" data-game="${card.item.game_id}" data-spectator="${card.item.spectator_token || ''}" style="text-align:left;padding:12px 14px;border-color:${card.accent}2e;background:${card.accent}12">
+        <button class="btn-clean discovery-link" data-mode="${card.mode}" data-slot="${card.slot}" data-game="${card.item.game_id}" data-spectator="${card.item.spectator_token || ''}" style="text-align:left;padding:12px 14px;border-color:${card.accent}2e;background:${card.accent}12">
           <div style="font-size:9px;color:${card.accent};font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${card.label}</div>
           <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.4;margin-top:10px">${card.item.headline || `${card.item.winner_startup} replay`}</div>
           <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:8px">${card.item.matchup_label || card.item.game_name || 'Featured replay'}</div>
@@ -288,6 +310,11 @@ export class HUD {
         const gameId = button.dataset.game;
         const mode = button.dataset.mode;
         const spectator = button.dataset.spectator || null;
+        const slot = button.dataset.slot || null;
+        if (mode === 'slot' && slot) {
+          this.store.openFeaturedSlot(slot, { viaSharedLink: true });
+          return;
+        }
         if (!gameId) return;
         if (mode === 'replay') {
           this.store.watchGame(gameId, spectator, { viaSharedLink: true, requestedPhase: 'replay' });
@@ -505,6 +532,182 @@ export class HUD {
         this.store.selectStartup(startupId);
         this.scene?.focusOnPod?.(startupId);
       });
+    });
+  }
+
+  _updateFeaturedSlotPage(state) {
+    if (!this._isFeaturedSlotPage(state)) {
+      this._featuredSlotPage.classList.add('hidden');
+      this._featuredSlotPage.innerHTML = '';
+      return;
+    }
+
+    const slot = state.entryContext?.slot;
+    const featuredFeed = state.featuredFeed || {};
+    const item = featuredFeed?.[slot] || null;
+    const slotTitle = this._slotTitle(slot);
+    const slotUrl = this.store.getFeaturedSlotUrl(slot);
+
+    this._featuredSlotPage.classList.remove('hidden');
+    if (!item) {
+      this._featuredSlotPage.innerHTML = `
+        <div class="spectator-entry-card spectator-entry-card-replay" style="padding:18px 20px;max-width:900px;margin:0 auto">
+          <div class="spectator-entry-topline">
+            <span class="spectator-entry-badge">${slotTitle}</span>
+            <span class="spectator-entry-meta">Featured slot page</span>
+          </div>
+          <div class="spectator-entry-headline">${slotTitle} is loading.</div>
+          <div class="spectator-entry-subline" style="margin-top:10px">The featured feed has not produced this slot yet. Keep this URL as the canonical destination and it will populate when the feed has enough finished matches.</div>
+        </div>
+      `;
+      return;
+    }
+
+    const replayUrl = `${window.location.origin}${window.location.pathname}?game=${encodeURIComponent(item.game_id)}${item.spectator_token ? `&spectator=${encodeURIComponent(item.spectator_token)}` : ''}&phase=replay`;
+    const cardUrl = `${replayUrl}&layout=card`;
+    const embedSnippet = this._buildReplayEmbedSnippet(cardUrl, `${slotTitle} | Founder Arena`);
+
+    this._featuredSlotPage.innerHTML = `
+      <div class="spectator-entry-card spectator-entry-card-replay" style="padding:18px 20px;max-width:960px;margin:0 auto;background:
+        radial-gradient(circle at top left, rgba(255,184,0,0.12), transparent 32%),
+        radial-gradient(circle at top right, rgba(34,211,238,0.12), transparent 28%),
+        linear-gradient(180deg, rgba(8,15,24,0.94), rgba(8,12,18,0.98));border-color:rgba(255,255,255,0.08)">
+        <div class="spectator-entry-topline">
+          <span class="spectator-entry-badge">${slotTitle}</span>
+          <span class="spectator-entry-meta">Canonical slot page &middot; ${item.format_label || 'Featured Replay'} &middot; ${item.queue || 'showmatch'}</span>
+        </div>
+        <div class="spectator-entry-hero" style="align-items:flex-start">
+          <div style="flex:1 1 520px;min-width:0">
+            <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.9px;text-transform:uppercase">${item.matchup_label || item.game_name || slotTitle}</div>
+            <div class="spectator-entry-headline" style="font-size:28px;line-height:1.15;margin-top:8px">${item.headline || `${item.winner_startup} won the slot`}</div>
+            <div class="spectator-entry-subline" style="margin-top:10px;max-width:760px;line-height:1.6">${item.story_hook || item.winner_summary || 'Featured story is loading.'}</div>
+            ${item.deck_label ? `<div class="spectator-entry-subline" style="margin-top:8px;color:#CBD5E1">${item.deck_label}</div>` : ''}
+            <div class="spectator-entry-actions" style="margin-top:14px">
+              <button class="btn-clean spectator-entry-action" id="slot-open-replay">Open Replay</button>
+              <button class="btn-clean spectator-entry-action" id="slot-open-card">Open Card</button>
+              <button class="btn-clean spectator-entry-action" id="slot-copy-slot-link">Copy Slot Link</button>
+              <button class="btn-clean spectator-entry-action" id="slot-copy-replay-link">Copy Replay Link</button>
+              <button class="btn-clean spectator-entry-action" id="slot-copy-card-link">Copy Card Link</button>
+              <button class="btn-clean spectator-entry-action" id="slot-copy-embed">Copy Embed</button>
+            </div>
+          </div>
+          <div class="spectator-entry-scorecard" style="min-width:220px">
+            <div style="font-size:8px;color:#FFB800;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Current Pick</div>
+            <div class="spectator-entry-score" style="margin-top:8px">${item.winner_startup || 'Unknown'}</div>
+            <div class="spectator-entry-score-meta">${item.winner_agent || 'Unknown founder'}</div>
+            <div class="spectator-entry-score-meta" style="margin-top:10px">${item.final_margin != null ? `${Number(item.final_margin).toFixed(1)} score margin` : 'Featured replay'}</div>
+          </div>
+        </div>
+
+        <div class="spectator-entry-summary-grid" style="margin-top:18px">
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Slot</div>
+            <div class="spectator-entry-cell-value">${slotTitle}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Format</div>
+            <div class="spectator-entry-cell-value">${item.format_label || 'Featured Replay'}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Matchup</div>
+            <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${item.matchup_label || item.game_name || 'Featured replay'}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Story Hook</div>
+            <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${item.story_hook || item.winner_summary || 'Featured story is loading.'}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Turning Point</div>
+            <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${item.turning_point_headline || 'Turning points are loading.'}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Practice Takeaway</div>
+            <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${item.practice_takeaway || 'No benchmark takeaway recorded.'}</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,0.9fr);gap:16px;margin-top:18px">
+          <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+            <div style="font-size:9px;color:#A78BFA;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Editorial Summary</div>
+            <div style="font-size:10px;color:var(--text-dim);line-height:1.7;white-space:pre-wrap;margin-top:12px">${[
+              `${item.headline || `${item.winner_startup} won the match.`}`,
+              item.winner_summary || null,
+              item.story_hook ? `Why it matters: ${item.story_hook}` : null,
+              item.turning_point_headline ? `Turning point: ${item.turning_point_headline}` : null,
+              item.practice_takeaway ? `Takeaway: ${item.practice_takeaway}` : null,
+            ].filter(Boolean).join('\n\n')}</div>
+          </div>
+          <div style="display:grid;gap:16px">
+            <div style="padding:14px 16px;border-radius:14px;background:rgba(34,211,238,0.06);border:1px solid rgba(34,211,238,0.14)">
+              <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Replay Link</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${replayUrl}</div>
+            </div>
+            <div style="padding:14px 16px;border-radius:14px;background:rgba(255,184,0,0.06);border:1px solid rgba(255,184,0,0.14)">
+              <div style="font-size:9px;color:#FFB800;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Card Export</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${cardUrl}</div>
+            </div>
+            <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+              <div style="font-size:9px;color:#94A3B8;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Canonical Slot Link</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${slotUrl}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const openReplay = this._featuredSlotPage.querySelector('#slot-open-replay');
+    const openCard = this._featuredSlotPage.querySelector('#slot-open-card');
+    const copySlotLink = this._featuredSlotPage.querySelector('#slot-copy-slot-link');
+    const copyReplayLink = this._featuredSlotPage.querySelector('#slot-copy-replay-link');
+    const copyCardLink = this._featuredSlotPage.querySelector('#slot-copy-card-link');
+    const copyEmbed = this._featuredSlotPage.querySelector('#slot-copy-embed');
+
+    openReplay?.addEventListener('click', () => {
+      this.store.watchGame(item.game_id, item.spectator_token || null, {
+        viaSharedLink: true,
+        requestedPhase: 'replay',
+        slot,
+      });
+    });
+    openCard?.addEventListener('click', () => {
+      this.store.watchGame(item.game_id, item.spectator_token || null, {
+        viaSharedLink: true,
+        requestedPhase: 'replay',
+        layout: 'card',
+        slot,
+      });
+    });
+    copySlotLink?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(slotUrl);
+        this._copyButtonFeedback(copySlotLink, 'Copy Slot Link', 'Slot Link Copied');
+      } catch (e) {
+        this._copyButtonFeedback(copySlotLink, 'Copy Slot Link', 'Copy Failed');
+      }
+    });
+    copyReplayLink?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(replayUrl);
+        this._copyButtonFeedback(copyReplayLink, 'Copy Replay Link', 'Replay Link Copied');
+      } catch (e) {
+        this._copyButtonFeedback(copyReplayLink, 'Copy Replay Link', 'Copy Failed');
+      }
+    });
+    copyCardLink?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(cardUrl);
+        this._copyButtonFeedback(copyCardLink, 'Copy Card Link', 'Card Link Copied');
+      } catch (e) {
+        this._copyButtonFeedback(copyCardLink, 'Copy Card Link', 'Copy Failed');
+      }
+    });
+    copyEmbed?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(embedSnippet);
+        this._copyButtonFeedback(copyEmbed, 'Copy Embed', 'Embed Copied');
+      } catch (e) {
+        this._copyButtonFeedback(copyEmbed, 'Copy Embed', 'Copy Failed');
+      }
     });
   }
 
@@ -739,6 +942,7 @@ export class HUD {
     this._updateMatchStrip(state);
     this._updateSpectatorEntry(state);
     this._updateFeaturedReplayPage(state);
+    this._updateFeaturedSlotPage(state);
     this._updateDiscoveryShelf(state);
 
     // Update panels

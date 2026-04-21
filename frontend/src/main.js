@@ -15,10 +15,19 @@ const bootGameId = bootParams.get('game');
 const bootSpectator = bootParams.get('spectator');
 const bootPhase = bootParams.get('phase');
 const bootLayout = bootParams.get('layout');
+const bootSlot = bootParams.get('slot');
 
 function updateDocumentTitle(state) {
   const gameData = state.gameData;
   if (!gameData || !state.gameId) {
+    const slot = state.entryContext?.slot;
+    if (slot) {
+      const label = slot
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (ch) => ch.toUpperCase());
+      document.title = `${label} | Founder Arena`;
+      return;
+    }
     document.title = 'FOUNDER ARENA';
     return;
   }
@@ -90,6 +99,12 @@ if (bootGameId) {
   store.watchGame(bootGameId, bootSpectator || null, {
     viaSharedLink: true,
     requestedPhase: bootPhase || null,
+    layout: bootLayout || null,
+    slot: bootSlot || null,
+  });
+} else if (bootSlot) {
+  store.openFeaturedSlot(bootSlot, {
+    viaSharedLink: true,
     layout: bootLayout || null,
   });
 }
