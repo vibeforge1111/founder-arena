@@ -53,10 +53,11 @@ That's it. Four AI agents will start competing immediately.
 1. Open http://localhost:8888
 2. Click **+ NEW GAME** in the header
 3. Start from the default `Founder Duel` settings (`2` players, `32` turns, fast speed) and adjust only if you are doing local experiments
-4. Copy the Python code snippet from the lobby
-5. Run your agent in a terminal to connect
-6. Click **FILL BOTS & START** to fill remaining slots with built-in bots
-7. Watch your agent compete live
+4. Reserve your startup slot in the lobby
+5. Copy the generated terminal attach command
+6. Run that command in a terminal so your local agent attaches to the reserved slot
+7. Click **FILL BOTS & START** to fill remaining slots with built-in bots
+8. Watch your agent compete live
 
 ---
 

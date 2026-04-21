@@ -27,6 +27,33 @@ export class GameControls {
     this._overlay.classList.add('hidden');
   }
 
+  _quoteArg(value) {
+    return `"${String(value ?? '').replace(/"/g, '\\"')}"`;
+  }
+
+  _exampleAgentCommand(config) {
+    return [
+      'python example_agent.py',
+      `--game-id ${this._quoteArg(this.store.state.gameId)}`,
+      `--agent-token ${this._quoteArg(config.agentToken)}`,
+      `--startup-id ${this._quoteArg(config.startupId)}`,
+      `--name ${this._quoteArg(config.agentName)}`,
+      `--startup ${this._quoteArg(config.startupName)}`,
+      `--sector ${this._quoteArg(config.sector)}`,
+      `--motto ${this._quoteArg(config.motto || '')}`,
+      `--strategy ${this._quoteArg(config.strategy || 'balanced')}`,
+      `--server ${this._quoteArg(window.location.origin)}`,
+    ].join(' ');
+  }
+
+  _showAttachCommand(command) {
+    const wrap = this._modal.querySelector('#da-command-wrap');
+    const code = this._modal.querySelector('#da-command');
+    if (!wrap || !code) return;
+    wrap.style.display = 'block';
+    code.textContent = command;
+  }
+
   showCreateGame() {
     this._modal.innerHTML = `
       <h2>Create New Game</h2>
@@ -94,10 +121,15 @@ export class GameControls {
     });
   }
 
-  showLobby(gameData) {
+  showLobby(gameData, defaults = {}, reservation = null) {
     const gameId = this.store.state.gameId;
     const tier = gameData?.benchmark_tier || 'baseline';
     const joinCode = this.store.state.joinCode || '';
+    const defaultAgentName = defaults.agentName || 'MyFounder';
+    const defaultStartupName = defaults.startupName || 'NeuralForge';
+    const defaultSector = defaults.sector || 'ai';
+    const defaultMotto = defaults.motto || 'Intelligence is our product';
+    const defaultStrategy = defaults.strategy || 'balanced';
 
     this._modal.innerHTML = `
       <h2>Game Lobby</h2>
@@ -113,16 +145,20 @@ export class GameControls {
       </div>
 
       <div class="game-card">
-        <div class="game-card-title" style="color:#A78BFA">Deploy Your Agent</div>
+        <div class="game-card-title" style="color:#A78BFA">Reserve Your Startup Slot</div>
+        <div style="font-size:9px;color:var(--text-muted);line-height:1.5;margin-bottom:10px">
+          The browser reserves a startup slot and gives you an attach command. It does not run an autonomous agent loop by itself.
+          After reserving your slot, run the command below in a terminal, then click <strong>Fill Bots & Start</strong>.
+        </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
           <div>
             <label style="font-size:9px">AGENT NAME</label>
-            <input type="text" id="da-agent-name" value="MyFounder" style="font-size:11px" />
+            <input type="text" id="da-agent-name" value="${defaultAgentName}" style="font-size:11px" />
           </div>
           <div>
             <label style="font-size:9px">STARTUP NAME</label>
-            <input type="text" id="da-startup-name" value="NeuralForge" style="font-size:11px" />
+            <input type="text" id="da-startup-name" value="${defaultStartupName}" style="font-size:11px" />
           </div>
         </div>
 
@@ -130,43 +166,40 @@ export class GameControls {
           <div>
             <label style="font-size:9px">SECTOR</label>
             <select id="da-sector" style="font-size:11px">
-              <option value="ai">AI</option>
-              <option value="fintech">Fintech</option>
-              <option value="saas">SaaS</option>
-              <option value="crypto">Crypto</option>
-              <option value="healthtech">HealthTech</option>
-              <option value="gaming">Gaming</option>
-              <option value="edtech">EdTech</option>
-              <option value="greentech">GreenTech</option>
+              <option value="ai" ${defaultSector === 'ai' ? 'selected' : ''}>AI</option>
+              <option value="fintech" ${defaultSector === 'fintech' ? 'selected' : ''}>Fintech</option>
+              <option value="saas" ${defaultSector === 'saas' ? 'selected' : ''}>SaaS</option>
+              <option value="crypto" ${defaultSector === 'crypto' ? 'selected' : ''}>Crypto</option>
+              <option value="healthtech" ${defaultSector === 'healthtech' ? 'selected' : ''}>HealthTech</option>
+              <option value="gaming" ${defaultSector === 'gaming' ? 'selected' : ''}>Gaming</option>
+              <option value="edtech" ${defaultSector === 'edtech' ? 'selected' : ''}>EdTech</option>
+              <option value="greentech" ${defaultSector === 'greentech' ? 'selected' : ''}>GreenTech</option>
             </select>
           </div>
           <div>
             <label style="font-size:9px">MOTTO</label>
-            <input type="text" id="da-motto" value="Intelligence is our product" style="font-size:11px" />
+            <input type="text" id="da-motto" value="${defaultMotto}" style="font-size:11px" />
           </div>
         </div>
 
-        <label style="font-size:9px">SKILL.MD (Strategy Profile)</label>
-        <textarea id="da-skill" rows="6" style="font-size:10px;font-family:'Courier New',monospace;line-height:1.4;resize:vertical" placeholder="# My Agent Strategy
+        <label style="font-size:9px">LOCAL RUNNER STRATEGY</label>
+        <select id="da-strategy" style="font-size:11px">
+          <option value="balanced" ${defaultStrategy === 'balanced' ? 'selected' : ''}>Balanced</option>
+          <option value="aggressive" ${defaultStrategy === 'aggressive' ? 'selected' : ''}>Aggressive</option>
+          <option value="lean" ${defaultStrategy === 'lean' ? 'selected' : ''}>Lean</option>
+          <option value="chaos" ${defaultStrategy === 'chaos' ? 'selected' : ''}>Chaos</option>
+        </select>
+        <div style="font-size:9px;color:var(--text-muted);line-height:1.45;margin-top:8px">
+          For advanced local agents, ignore the example runner and use the same <code>game_id</code> and <code>agent_token</code> with your own `/api/games/{id}/state` + `/api/games/{id}/action` loop.
+        </div>
 
-primary_style: balanced
-risk_posture: medium
-decision_style: analytical
-preferred_foci: product growth resilience
-
-We believe in building reliable products with sustainable growth.
-Quality over quantity. Trust is everything."># My Agent Strategy
-
-primary_style: balanced
-risk_posture: medium
-decision_style: analytical
-preferred_foci: product growth resilience
-
-We believe in building reliable products with sustainable growth.
-Quality over quantity. Trust is everything.</textarea>
+        <div id="da-command-wrap" style="display:${reservation ? 'block' : 'none'};margin-top:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:10px 12px">
+          <div style="font-size:9px;color:var(--text-muted);letter-spacing:0.7px;font-weight:700;margin-bottom:6px">TERMINAL ATTACH COMMAND</div>
+          <pre id="da-command" style="white-space:pre-wrap;word-break:break-word;font-size:10px;line-height:1.45;color:var(--text);margin:0"></pre>
+        </div>
 
         <div style="display:flex;gap:8px;margin-top:10px">
-          <button class="btn-game btn-game-purple" id="da-deploy" style="flex:1;padding:10px">Deploy Agent</button>
+          <button class="btn-game btn-game-purple" id="da-deploy" style="flex:1;padding:10px">${reservation ? 'Slot Reserved' : 'Reserve Slot'}</button>
         </div>
         <div id="da-status" style="font-size:9px;margin-top:6px;min-height:14px"></div>
       </div>
@@ -186,29 +219,35 @@ Quality over quantity. Trust is everything.</textarea>
     this._modal.querySelector('#da-deploy').addEventListener('click', async () => {
       const btn = this._modal.querySelector('#da-deploy');
       const status = this._modal.querySelector('#da-status');
-      btn.textContent = 'Deploying...';
+      btn.textContent = 'Reserving...';
       btn.disabled = true;
       status.style.color = '#888';
-      status.textContent = 'Joining game...';
+      status.textContent = 'Reserving startup slot...';
 
       try {
-        const skillMd = this._modal.querySelector('#da-skill').value.trim();
         const agentConfig = {
           agentName: this._modal.querySelector('#da-agent-name').value.trim() || 'MyFounder',
           startupName: this._modal.querySelector('#da-startup-name').value.trim() || 'NeuralForge',
           sector: this._modal.querySelector('#da-sector').value,
           motto: this._modal.querySelector('#da-motto').value.trim(),
-          strategyDescription: skillMd,
+          strategyDescription: this._modal.querySelector('#da-strategy').value,
         };
 
         const data = await this.store.joinAsPlayer(agentConfig);
+        const command = this._exampleAgentCommand({
+          ...agentConfig,
+          strategy: this._modal.querySelector('#da-strategy').value,
+          agentToken: data.agent_token,
+          startupId: data.startup_id,
+        });
         status.style.color = '#22C55E';
-        status.textContent = `Deployed! Agent token: ${data.agent_token?.slice(0, 8)}...`;
-        btn.textContent = 'Deployed';
+        status.textContent = 'Slot reserved. Run the terminal command, then start the match.';
+        btn.textContent = 'Slot Reserved';
         btn.style.background = '#22C55E';
+        this._showAttachCommand(command);
 
         // Disable deploy section after success
-        this._modal.querySelectorAll('#da-agent-name, #da-startup-name, #da-sector, #da-motto, #da-skill').forEach(el => {
+        this._modal.querySelectorAll('#da-agent-name, #da-startup-name, #da-sector, #da-motto, #da-strategy').forEach(el => {
           el.disabled = true;
           el.style.opacity = '0.5';
         });
@@ -266,10 +305,14 @@ Quality over quantity. Trust is everything.</textarea>
 
   async quickPlayVsBots() {
     this._modal.innerHTML = `
-      <h2 style="text-align:center">Quick Play vs Bots</h2>
+      <h2 style="text-align:center">Practice Lobby</h2>
 
       <div class="game-card">
-        <div class="game-card-title" style="color:#34D058">Your Setup</div>
+        <div class="game-card-title" style="color:#34D058">Reserve Your Slot</div>
+        <div style="font-size:9px;color:var(--text-muted);line-height:1.5;margin-bottom:10px">
+          This flow creates a local practice duel and reserves your startup slot. It does not auto-run your agent.
+          After setup, Founder Arena will give you a terminal attach command.
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
           <div>
             <label style="font-size:9px">YOUR AGENT NAME</label>
@@ -304,12 +347,13 @@ Quality over quantity. Trust is everything.</textarea>
             </select>
           </div>
         </div>
-        <label style="font-size:9px">SKILL.MD (Your Strategy)</label>
-        <textarea id="qp-skill" rows="5" style="font-size:10px;font-family:'Courier New',monospace;line-height:1.4;resize:vertical">primary_style: balanced
-risk_posture: medium
-preferred_foci: product growth resilience
-
-Build great products. Grow sustainably. Win.</textarea>
+        <label style="font-size:9px">LOCAL RUNNER STRATEGY</label>
+        <select id="qp-strategy" style="font-size:11px">
+          <option value="balanced">Balanced</option>
+          <option value="aggressive">Aggressive</option>
+          <option value="lean">Lean</option>
+          <option value="chaos">Chaos</option>
+        </select>
       </div>
 
       <div id="qp-progress" style="margin-bottom:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:12px">
@@ -321,7 +365,7 @@ Build great products. Grow sustainably. Win.</textarea>
 
       <div class="modal-actions">
         <button class="btn-secondary" id="qp-cancel">Cancel</button>
-        <button class="btn-game btn-game-green" id="qp-go" style="flex:2">&#9654; Launch Game</button>
+        <button class="btn-game btn-game-green" id="qp-go" style="flex:2">&#9654; Create Practice Lobby</button>
       </div>
     `;
     this.open();
@@ -336,7 +380,7 @@ Build great products. Grow sustainably. Win.</textarea>
 
       try {
         // Step 1: Create game
-        step.textContent = 'Creating game...';
+        step.textContent = 'Creating practice lobby...';
         step.style.color = '#F0B429';
         bar.style.width = '20%';
 
@@ -348,30 +392,34 @@ Build great products. Grow sustainably. Win.</textarea>
           benchmarkTier: tier,
         });
 
-        // Step 2: Deploy your agent
-        step.textContent = 'Deploying your agent...';
+        // Step 2: Reserve your slot
+        step.textContent = 'Reserving your startup slot...';
         bar.style.width = '45%';
 
-        await this.store.joinAsPlayer({
+        const defaults = {
           agentName: this._modal.querySelector('#qp-agent').value.trim() || 'MyFounder',
           startupName: this._modal.querySelector('#qp-startup').value.trim() || 'NeuralForge',
           sector: this._modal.querySelector('#qp-sector').value,
           motto: 'Ready to compete',
-          strategyDescription: this._modal.querySelector('#qp-skill').value.trim(),
+          strategy: this._modal.querySelector('#qp-strategy').value,
+        };
+        const reservation = await this.store.joinAsPlayer({
+          agentName: defaults.agentName,
+          startupName: defaults.startupName,
+          sector: defaults.sector,
+          motto: defaults.motto,
+          strategyDescription: defaults.strategy,
         });
 
-        // Step 3: Fill bots & start
-        step.textContent = 'Filling bots & starting...';
-        bar.style.width = '75%';
-
-        await this.store.fillBotsAndStart(tier);
-
-        // Step 4: Done
-        step.textContent = 'Game started!';
+        // Step 3: Handoff to lobby
+        step.textContent = 'Practice lobby ready.';
         step.style.color = '#22C55E';
         bar.style.width = '100%';
 
-        setTimeout(() => this.close(), 800);
+        setTimeout(() => {
+          this.close();
+          this.showLobby(gameData, defaults, reservation);
+        }, 500);
 
       } catch (e) {
         step.textContent = `Error: ${e.message}`;

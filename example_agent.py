@@ -63,6 +63,17 @@ class FounderAgent:
         print(f"[{self.name}] Joined as {self.startup_name} (id: {self.startup_id})")
         return data
 
+    def attach_session(self, game_id: str, agent_token: str, startup_id: str | None = None):
+        """Attach to an already-reserved startup session."""
+        self.game_id = game_id
+        self.agent_token = agent_token
+        self.startup_id = startup_id
+        print(f"[{self.name}] Attached to existing startup session (id: {self.startup_id or 'unknown'})")
+        return {
+            "agent_token": self.agent_token,
+            "startup_id": self.startup_id,
+        }
+
     def get_turn_packet(self) -> dict | None:
         """Get the competitive-mode turn packet when supported."""
         resp = self.client.get(
@@ -785,7 +796,9 @@ class FounderAgent:
 def main():
     parser = argparse.ArgumentParser(description="Founder Arena Agent")
     parser.add_argument("--game-id", required=True, help="Game ID to join")
-    parser.add_argument("--join-code", required=True, help="Join code for the game")
+    parser.add_argument("--join-code", help="Join code for the game")
+    parser.add_argument("--agent-token", help="Existing agent token for an already-reserved startup")
+    parser.add_argument("--startup-id", help="Existing startup id for an already-reserved startup")
     parser.add_argument("--name", default="Agent-1", help="Agent name")
     parser.add_argument("--startup", default="TechCo", help="Startup name")
     parser.add_argument("--sector", default="ai", help="Sector to compete in")
@@ -804,7 +817,12 @@ def main():
         strategy=args.strategy,
         server=args.server,
     )
-    agent.join_game(args.game_id, args.join_code)
+    if args.agent_token:
+        agent.attach_session(args.game_id, args.agent_token, startup_id=args.startup_id)
+    elif args.join_code:
+        agent.join_game(args.game_id, args.join_code)
+    else:
+        parser.error("Provide either --join-code to join a new startup or --agent-token to attach to an existing one.")
     agent.play()
 
 

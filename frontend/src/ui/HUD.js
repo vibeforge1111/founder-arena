@@ -45,7 +45,7 @@ export class HUD {
       <div class="header-status" id="header-status">
         <span class="dot"></span>READY
       </div>
-      <button class="btn-game btn-game-green" id="btn-quick-play">&#9654; PLAY vs BOTS</button>
+      <button class="btn-game btn-game-green" id="btn-quick-play">&#9654; PRACTICE LOBBY</button>
       <button class="btn-clean" id="btn-new-game">+ NEW GAME</button>
       <button class="btn-ghost" id="btn-watch">&#128065; WATCH</button>
     `;
