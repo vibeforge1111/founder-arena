@@ -19,6 +19,11 @@ export function formatPercent(value) {
   return `${Math.round(Number(value))}%`;
 }
 
+export function formatScore(value) {
+  if (value == null) return '0.0';
+  return Number(value).toFixed(1);
+}
+
 export function formatRunway(months) {
   if (months == null) return '?';
   const m = Number(months);

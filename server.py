@@ -1806,6 +1806,24 @@ class Game:
             startup.seven_dimension_scores = _compute_seven_dimension_scores(startup)
         return startup.seven_dimension_scores
 
+    def _score_payload_for(self, startup) -> dict:
+        return {
+            "seven_dimension_scores": self._scorecard_for(startup),
+            "score": self._score_value_for(startup),
+        }
+
+    def _rankings_payload(self) -> list[dict]:
+        return [
+            {
+                "startup_id": startup.id,
+                "rank": index + 1,
+                "score": self._score_value_for(startup),
+                "valuation": startup.calc_valuation(),
+                "alive": startup.alive,
+            }
+            for index, startup in enumerate(self._ranked_startups())
+        ]
+
     def _director_payload_for(self, startup) -> dict:
         return {
             "director_state": getattr(startup, "director_state", None),
@@ -1843,7 +1861,7 @@ class Game:
             if sid == my_startup_id:
                 state["startups"][sid] = s.private_view()
                 state["my_startup_id"] = sid
-                state["startups"][sid]["seven_dimension_scores"] = self._scorecard_for(s)
+                state["startups"][sid].update(self._score_payload_for(s))
                 if self.game_mode == "competitive_mode":
                     state["startups"][sid]["latest_decision"] = self._public_decision_summary(
                         (self.decision_log.get(sid) or [None])[-1]
@@ -1852,7 +1870,7 @@ class Game:
             else:
                 state["startups"][sid] = s.public_view()
                 if self.phase == GamePhase.FINISHED:
-                    state["startups"][sid]["seven_dimension_scores"] = self._scorecard_for(s)
+                    state["startups"][sid].update(self._score_payload_for(s))
                     if self.game_mode == "competitive_mode":
                         state["startups"][sid]["latest_decision"] = self._public_decision_summary(
                             (self.decision_log.get(sid) or [None])[-1]
@@ -1864,6 +1882,8 @@ class Game:
 
         if self.game_mode == "competitive_mode" and my_startup_id:
             state["turn_packet"] = self._build_turn_packet(self.startups[my_startup_id])
+            state["rank_basis"] = "score"
+            state["rankings"] = self._rankings_payload()
         if self.phase == GamePhase.FINISHED:
             state["summary"] = self._build_replay_summary(self._ranked_startups())
 
@@ -1877,7 +1897,7 @@ class Game:
         startup_payload = {}
         for sid, startup in self.startups.items():
             payload = startup.snapshot()
-            payload["seven_dimension_scores"] = self._scorecard_for(startup)
+            payload.update(self._score_payload_for(startup))
             if self.use_rich_state:
                 payload.update(self._director_payload_for(startup))
             startup_payload[sid] = payload
@@ -1899,6 +1919,8 @@ class Game:
             "winner": self.winner,
             "market_modifiers": self.market_modifiers,
             "seven_dimension_scores": {sid: self._scorecard_for(s) for sid, s in self.startups.items()},
+            "rank_basis": "score" if self.game_mode == "competitive_mode" else "valuation",
+            "rankings": self._rankings_payload(),
             "action_logs": self.action_log,
             "arc_feed": self._arc_feed(),
             "shared_market": self._shared_market_snapshot(),

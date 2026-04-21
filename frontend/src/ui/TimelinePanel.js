@@ -1,5 +1,6 @@
 import { formatMoney } from '../utils/formatters.js';
 import { SECTOR_COLORS } from '../utils/colors.js';
+import { isCompetitiveMode, rankedStartups, startupScore } from '../utils/rankings.js';
 
 const ACTION_ICONS = {
   build_feature: { icon: '\u{1F527}', color: '#3B82F6', label: 'BUILD' },
@@ -88,9 +89,8 @@ export class TimelinePanel {
 
     // Compute stats
     const startupList = Object.values(startups);
-    const sorted = Object.entries(startups)
-      .map(([id, s]) => ({ id, ...s }))
-      .sort((a, b) => (b.valuation || 0) - (a.valuation || 0));
+    const competitive = isCompetitiveMode(gd);
+    const sorted = rankedStartups(gd);
     const leader = sorted[0];
     const totalFunding = startupList.reduce((sum, s) => sum + (s.total_raised || 0), 0);
     const avgMorale = startupList.length > 0
@@ -106,7 +106,7 @@ export class TimelinePanel {
     this.el.innerHTML = `
       <div class="bottom-dash-cards">
         ${this._renderRoundCard(turn, maxTurns, pct, phase, phaseColor, phaseBadge, aliveCount, startupCount)}
-        ${this._renderLeaderCard(leader)}
+        ${this._renderLeaderCard(leader, competitive)}
         ${this._renderMarketCard(totalFunding, avgMorale, deaths, hotSectors)}
         ${this._renderFeedCard(recentActions, arcFeed)}
       </div>
@@ -145,7 +145,7 @@ export class TimelinePanel {
     `;
   }
 
-  _renderLeaderCard(leader) {
+  _renderLeaderCard(leader, competitive) {
     if (!leader) {
       return `
         <div class="bottom-dash-card card-gold" style="flex:0 0 180px">
@@ -163,9 +163,9 @@ export class TimelinePanel {
           <div class="card-icon" style="background:rgba(255,184,0,0.2);color:#FFB800">\u{1F451}</div>
           LEADER
         </div>
-        <div class="bottom-dash-card-value" style="color:#FFB800;text-shadow:0 0 16px rgba(255,184,0,0.25)">${formatMoney(leader.valuation)}</div>
+        <div class="bottom-dash-card-value" style="color:#FFB800;text-shadow:0 0 16px rgba(255,184,0,0.25)">${competitive ? `${startupScore(leader).toFixed(1)} score` : formatMoney(leader.valuation)}</div>
         <div style="font-size:12px;font-weight:800;color:var(--text);margin-top:4px">${leader.startup_name || '?'}</div>
-        <div class="bottom-dash-card-sub">${leader.agent_name || ''} \u00B7 ${leader.sector || ''}</div>
+        <div class="bottom-dash-card-sub">${leader.agent_name || ''} \u00B7 ${leader.sector || ''}${competitive ? ` \u00B7 ${formatMoney(leader.valuation)} val` : ''}</div>
         <div class="bottom-dash-card-mini">
           <div class="bottom-dash-mini-stat">
             <span class="mini-label">Product</span>

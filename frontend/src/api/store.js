@@ -1,4 +1,5 @@
 import * as api from './client.js';
+import { rankedStartups } from '../utils/rankings.js';
 
 export class GameStore {
   constructor() {
@@ -41,10 +42,7 @@ export class GameStore {
   }
 
   get startupList() {
-    const startups = this.startups;
-    return Object.entries(startups)
-      .map(([id, s]) => ({ id, ...s }))
-      .sort((a, b) => (b.valuation || 0) - (a.valuation || 0));
+    return rankedStartups(this.state.gameData);
   }
 
   get selectedStartup() {

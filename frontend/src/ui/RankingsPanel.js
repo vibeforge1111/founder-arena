@@ -1,5 +1,6 @@
-import { formatMoney } from '../utils/formatters.js';
+import { formatMoney, formatScore } from '../utils/formatters.js';
 import { getAgentColor } from '../utils/colors.js';
+import { isCompetitiveMode, rankedStartups, startupScore } from '../utils/rankings.js';
 
 export class RankingsPanel {
   constructor(container, store) {
@@ -18,12 +19,12 @@ export class RankingsPanel {
   }
 
   update(state) {
-    const startups = state.gameData?.startups;
+    const gameData = state.gameData;
+    const startups = gameData?.startups;
     if (!startups) return;
 
-    const list = Object.entries(startups)
-      .map(([id, s]) => ({ id, ...s }))
-      .sort((a, b) => (b.valuation || 0) - (a.valuation || 0));
+    const competitive = isCompetitiveMode(gameData);
+    const list = rankedStartups(gameData);
 
     // Track stable color assignment
     for (const s of list) {
@@ -45,6 +46,8 @@ export class RankingsPanel {
       const br = s.brand || 0;
       const initial = (s.startup_name || '?')[0].toUpperCase();
       const posLabel = i === 0 ? '&#128081;' : i + 1;
+      const primaryMetric = competitive ? `${formatScore(startupScore(s))} score` : formatMoney(s.valuation);
+      const secondaryMetric = competitive ? `${formatMoney(s.valuation)} val` : '';
 
       return `
         <div class="rank-item ${dead ? 'dead' : ''} ${selected ? 'selected' : ''}"
@@ -53,14 +56,14 @@ export class RankingsPanel {
           <div class="rank-avatar" style="background:${color}">${initial}</div>
           <div class="rank-info">
             <div class="rank-name">${s.startup_name || 'Unknown'}</div>
-            <div class="rank-meta">${s.agent_name || ''} &middot; ${s.sector || ''} ${dead ? '&middot; &#9760; DEAD' : ''}</div>
+            <div class="rank-meta">${s.agent_name || ''} &middot; ${s.sector || ''} ${dead ? '&middot; &#9760; DEAD' : ''}${secondaryMetric ? ` &middot; ${secondaryMetric}` : ''}</div>
             <div class="mini-bars">
               <div class="mini-bar"><div class="mini-bar-fill" style="width:${pq}%;background:#4A9EFF"></div></div>
               <div class="mini-bar"><div class="mini-bar-fill" style="width:${mo}%;background:#34D058"></div></div>
               <div class="mini-bar"><div class="mini-bar-fill" style="width:${br}%;background:#FFB800"></div></div>
             </div>
           </div>
-          <div class="rank-val" style="color:${dead ? '#444' : '#FFB800'}">${formatMoney(s.valuation)}</div>
+          <div class="rank-val" style="color:${dead ? '#444' : '#FFB800'}">${primaryMetric}</div>
         </div>
       `;
     }).join('');

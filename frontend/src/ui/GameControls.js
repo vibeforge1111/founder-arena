@@ -1,3 +1,6 @@
+import { formatScore } from '../utils/formatters.js';
+import { isCompetitiveMode, rankedStartups, startupScore } from '../utils/rankings.js';
+
 export class GameControls {
   constructor(container, store) {
     this.store = store;
@@ -412,13 +415,15 @@ Build great products. Grow sustainably. Win.</textarea>
     const gameData = this.store.state.gameData;
     if (!gameData) return;
 
-    const startups = gameData.startups || {};
-    const sorted = Object.entries(startups)
-      .map(([id, s]) => ({ id, ...s }))
-      .sort((a, b) => (b.valuation || 0) - (a.valuation || 0));
+    const competitive = isCompetitiveMode(gameData);
+    const sorted = rankedStartups(gameData);
 
     const winner = sorted[0];
     const podium = sorted.slice(0, 3);
+    const winnerHeadline = competitive
+      ? `${formatScore(startupScore(winner))} score`
+      : formatMoneySimple(winner?.valuation);
+    const winnerSubhead = competitive ? `${formatMoneySimple(winner?.valuation)} valuation` : `${winner?.sector || ''}`;
 
     this._modal.innerHTML = `
       <h2 style="text-align:center">Game Over</h2>
@@ -427,7 +432,8 @@ Build great products. Grow sustainably. Win.</textarea>
         <div style="font-size:28px;margin-bottom:6px">&#128081;</div>
         <div style="font-size:22px;font-weight:900;color:#FFB800;text-shadow:0 0 20px rgba(255,184,0,0.3)">${winner?.startup_name || 'Unknown'}</div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:6px;font-weight:500">Champion &middot; ${winner?.agent_name || ''}</div>
-        <div style="font-size:20px;font-weight:900;color:#FFB800;margin-top:8px">${formatMoneySimple(winner?.valuation)}</div>
+        <div style="font-size:20px;font-weight:900;color:#FFB800;margin-top:8px">${winnerHeadline}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${winnerSubhead}</div>
       </div>
 
       <div style="margin:16px 0">
@@ -444,7 +450,7 @@ Build great products. Grow sustainably. Win.</textarea>
                 <div style="font-size:12px;font-weight:700">${s.startup_name}</div>
                 <div style="font-size:9px;color:var(--text-muted)">${s.agent_name} &middot; ${s.sector}</div>
               </div>
-              <div style="font-size:14px;font-weight:900;color:${medals[i]};text-shadow:0 0 8px ${medals[i]}33">${formatMoneySimple(s.valuation)}</div>
+              <div style="font-size:14px;font-weight:900;color:${medals[i]};text-shadow:0 0 8px ${medals[i]}33">${competitive ? `${formatScore(startupScore(s))} score` : formatMoneySimple(s.valuation)}</div>
             </div>
           `;
         }).join('')}
