@@ -715,15 +715,105 @@ export class GameControls {
     ].filter(Boolean).join('\n\n');
   }
 
-  _buildSharePackage(summary, sorted, competitive) {
-    const winner = sorted[0];
-    const runnerUp = sorted[1];
-    const topTurningPoint = (summary?.turning_points || [])[0];
-    const topRunnerIssue = (summary?.runner_incidents || [])[0];
+  _formatShowmatchLabel(value, fallback = 'Showmatch') {
+    const raw = String(value || '').trim();
+    if (!raw) return fallback;
+    return raw
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/\b\w/g, (ch) => ch.toUpperCase());
+  }
+
+  _extractModelLabel(startup) {
+    const source = `${startup?.agent_name || ''} ${startup?.startup_name || ''}`.toLowerCase();
+    const families = [
+      { token: 'gpt', label: 'GPT' },
+      { token: 'claude', label: 'Claude' },
+      { token: 'gemini', label: 'Gemini' },
+      { token: 'llama', label: 'Llama' },
+      { token: 'mistral', label: 'Mistral' },
+      { token: 'qwen', label: 'Qwen' },
+      { token: 'deepseek', label: 'DeepSeek' },
+      { token: 'grok', label: 'Grok' },
+    ];
+    return families.find((family) => source.includes(family.token))?.label || null;
+  }
+
+  _buildFeaturedReplay(summary, sorted, gameData, competitive) {
+    const winner = sorted[0] || null;
+    const runnerUp = sorted[1] || null;
+    const topTurningPoint = (summary?.turning_points || [])[0] || null;
+    const topRunnerIssue = (summary?.runner_incidents || [])[0] || null;
     const topLoser = sorted
       .slice(1, 3)
       .map((startup) => summary?.startup_outcomes?.[startup.id] ? { startup, outcome: summary.startup_outcomes[startup.id] } : null)
       .find(Boolean);
+    const models = [winner, runnerUp].map((startup) => this._extractModelLabel(startup));
+    const winnerStrategy = winner?.strategy ? this._formatShowmatchLabel(winner.strategy) : null;
+    const runnerUpStrategy = runnerUp?.strategy ? this._formatShowmatchLabel(runnerUp.strategy) : null;
+    const finalMargin = Number(summary?.final_margin);
+    const closeFinish = Number.isFinite(finalMargin) && finalMargin <= 2.5;
+    const leadChange = Boolean((summary?.turning_points || []).some((point) => point?.leader_changed));
+    const practiceTakeaway = summary?.practice_takeaway || null;
+
+    let formatLabel = competitive ? 'Featured Duel' : 'Featured Replay';
+    let matchupLabel = runnerUp
+      ? `${winner?.startup_name || 'Unknown'} vs ${runnerUp.startup_name || 'Unknown'}`
+      : `${winner?.startup_name || gameData?.name || 'Founder Arena'}`;
+    let deckLabel = runnerUp
+      ? `${winner?.agent_name || 'Unknown'} vs ${runnerUp.agent_name || 'Unknown'}`
+      : `${winner?.agent_name || winner?.startup_name || 'Unknown'} spotlight`;
+
+    if (competitive && winner && runnerUp && models[0] && models[1] && models[0] !== models[1]) {
+      formatLabel = 'Model vs Model';
+      matchupLabel = `${models[0]} vs ${models[1]}`;
+      deckLabel = `${winner.startup_name} vs ${runnerUp.startup_name}`;
+    } else if (competitive && winner && runnerUp && winnerStrategy && runnerUpStrategy && winnerStrategy !== runnerUpStrategy) {
+      formatLabel = 'Doctrine vs Doctrine';
+      matchupLabel = `${winnerStrategy} vs ${runnerUpStrategy}`;
+      deckLabel = `${winner.startup_name} vs ${runnerUp.startup_name}`;
+    } else if ((gameData?.benchmark_tier && gameData.benchmark_tier !== 'baseline') || practiceTakeaway) {
+      formatLabel = 'Benchmark Gauntlet';
+      matchupLabel = `${winner?.startup_name || 'Unknown'} vs ${this._formatShowmatchLabel(gameData?.benchmark_tier, 'Benchmark')}`;
+      deckLabel = practiceTakeaway?.headline || `${gameData?.queue || 'showmatch'} replay`;
+    } else if (competitive && (closeFinish || leadChange)) {
+      formatLabel = 'Underdog Challenge';
+      matchupLabel = runnerUp
+        ? `${winner?.startup_name || 'Unknown'} vs ${runnerUp.startup_name || 'Unknown'}`
+        : matchupLabel;
+      deckLabel = closeFinish
+        ? `Finished within ${finalMargin.toFixed(1)} score`
+        : 'Lead changed during the replay';
+    } else if (sorted.length > 2) {
+      formatLabel = 'Benchmark Gauntlet';
+      matchupLabel = `${winner?.startup_name || 'Unknown'} vs ${Math.max(sorted.length - 1, 1)} challengers`;
+      deckLabel = `${gameData?.queue || 'showmatch'} field`;
+    }
+
+    const storyHook = topTurningPoint?.headline
+      || topLoser?.outcome?.runner_failure?.headline
+      || topLoser?.outcome?.headline
+      || summary?.winner_summary
+      || `${winner?.startup_name || 'Unknown'} won the match.`;
+
+    return {
+      formatLabel,
+      matchupLabel,
+      deckLabel,
+      storyHook,
+      topTurningPoint,
+      topRunnerIssue,
+      topLoser,
+    };
+  }
+
+  _buildSharePackage(gameData, summary, sorted, competitive) {
+    const winner = sorted[0];
+    const runnerUp = sorted[1];
+    const featuredReplay = this._buildFeaturedReplay(summary, sorted, gameData, competitive);
+    const topTurningPoint = featuredReplay.topTurningPoint;
+    const topRunnerIssue = featuredReplay.topRunnerIssue;
+    const topLoser = featuredReplay.topLoser;
     const shareUrl = this.store.getShareUrl();
 
     const headline = competitive
@@ -731,6 +821,7 @@ export class GameControls {
       : `${winner?.startup_name || 'Unknown'} won Founder Arena`;
 
     const captionParts = [
+      `${featuredReplay.formatLabel}: ${featuredReplay.matchupLabel}`,
       summary?.winner_summary || headline,
       topTurningPoint?.headline ? `Turning point: ${topTurningPoint.headline}` : null,
       topRunnerIssue?.headline ? `Runner issue: ${topRunnerIssue.headline}` : null,
@@ -740,8 +831,22 @@ export class GameControls {
     ].filter(Boolean);
 
     return {
+      ...featuredReplay,
       headline,
       caption: captionParts.join('\n'),
+      featuredCard: [
+        `${featuredReplay.formatLabel} | ${featuredReplay.matchupLabel}`,
+        featuredReplay.deckLabel ? `Deck: ${featuredReplay.deckLabel}` : null,
+        `Headline: ${headline}`,
+        `Winner Summary: ${summary?.winner_summary || `${winner?.startup_name || 'Unknown'} won the match.`}`,
+        topTurningPoint?.headline ? `Turning Point: ${topTurningPoint.headline}` : null,
+        topRunnerIssue?.headline ? `Runner Issue: ${topRunnerIssue.headline}` : null,
+        topLoser?.outcome ? `Why They Lost: ${topLoser.outcome.runner_failure?.headline || topLoser.outcome.headline}` : null,
+        shareUrl ? `Replay: ${shareUrl}` : null,
+        '',
+        'Caption:',
+        captionParts.join('\n'),
+      ].filter((line) => line != null).join('\n'),
     };
   }
 
@@ -753,7 +858,7 @@ export class GameControls {
     const sorted = rankedStartups(gameData);
     const summary = gameData.summary || {};
     const shareUrl = this.store.getShareUrl();
-    const sharePackage = this._buildSharePackage(summary, sorted, competitive);
+    const sharePackage = this._buildSharePackage(gameData, summary, sorted, competitive);
     const entryMode = options.entryMode || null;
     const isSharedReplay = entryMode === 'sharedReplay';
 
@@ -830,13 +935,19 @@ export class GameControls {
       <div style="margin:18px 0 10px">
         <div style="font-size:10px;color:#22D3EE;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Share Package</div>
         <div style="padding:12px 14px;border-radius:12px;background:rgba(34,211,238,0.06);border:1px solid rgba(34,211,238,0.14);margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div style="font-size:8px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;border:1px solid rgba(34,211,238,0.22);background:rgba(34,211,238,0.1);border-radius:999px;padding:4px 8px">${sharePackage.formatLabel}</div>
+            <div style="font-size:9px;color:var(--text-muted)">${sharePackage.matchupLabel}</div>
+          </div>
+          ${sharePackage.deckLabel ? `<div style="font-size:10px;color:var(--text-dim);line-height:1.5;margin-top:8px">${sharePackage.deckLabel}</div>` : ''}
           <div style="font-size:8px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Headline</div>
           <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.45;margin-top:6px">${sharePackage.headline}</div>
           <div style="font-size:8px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;margin-top:12px">Caption</div>
           <div style="font-size:10px;color:var(--text-dim);line-height:1.55;white-space:pre-wrap;margin-top:6px">${sharePackage.caption}</div>
-          <div style="display:flex;gap:8px;margin-top:12px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
             <button class="btn-clean" id="pg-headline" style="flex:1;border-color:rgba(34,211,238,0.24);color:#22D3EE">Copy Headline</button>
             <button class="btn-clean" id="pg-caption" style="flex:1;border-color:rgba(34,211,238,0.24);color:#22D3EE">Copy Caption</button>
+            <button class="btn-clean" id="pg-package" style="flex:1;border-color:rgba(34,211,238,0.24);color:#22D3EE">Copy Package</button>
           </div>
         </div>
       </div>
@@ -875,6 +986,18 @@ export class GameControls {
         btn.textContent = 'Copied';
         setTimeout(() => {
           btn.textContent = 'Copy Caption';
+        }, 1500);
+      } catch (e) {
+        btn.textContent = 'Copy Failed';
+      }
+    });
+    this._modal.querySelector('#pg-package').addEventListener('click', async () => {
+      const btn = this._modal.querySelector('#pg-package');
+      try {
+        await navigator.clipboard.writeText(sharePackage.featuredCard);
+        btn.textContent = 'Copied';
+        setTimeout(() => {
+          btn.textContent = 'Copy Package';
         }, 1500);
       } catch (e) {
         btn.textContent = 'Copy Failed';

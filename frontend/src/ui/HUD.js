@@ -137,12 +137,10 @@ export class HUD {
     const winner = sorted[0] || null;
     const topTurningPoint = (summary.turning_points || [])[0] || null;
     const sharePackage = isReplayRail
-      ? this.controls._buildSharePackage(summary, sorted, gameData?.rank_basis === 'score')
+      ? this.controls._buildSharePackage(gameData, summary, sorted, gameData?.rank_basis === 'score')
       : null;
     const shareUrl = isReplayRail ? this.store.getShareUrl() : '';
-    const recapText = isReplayRail
-      ? this.controls._buildReplayRecapText(summary, sorted, gameData?.rank_basis === 'score')
-      : '';
+    const replayLabel = sharePackage?.formatLabel || modeLabel;
 
     this._spectatorEntry.classList.remove('hidden');
     this._matchStrip.classList.add('match-strip-with-entry');
@@ -161,12 +159,13 @@ export class HUD {
       this._spectatorEntry.innerHTML = `
         <div class="spectator-entry-card spectator-entry-card-replay">
           <div class="spectator-entry-topline">
-            <span class="spectator-entry-badge">${modeLabel}</span>
-            <span class="spectator-entry-meta">${subline}</span>
+            <span class="spectator-entry-badge">Featured Replay</span>
+            <span class="spectator-entry-meta">${replayLabel} &middot; ${subline}</span>
           </div>
           <div class="spectator-entry-hero">
             <div>
-              <div class="spectator-entry-headline">${summary.winner_summary || 'Replay recap is loading.'}</div>
+              <div class="spectator-entry-headline">${sharePackage?.headline || summary.winner_summary || 'Replay recap is loading.'}</div>
+              <div class="spectator-entry-subline">${sharePackage?.matchupLabel || subline}</div>
               <div class="spectator-entry-subline">${meta}${state.gameId ? ` · ID ${state.gameId}` : ''}</div>
             </div>
             <div class="spectator-entry-scorecard">
@@ -176,6 +175,14 @@ export class HUD {
           </div>
           <div class="spectator-entry-summary-grid">
             <div class="spectator-entry-summary-cell">
+              <div class="spectator-entry-cell-label">Format</div>
+              <div class="spectator-entry-cell-value">${sharePackage?.formatLabel || 'Replay'}</div>
+            </div>
+            <div class="spectator-entry-summary-cell">
+              <div class="spectator-entry-cell-label">Matchup</div>
+              <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${sharePackage?.matchupLabel || winner?.startup_name || 'Unknown'}</div>
+            </div>
+            <div class="spectator-entry-summary-cell">
               <div class="spectator-entry-cell-label">Winner</div>
               <div class="spectator-entry-cell-value">${winner?.startup_name || 'Unknown'}</div>
             </div>
@@ -184,15 +191,20 @@ export class HUD {
               <div class="spectator-entry-cell-value">${summary.final_margin != null ? `${summary.final_margin.toFixed(1)} score` : 'N/A'}</div>
             </div>
             <div class="spectator-entry-summary-cell">
+              <div class="spectator-entry-cell-label">Story Hook</div>
+              <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${sharePackage?.storyHook || summary.winner_summary || 'Replay story is loading.'}</div>
+            </div>
+            <div class="spectator-entry-summary-cell">
               <div class="spectator-entry-cell-label">Turning Point</div>
-              <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${topTurningPoint?.headline || 'Turning points are loading.'}</div>
+              <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${sharePackage?.topTurningPoint?.headline || topTurningPoint?.headline || 'Turning points are loading.'}</div>
             </div>
           </div>
           <div class="spectator-entry-actions">
             <button class="btn-clean spectator-entry-action" id="spectator-open-recap">Open Recap</button>
             <button class="btn-clean spectator-entry-action" id="spectator-copy-link">Copy Link</button>
             <button class="btn-clean spectator-entry-action" id="spectator-copy-headline">Copy Headline</button>
-            <button class="btn-clean spectator-entry-action" id="spectator-copy-recap">Copy Recap</button>
+            <button class="btn-clean spectator-entry-action" id="spectator-copy-caption">Copy Caption</button>
+            <button class="btn-clean spectator-entry-action" id="spectator-copy-package">Copy Package</button>
           </div>
         </div>
       `;
@@ -200,7 +212,8 @@ export class HUD {
       const openButton = this._spectatorEntry.querySelector('#spectator-open-recap');
       const linkButton = this._spectatorEntry.querySelector('#spectator-copy-link');
       const headlineButton = this._spectatorEntry.querySelector('#spectator-copy-headline');
-      const recapButton = this._spectatorEntry.querySelector('#spectator-copy-recap');
+      const captionButton = this._spectatorEntry.querySelector('#spectator-copy-caption');
+      const packageButton = this._spectatorEntry.querySelector('#spectator-copy-package');
 
       openButton?.addEventListener('click', () => {
         this.controls.showPostGame({ entryMode: 'sharedReplay' });
@@ -221,12 +234,20 @@ export class HUD {
           this._copyButtonFeedback(headlineButton, 'Copy Headline', 'Copy Failed');
         }
       });
-      recapButton?.addEventListener('click', async () => {
+      captionButton?.addEventListener('click', async () => {
         try {
-          await navigator.clipboard.writeText(recapText);
-          this._copyButtonFeedback(recapButton, 'Copy Recap', 'Recap Copied');
+          await navigator.clipboard.writeText(sharePackage?.caption || '');
+          this._copyButtonFeedback(captionButton, 'Copy Caption', 'Caption Copied');
         } catch (e) {
-          this._copyButtonFeedback(recapButton, 'Copy Recap', 'Copy Failed');
+          this._copyButtonFeedback(captionButton, 'Copy Caption', 'Copy Failed');
+        }
+      });
+      packageButton?.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(sharePackage?.featuredCard || '');
+          this._copyButtonFeedback(packageButton, 'Copy Package', 'Package Copied');
+        } catch (e) {
+          this._copyButtonFeedback(packageButton, 'Copy Package', 'Copy Failed');
         }
       });
     }
