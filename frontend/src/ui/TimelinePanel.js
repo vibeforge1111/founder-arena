@@ -1,4 +1,4 @@
-import { formatMoney } from '../utils/formatters.js';
+import { formatMoney, formatScore } from '../utils/formatters.js';
 import { SECTOR_COLORS } from '../utils/colors.js';
 import { isCompetitiveMode, rankedStartups, startupScore } from '../utils/rankings.js';
 
@@ -92,6 +92,7 @@ export class TimelinePanel {
     const competitive = isCompetitiveMode(gd);
     const sorted = rankedStartups(gd);
     const leader = sorted[0];
+    const storyFeed = this._buildStoryFeed(gd, sorted, turn);
     const totalFunding = startupList.reduce((sum, s) => sum + (s.total_raised || 0), 0);
     const avgMorale = startupList.length > 0
       ? Math.round(startupList.reduce((sum, s) => sum + (s.morale || 0), 0) / startupList.length)
@@ -108,7 +109,7 @@ export class TimelinePanel {
         ${this._renderRoundCard(turn, maxTurns, pct, phase, phaseColor, phaseBadge, aliveCount, startupCount)}
         ${this._renderLeaderCard(leader, competitive)}
         ${this._renderMarketCard(totalFunding, avgMorale, deaths, hotSectors)}
-        ${this._renderFeedCard(recentActions, arcFeed)}
+        ${this._renderFeedCard(storyFeed, recentActions, arcFeed)}
       </div>
     `;
   }
@@ -215,8 +216,30 @@ export class TimelinePanel {
     `;
   }
 
-  _renderFeedCard(recentActions, arcFeed) {
-    const items = recentActions.slice(0, 5).map(a => {
+  _renderFeedCard(storyFeed, recentActions, arcFeed) {
+    const storyItems = storyFeed.slice(0, 5).map((item) => {
+      const accent = item.tone === 'danger'
+        ? '#EF4444'
+        : item.tone === 'warning'
+          ? '#FB923C'
+          : item.tone === 'positive'
+            ? '#34D058'
+            : item.tone === 'leader'
+              ? '#A78BFA'
+              : '#22D3EE';
+      return `
+        <div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:7px;height:7px;border-radius:999px;background:${accent};box-shadow:0 0 8px ${accent}66;flex-shrink:0"></div>
+            <div style="font-size:9px;font-weight:800;color:${accent};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.headline}</div>
+          </div>
+          <div style="font-size:8px;color:var(--text-dim);line-height:1.5;margin-top:4px">${item.detail}</div>
+          <div style="font-size:7px;color:var(--text-muted);margin-top:4px">W${item.turn || '?'}</div>
+        </div>
+      `;
+    }).join('');
+
+    const actionItems = recentActions.slice(0, 4).map(a => {
       const info = ACTION_ICONS[a.type] || { icon: '\u25B8', color: '#888', label: a.type?.toUpperCase() || '?' };
       const ok = a.success !== false;
       return `
@@ -246,21 +269,91 @@ export class TimelinePanel {
         <div class="bottom-dash-card-title">
           <div class="card-icon" style="background:rgba(167,139,250,0.2);color:#A78BFA">\u26A1</div>
           LIVE FEED
-          ${recentActions.length > 0 ? `<span class="dash-badge" style="margin-left:auto;background:rgba(52,208,88,0.12);color:#34D058;border:1px solid rgba(52,208,88,0.15)">${recentActions.length}</span>` : ''}
+          ${storyFeed.length > 0 ? `<span class="dash-badge" style="margin-left:auto;background:rgba(52,208,88,0.12);color:#34D058;border:1px solid rgba(52,208,88,0.15)">${storyFeed.length}</span>` : ''}
         </div>
         <div style="display:flex;gap:10px;height:calc(100% - 28px);overflow:hidden">
           <div style="flex:1;overflow-y:auto">
-            ${items || '<div style="font-size:9px;color:var(--text-muted);padding:4px 0">No actions yet...</div>'}
+            ${storyItems || '<div style="font-size:9px;color:var(--text-muted);padding:4px 0">No turning points yet...</div>'}
           </div>
-          ${eventItems ? `
-            <div style="flex:0 0 120px;overflow-y:auto;border-left:1px solid rgba(255,255,255,0.04);padding-left:8px">
-              <div style="font-size:7px;color:var(--text-muted);letter-spacing:0.8px;font-weight:600;margin-bottom:4px">EVENTS</div>
-              ${eventItems}
+          ${(actionItems || eventItems) ? `
+            <div style="flex:0 0 150px;overflow-y:auto;border-left:1px solid rgba(255,255,255,0.04);padding-left:8px">
+              ${actionItems ? `
+                <div style="font-size:7px;color:var(--text-muted);letter-spacing:0.8px;font-weight:600;margin-bottom:4px">ACTIONS</div>
+                ${actionItems}
+              ` : ''}
+              ${eventItems ? `
+                <div style="font-size:7px;color:var(--text-muted);letter-spacing:0.8px;font-weight:600;margin:8px 0 4px">ARCS</div>
+                ${eventItems}
+              ` : ''}
             </div>
           ` : ''}
         </div>
       </div>
     `;
+  }
+
+  _buildStoryFeed(gameData, sorted, currentTurn) {
+    const liveSummary = gameData.live_summary || null;
+    const items = [];
+
+    if (liveSummary && liveSummary.margin != null) {
+      items.push({
+        tone: 'leader',
+        turn: currentTurn,
+        headline: `${liveSummary.leader_startup_name} leads by ${formatScore(liveSummary.margin)} score`,
+        detail: liveSummary.why_ahead || 'No edge summary available.',
+      });
+      if (liveSummary.flip_watch) {
+        items.push({
+          tone: liveSummary.leader_pressure?.pressure_level === 'danger' ? 'danger' : 'warning',
+          turn: currentTurn,
+          headline: 'Flip watch',
+          detail: liveSummary.flip_watch,
+        });
+      }
+    }
+
+    for (const startup of sorted.slice(0, 3)) {
+      const delta = Number(startup.score_delta || 0);
+      if (Math.abs(delta) >= 0.35) {
+        items.push({
+          tone: delta > 0 ? 'positive' : 'danger',
+          turn: currentTurn,
+          headline: `${startup.startup_name} ${delta > 0 ? 'gained' : 'lost'} ${formatScore(Math.abs(delta))} score`,
+          detail: startup.watch_text || `${startup.startup_name} is swinging the board this turn.`,
+        });
+      }
+
+      if (startup.current_arc?.headline && (startup.current_arc?.severity || 0) >= 0.35) {
+        items.push({
+          tone: (startup.current_arc?.severity || 0) >= 0.6 ? 'danger' : 'warning',
+          turn: currentTurn,
+          headline: `${startup.startup_name} faces ${startup.current_arc?.packet_kind_label || startup.current_arc?.title || 'pressure'}`,
+          detail: startup.current_arc.headline,
+        });
+      }
+
+      if (startup.latest_decision?.intent) {
+        items.push({
+          tone: 'neutral',
+          turn: startup.latest_decision.turn_index || currentTurn,
+          headline: `${startup.startup_name}: ${startup.latest_decision.intent}`,
+          detail: startup.latest_decision.primary_risk
+            ? `Risk: ${startup.latest_decision.primary_risk}`
+            : (startup.latest_decision.expected_outcome || 'No public outcome note recorded.'),
+        });
+      }
+    }
+
+    const unique = [];
+    const seen = new Set();
+    for (const item of items) {
+      const key = `${item.headline}|${item.detail}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(item);
+    }
+    return unique.slice(0, 6);
   }
 
   _getRecentActions(actionLogs, startups, currentTurn) {
