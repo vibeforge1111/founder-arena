@@ -47,14 +47,18 @@ function updateDocumentTitle(state) {
   );
   const isCardLayout = state.entryContext?.layout === 'card';
   const isSocialLayout = state.entryContext?.layout === 'social';
+  const slot = state.entryContext?.slot;
+  const slotLabel = slot
+    ? slot.replace(/[_-]+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
+    : null;
 
   if (phase === 'finished') {
     const winner = gameData.startups?.[gameData.winner] || leader;
     const replayPrefix = isSocialLayout
-      ? 'Social Card'
+      ? (slotLabel ? `${slotLabel} Social` : 'Social Card')
       : isCardLayout
-      ? 'Replay Card'
-      : isSharedReplay ? 'Featured Replay' : 'Replay';
+      ? (slotLabel ? `${slotLabel} Card` : 'Replay Card')
+      : isSharedReplay ? (slotLabel ? `${slotLabel} Replay` : 'Featured Replay') : 'Replay';
     document.title = `${replayPrefix}: ${winner?.startup_name || gameData.name} | Founder Arena`;
     return;
   }

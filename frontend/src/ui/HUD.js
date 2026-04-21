@@ -389,16 +389,39 @@ export class HUD {
     const competitive = gameData?.rank_basis === 'score';
     const isCardLayout = this._isReplayCardLayout(state);
     const isSocialLayout = this._isReplaySocialLayout(state);
+    const slot = state.entryContext?.slot || null;
+    const slotTitle = slot ? this._slotTitle(slot) : null;
+    const slotItem = slot ? (state.featuredFeed?.[slot] || null) : null;
+    const editorialPick = slotItem?.editorial_pick || null;
+    const artifactFocus = slotItem?.artifact_focus || null;
+    const slotMemory = slotItem?.artifact_memory || null;
     const winner = sorted[0] || null;
     const runnerUp = sorted[1] || null;
     const shareUrl = this.store.getShareUrl({ layout: null });
     const cardUrl = this.store.getShareUrl({ layout: 'card' });
     const socialUrl = this.store.getShareUrl({ layout: 'social' });
+    const slotUrl = slot ? this.store.getFeaturedSlotUrl(slot, { layout: null }) : '';
     const sharePackage = this.controls._buildSharePackage(gameData, summary, sorted, competitive);
     const recapText = this.controls._buildReplayRecapText(summary, sorted, competitive);
     const embedSnippet = this._buildReplayEmbedSnippet(cardUrl, `${sharePackage.headline || 'Founder Arena Featured Replay'}`);
     const socialCaption = this._socialCaption(summary, sharePackage.headline, sharePackage.storyHook);
     const podium = sorted.slice(0, 3);
+    const replayBadge = slotTitle
+      ? (isSocialLayout ? `${slotTitle} Social` : isCardLayout ? `${slotTitle} Card` : slotTitle)
+      : (isSocialLayout ? 'Social Card' : isCardLayout ? 'Replay Card' : 'Featured Replay Page');
+    const replayMeta = [
+      slotTitle ? `Slot: ${slotTitle}` : null,
+      sharePackage.formatLabel,
+      gameData.queue || 'showmatch',
+      gameData.benchmark_tier || 'baseline',
+      slotMemory?.leader_label ? `Slot memory: ${slotMemory.leader_label}` : null,
+      `ID ${state.gameId || ''}`,
+    ].filter(Boolean).join(' · ');
+    const replaySubline = editorialPick?.shelf_kicker || summary.winner_summary || sharePackage.storyHook;
+    const featuredActionLabel = editorialPick?.action_label || 'Open Recap';
+    const featuredWhyToday = editorialPick?.why_today || '';
+    const featuredFormatSummary = editorialPick?.format_summary || '';
+    const featuredTodayCta = editorialPick?.shelf_cta || '';
 
     this._featuredReplayPage.classList.remove('hidden');
     this._featuredReplayPage.innerHTML = `
@@ -407,22 +430,29 @@ export class HUD {
         radial-gradient(circle at top right, rgba(34,211,238,0.12), transparent 28%),
         linear-gradient(180deg, rgba(8,15,24,0.94), rgba(8,12,18,0.98));border-color:rgba(255,255,255,0.08)">
         <div class="spectator-entry-topline">
-          <span class="spectator-entry-badge">${isSocialLayout ? 'Social Card' : isCardLayout ? 'Replay Card' : 'Featured Replay Page'}</span>
-          <span class="spectator-entry-meta">${sharePackage.formatLabel} &middot; ${gameData.queue || 'showmatch'} &middot; ${gameData.benchmark_tier || 'baseline'} &middot; ID ${state.gameId || ''}</span>
+          <span class="spectator-entry-badge">${replayBadge}</span>
+          <span class="spectator-entry-meta">${replayMeta}</span>
         </div>
         <div class="spectator-entry-hero" style="align-items:flex-start">
           <div style="flex:1 1 460px;min-width:0">
             <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.9px;text-transform:uppercase">${sharePackage.matchupLabel}</div>
             <div class="spectator-entry-headline" style="font-size:${isSocialLayout ? '30px' : isCardLayout ? '22px' : '26px'};line-height:1.15;margin-top:8px">${sharePackage.headline}</div>
-            <div class="spectator-entry-subline" style="margin-top:10px;max-width:760px;line-height:1.6">${summary.winner_summary || sharePackage.storyHook}</div>
+            <div class="spectator-entry-subline" style="margin-top:10px;max-width:760px;line-height:1.6">${replaySubline}</div>
             ${sharePackage.deckLabel ? `<div class="spectator-entry-subline" style="margin-top:8px;color:#CBD5E1">${sharePackage.deckLabel}</div>` : ''}
+            ${artifactFocus?.label ? `<div class="spectator-entry-subline" style="margin-top:8px;color:#FCD34D">${artifactFocus.label}${artifactFocus.reason ? `. ${artifactFocus.reason}` : ''}</div>` : ''}
+            ${featuredWhyToday ? `<div style="margin-top:12px;padding:12px 14px;border-radius:14px;background:rgba(252,165,165,0.08);border:1px solid rgba(252,165,165,0.16)">
+              <div style="font-size:8px;color:#FCA5A5;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Why This Replay Today</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;margin-top:8px">${featuredWhyToday}</div>
+            </div>` : ''}
             ${isSocialLayout ? `<div style="margin-top:14px;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);font-size:11px;color:var(--text);line-height:1.65;white-space:pre-wrap">${socialCaption}</div>` : ''}
             <div class="spectator-entry-actions" style="margin-top:14px">
-              <button class="btn-clean spectator-entry-action" id="featured-open-recap">Open Recap</button>
+              <button class="btn-clean spectator-entry-action" id="featured-open-recap">${featuredActionLabel}</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-link">Copy Link</button>
+              ${slot ? `<button class="btn-clean spectator-entry-action" id="featured-copy-slot-link">Copy Slot Link</button>` : ''}
               <button class="btn-clean spectator-entry-action" id="featured-copy-card-link">Copy Card Link</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-social-link">Copy Social Link</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-embed">Copy Embed</button>
+              ${featuredTodayCta ? `<button class="btn-clean spectator-entry-action" id="featured-copy-cta">Copy Today&apos;s CTA</button>` : ''}
               <button class="btn-clean spectator-entry-action" id="featured-copy-headline">Copy Headline</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-caption">Copy Caption</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-social-caption">Copy Social Caption</button>
@@ -459,6 +489,14 @@ export class HUD {
             <div class="spectator-entry-cell-label">Story Hook</div>
             <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${sharePackage.storyHook || 'Replay story is loading.'}</div>
           </div>
+          ${slotTitle ? `<div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Slot Framing</div>
+            <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${featuredFormatSummary || slotTitle}</div>
+          </div>` : ''}
+          ${featuredTodayCta ? `<div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Today&apos;s CTA</div>
+            <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${featuredTodayCta}</div>
+          </div>` : ''}
           <div class="spectator-entry-summary-cell">
             <div class="spectator-entry-cell-label">Top Turning Point</div>
             <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${sharePackage.topTurningPoint?.headline || 'Turning points are loading.'}</div>
@@ -500,6 +538,11 @@ export class HUD {
               <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.45;margin-top:10px">${sharePackage.headline}</div>
               <div style="font-size:10px;color:var(--text-dim);line-height:1.6;white-space:pre-wrap;margin-top:10px">${sharePackage.caption}</div>
             </div>
+            ${slotTitle ? `<div style="padding:14px 16px;border-radius:14px;background:rgba(252,165,165,0.06);border:1px solid rgba(252,165,165,0.14)">
+              <div style="font-size:9px;color:#FCA5A5;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Slot Editorial Context</div>
+              <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.45;margin-top:10px">${featuredActionLabel}</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;white-space:pre-wrap;margin-top:10px">${featuredWhyToday || featuredFormatSummary || 'Slot editorial context is loading.'}</div>
+            </div>` : ''}
             ${(isCardLayout || isSocialLayout) ? '' : `<div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
               <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Runner Issues</div>
               <div style="margin-top:12px">${this.controls._renderRunnerIncidents(summary)}</div>
@@ -507,6 +550,7 @@ export class HUD {
             <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
               <div style="font-size:9px;color:#94A3B8;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${isSocialLayout ? 'Social Link' : isCardLayout ? 'Card Link' : 'Replay Link'}</div>
               <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${isSocialLayout ? socialUrl : isCardLayout ? cardUrl : shareUrl || 'No replay link available.'}</div>
+              ${slotUrl ? `<div style="font-size:9px;color:var(--text-muted);line-height:1.5;margin-top:10px">Slot page: ${slotUrl}</div>` : ''}
               ${(!isCardLayout && !isSocialLayout) ? `<div style="font-size:9px;color:var(--text-muted);line-height:1.5;margin-top:10px">Card export: ${cardUrl}</div><div style="font-size:9px;color:var(--text-muted);line-height:1.5;margin-top:6px">Social export: ${socialUrl}</div>` : ''}
             </div>
           </div>
@@ -516,9 +560,11 @@ export class HUD {
 
     const openButton = this._featuredReplayPage.querySelector('#featured-open-recap');
     const linkButton = this._featuredReplayPage.querySelector('#featured-copy-link');
+    const slotLinkButton = this._featuredReplayPage.querySelector('#featured-copy-slot-link');
     const cardLinkButton = this._featuredReplayPage.querySelector('#featured-copy-card-link');
     const socialLinkButton = this._featuredReplayPage.querySelector('#featured-copy-social-link');
     const embedButton = this._featuredReplayPage.querySelector('#featured-copy-embed');
+    const ctaButton = this._featuredReplayPage.querySelector('#featured-copy-cta');
     const headlineButton = this._featuredReplayPage.querySelector('#featured-copy-headline');
     const captionButton = this._featuredReplayPage.querySelector('#featured-copy-caption');
     const socialCaptionButton = this._featuredReplayPage.querySelector('#featured-copy-social-caption');
@@ -534,6 +580,14 @@ export class HUD {
         this._copyButtonFeedback(linkButton, 'Copy Link', 'Link Copied');
       } catch (e) {
         this._copyButtonFeedback(linkButton, 'Copy Link', 'Copy Failed');
+      }
+    });
+    slotLinkButton?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(slotUrl || '');
+        this._copyButtonFeedback(slotLinkButton, 'Copy Slot Link', 'Slot Link Copied');
+      } catch (e) {
+        this._copyButtonFeedback(slotLinkButton, 'Copy Slot Link', 'Copy Failed');
       }
     });
     cardLinkButton?.addEventListener('click', async () => {
@@ -558,6 +612,14 @@ export class HUD {
         this._copyButtonFeedback(embedButton, 'Copy Embed', 'Embed Copied');
       } catch (e) {
         this._copyButtonFeedback(embedButton, 'Copy Embed', 'Copy Failed');
+      }
+    });
+    ctaButton?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(featuredTodayCta || '');
+        this._copyButtonFeedback(ctaButton, "Copy Today's CTA", 'CTA Copied');
+      } catch (e) {
+        this._copyButtonFeedback(ctaButton, "Copy Today's CTA", 'Copy Failed');
       }
     });
     headlineButton?.addEventListener('click', async () => {
