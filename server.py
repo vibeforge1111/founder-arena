@@ -4198,6 +4198,42 @@ def _build_featured_slot_memory(finished_entries: list[dict]) -> dict[str, dict]
     return slot_memory
 
 
+def _build_featured_editorial_pick(entry: dict, slot_name: Optional[str], default_artifact: dict, slot_memory: Optional[dict]) -> dict:
+    slot_title = str(slot_name or "featured_replay").replace("_", " ").title()
+    artifact_label = default_artifact.get("label") or "Featured Surface"
+    format_label = entry.get("format_label") or "Featured Replay"
+    matchup_label = entry.get("matchup_label") or entry.get("game_name") or entry.get("winner_startup") or "Founder Arena"
+    story_hook = entry.get("story_hook") or entry.get("winner_summary") or "Featured story is loading."
+    turning_point = entry.get("turning_point_headline")
+    memory_reason = (slot_memory or {}).get("reason")
+
+    if (default_artifact.get("key") or "social") == "social":
+        action_label = "Open Social Card"
+    elif default_artifact.get("key") == "card":
+        action_label = "Open Replay Card"
+    else:
+        action_label = "Open Full Replay"
+
+    why_parts = [
+        f"{slot_title} picked {artifact_label} for {format_label.lower()} packaging.",
+        default_artifact.get("reason"),
+        memory_reason,
+        f"Turning point: {turning_point}" if turning_point else None,
+    ]
+    why_today = " ".join(part for part in why_parts if part)
+    shelf_cta = f"{action_label}: {matchup_label}"
+    shelf_kicker = story_hook if len(story_hook) <= 120 else f"{story_hook[:117]}..."
+
+    return {
+        "slot_title": slot_title,
+        "action_label": action_label,
+        "shelf_cta": shelf_cta,
+        "shelf_kicker": shelf_kicker,
+        "why_today": why_today,
+        "format_summary": f"{artifact_label} is today's promoted surface for {slot_title}.",
+    }
+
+
 def _apply_featured_artifact_selection(entry: Optional[dict], slot_name: Optional[str] = None, slot_memory: Optional[dict] = None) -> Optional[dict]:
     if not entry:
         return None
@@ -4332,6 +4368,7 @@ def _apply_featured_artifact_selection(entry: Optional[dict], slot_name: Optiona
     candidates.sort(key=lambda item: (item["score"], 1 if item["key"] == "social" else 0), reverse=True)
     default_artifact = dict(candidates[0])
     default_artifact["promoted"] = True
+    editorial_pick = _build_featured_editorial_pick(entry, slot_name, default_artifact, slot_memory) if slot_name else None
 
     return {
         **entry,
@@ -4347,6 +4384,7 @@ def _apply_featured_artifact_selection(entry: Optional[dict], slot_name: Optiona
             "memory_bonus": default_artifact.get("memory_bonus"),
         },
         "artifact_memory": slot_memory if slot_name else None,
+        "editorial_pick": editorial_pick,
     }
 
 
