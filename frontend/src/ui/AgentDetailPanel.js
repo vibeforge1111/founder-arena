@@ -62,6 +62,8 @@ export class AgentDetailPanel {
       : (ranked.find((startup) => startup.id !== sid) || null);
     const latestDecision = s.latest_decision || state.gameData?.decision_summaries?.[sid] || null;
     const currentArc = s.current_arc || null;
+    const runnerPresence = s.runner_presence || null;
+    const runnerFailure = s.runner_failure || null;
     const pressureLevel = s.pressure_level || 'neutral';
     const riskPills = this._renderRiskPills(s.risk_tags || []);
     const scoreDelta = Number(s.score_delta || 0);
@@ -90,6 +92,15 @@ export class AgentDetailPanel {
     const comparisonGap = comparisonTarget
       ? Math.abs(Number((totalScore - startupScore(comparisonTarget)).toFixed(1)))
       : 0;
+    const runnerTone = runnerFailure
+      ? (runnerFailure.severity === 'error' ? '#EF4444' : runnerFailure.severity === 'warn' ? '#FB923C' : '#22D3EE')
+      : (runnerPresence?.tone === 'positive' ? '#34D058' : runnerPresence?.tone === 'warning' ? '#FB923C' : runnerPresence?.tone === 'danger' ? '#EF4444' : '#22D3EE');
+    const runnerHeadline = runnerFailure
+      ? runnerFailure.label
+      : runnerPresence?.label || 'No runner data';
+    const runnerDetail = runnerFailure?.message
+      || runnerPresence?.detail
+      || 'No operator state recorded yet.';
 
     // Track color
     if (!this._startupOrderMap.has(sid)) {
@@ -199,6 +210,16 @@ export class AgentDetailPanel {
           ${riskPills ? `<div class="signal-pills">${riskPills}</div>` : ''}
         </div>
         <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:8px">${s.watch_text || currentArc?.headline || 'No immediate danger signal recorded.'}</div>
+      </div>
+
+      <div class="panel-title">RUNNER STATUS</div>
+      <div style="margin-bottom:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.05);border-radius:12px;padding:10px 12px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="font-size:11px;font-weight:800;color:${runnerTone}">${runnerHeadline}</div>
+          ${runnerPresence?.heartbeat_age_seconds != null ? `<div style="font-size:8px;color:var(--text-muted);border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);border-radius:999px;padding:3px 8px">Heartbeat ${runnerPresence.heartbeat_age_seconds}s ago</div>` : ''}
+        </div>
+        <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:8px">${runnerDetail}</div>
+        ${runnerFailure?.turn != null ? `<div style="font-size:8px;color:${runnerTone};margin-top:8px">Issue surfaced on Week ${runnerFailure.turn}</div>` : ''}
       </div>
 
       <div class="panel-title">${comparisonHeader}</div>

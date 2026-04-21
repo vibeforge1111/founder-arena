@@ -311,6 +311,14 @@ export class TimelinePanel {
           detail: liveSummary.flip_watch,
         });
       }
+      if (liveSummary.runner_alert?.headline) {
+        items.push({
+          tone: liveSummary.runner_alert.severity === 'error' ? 'danger' : 'warning',
+          turn: currentTurn,
+          headline: `${liveSummary.runner_alert.startup_name} runner issue`,
+          detail: liveSummary.runner_alert.message || liveSummary.runner_alert.headline,
+        });
+      }
     }
 
     for (const startup of sorted.slice(0, 3)) {

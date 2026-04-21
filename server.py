@@ -1941,6 +1941,32 @@ class Game:
         if not ranked:
             return None
 
+        severity_rank = {"error": 3, "warn": 2, "info": 1}
+        runner_alerts = []
+        for index, startup in enumerate(ranked):
+            runner_failure = self._runner_failure_for(startup)
+            if not runner_failure:
+                continue
+            runner_alerts.append(
+                {
+                    "startup_id": startup.id,
+                    "startup_name": startup.startup_name,
+                    "agent_name": startup.agent_name,
+                    "rank": index + 1,
+                    **runner_failure,
+                }
+            )
+        runner_alert = None
+        if runner_alerts:
+            runner_alerts.sort(
+                key=lambda item: (
+                    severity_rank.get(str(item.get("severity") or "info"), 0),
+                    -int(item.get("rank") or 999),
+                ),
+                reverse=True,
+            )
+            runner_alert = runner_alerts[0]
+
         leader = ranked[0]
         challenger = ranked[1] if len(ranked) > 1 else None
         leader_score = round(self._score_value_for(leader), 2)
@@ -1960,6 +1986,7 @@ class Game:
                 "flip_watch": leader_pressure.get("watch_text") or "The next swing starts when another founder joins.",
                 "leader_pressure": leader_pressure,
                 "challenger_pressure": None,
+                "runner_alert": runner_alert,
             }
 
         challenger_score = round(self._score_value_for(challenger), 2)
@@ -2003,6 +2030,7 @@ class Game:
             "margin": margin,
             "why_ahead": why_ahead,
             "flip_watch": flip_watch,
+            "runner_alert": runner_alert,
         }
 
     def _director_payload_for(self, startup) -> dict:

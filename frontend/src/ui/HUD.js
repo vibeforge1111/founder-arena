@@ -81,6 +81,14 @@ export class HUD {
     ).join('');
   }
 
+  _runnerAlertTone(alert) {
+    return {
+      error: 'danger',
+      warn: 'warning',
+      info: 'neutral',
+    }[alert?.severity] || 'neutral';
+  }
+
   _updateMatchStrip(state) {
     const summary = state.gameData?.live_summary;
     const phase = state.gameData?.phase;
@@ -92,6 +100,8 @@ export class HUD {
 
     const leaderTags = this._pressurePills(summary.leader_pressure);
     const challengerTags = this._pressurePills(summary.challenger_pressure);
+    const runnerAlert = summary.runner_alert || null;
+    const runnerTone = this._runnerAlertTone(runnerAlert);
     this._matchStrip.classList.remove('hidden');
     this._matchStrip.innerHTML = `
       <div class="match-strip-card emphasis">
@@ -111,6 +121,14 @@ export class HUD {
         ${summary.challenger_startup_name ? `<div class="match-strip-sub">${summary.challenger_startup_name} &middot; ${summary.challenger_score?.toFixed(1)} score &middot; ${this._formatDelta(summary.challenger_delta)} this turn</div>` : ''}
         ${challengerTags ? `<div class="signal-pills">${challengerTags}</div>` : ''}
       </div>
+      ${runnerAlert ? `
+        <div class="match-strip-card">
+          <div class="match-strip-label">Runner Alert</div>
+          <div class="match-strip-body" style="color:${runnerTone === 'danger' ? '#FCA5A5' : runnerTone === 'warning' ? '#FCD34D' : 'var(--text)'}">${runnerAlert.headline || `${runnerAlert.startup_name} has a runner issue.`}</div>
+          <div class="match-strip-sub">${runnerAlert.startup_name} &middot; ${runnerAlert.label}</div>
+          <div class="signal-pills"><span class="signal-pill signal-pill-${runnerTone}">${runnerAlert.label}</span></div>
+        </div>
+      ` : ''}
     `;
   }
 
