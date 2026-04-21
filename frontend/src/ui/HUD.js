@@ -93,22 +93,33 @@ export class HUD {
     }[alert?.severity] || 'neutral';
   }
 
+  _copyButtonFeedback(button, label, copiedLabel) {
+    if (!button) return;
+    button.textContent = copiedLabel;
+    clearTimeout(button._copyTimer);
+    button._copyTimer = setTimeout(() => {
+      button.textContent = label;
+    }, 1500);
+  }
+
   _updateSpectatorEntry(state) {
     const entry = state.entryContext || {};
     const gameData = state.gameData;
     if (!entry.viaSharedLink) {
       this._spectatorEntry.classList.add('hidden');
       this._matchStrip.classList.remove('match-strip-with-entry');
+      this._matchStrip.classList.remove('match-strip-with-replay-entry');
       this._spectatorEntry.innerHTML = '';
       return;
     }
 
     const phase = gameData?.phase || state.view;
     const requestedReplay = entry.requestedPhase === 'replay';
+    const isReplayRail = requestedReplay && phase === 'finished' && gameData?.summary;
     const modeLabel = requestedReplay || phase === 'finished'
       ? 'Replay Link'
       : 'Watch Link';
-    const headline = phase === 'finished'
+    const headline = isReplayRail ? null : phase === 'finished'
       ? (gameData?.summary?.winner_summary || 'Replay recap is loading.')
       : phase === 'playing'
         ? (gameData?.live_summary?.why_ahead || 'Live match context is loading.')
@@ -121,9 +132,21 @@ export class HUD {
     const meta = gameData
       ? `${phase === 'finished' ? 'Final replay' : phase === 'playing' ? `Week ${gameData.turn || 0}/${gameData.max_turns || 32}` : 'Pre-match'}`
       : 'Connecting';
+    const sorted = this.store.startupList || [];
+    const summary = gameData?.summary || {};
+    const winner = sorted[0] || null;
+    const topTurningPoint = (summary.turning_points || [])[0] || null;
+    const sharePackage = isReplayRail
+      ? this.controls._buildSharePackage(summary, sorted, gameData?.rank_basis === 'score')
+      : null;
+    const shareUrl = isReplayRail ? this.store.getShareUrl() : '';
+    const recapText = isReplayRail
+      ? this.controls._buildReplayRecapText(summary, sorted, gameData?.rank_basis === 'score')
+      : '';
 
     this._spectatorEntry.classList.remove('hidden');
     this._matchStrip.classList.add('match-strip-with-entry');
+    this._matchStrip.classList.toggle('match-strip-with-replay-entry', Boolean(isReplayRail));
     this._spectatorEntry.innerHTML = `
       <div class="spectator-entry-card">
         <div class="spectator-entry-topline">
@@ -134,6 +157,79 @@ export class HUD {
         <div class="spectator-entry-subline">${meta}${state.gameId ? ` · ID ${state.gameId}` : ''}</div>
       </div>
     `;
+    if (isReplayRail) {
+      this._spectatorEntry.innerHTML = `
+        <div class="spectator-entry-card spectator-entry-card-replay">
+          <div class="spectator-entry-topline">
+            <span class="spectator-entry-badge">${modeLabel}</span>
+            <span class="spectator-entry-meta">${subline}</span>
+          </div>
+          <div class="spectator-entry-hero">
+            <div>
+              <div class="spectator-entry-headline">${summary.winner_summary || 'Replay recap is loading.'}</div>
+              <div class="spectator-entry-subline">${meta}${state.gameId ? ` · ID ${state.gameId}` : ''}</div>
+            </div>
+            <div class="spectator-entry-scorecard">
+              <div class="spectator-entry-score">${winner?.startup_name || 'Unknown'}</div>
+              <div class="spectator-entry-score-meta">${summary.final_margin != null ? `${summary.final_margin.toFixed(1)} score margin` : 'Final replay'}</div>
+            </div>
+          </div>
+          <div class="spectator-entry-summary-grid">
+            <div class="spectator-entry-summary-cell">
+              <div class="spectator-entry-cell-label">Winner</div>
+              <div class="spectator-entry-cell-value">${winner?.startup_name || 'Unknown'}</div>
+            </div>
+            <div class="spectator-entry-summary-cell">
+              <div class="spectator-entry-cell-label">Margin</div>
+              <div class="spectator-entry-cell-value">${summary.final_margin != null ? `${summary.final_margin.toFixed(1)} score` : 'N/A'}</div>
+            </div>
+            <div class="spectator-entry-summary-cell">
+              <div class="spectator-entry-cell-label">Turning Point</div>
+              <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${topTurningPoint?.headline || 'Turning points are loading.'}</div>
+            </div>
+          </div>
+          <div class="spectator-entry-actions">
+            <button class="btn-clean spectator-entry-action" id="spectator-open-recap">Open Recap</button>
+            <button class="btn-clean spectator-entry-action" id="spectator-copy-link">Copy Link</button>
+            <button class="btn-clean spectator-entry-action" id="spectator-copy-headline">Copy Headline</button>
+            <button class="btn-clean spectator-entry-action" id="spectator-copy-recap">Copy Recap</button>
+          </div>
+        </div>
+      `;
+
+      const openButton = this._spectatorEntry.querySelector('#spectator-open-recap');
+      const linkButton = this._spectatorEntry.querySelector('#spectator-copy-link');
+      const headlineButton = this._spectatorEntry.querySelector('#spectator-copy-headline');
+      const recapButton = this._spectatorEntry.querySelector('#spectator-copy-recap');
+
+      openButton?.addEventListener('click', () => {
+        this.controls.showPostGame({ entryMode: 'sharedReplay' });
+      });
+      linkButton?.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          this._copyButtonFeedback(linkButton, 'Copy Link', 'Link Copied');
+        } catch (e) {
+          this._copyButtonFeedback(linkButton, 'Copy Link', 'Copy Failed');
+        }
+      });
+      headlineButton?.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(sharePackage?.headline || '');
+          this._copyButtonFeedback(headlineButton, 'Copy Headline', 'Headline Copied');
+        } catch (e) {
+          this._copyButtonFeedback(headlineButton, 'Copy Headline', 'Copy Failed');
+        }
+      });
+      recapButton?.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(recapText);
+          this._copyButtonFeedback(recapButton, 'Copy Recap', 'Recap Copied');
+        } catch (e) {
+          this._copyButtonFeedback(recapButton, 'Copy Recap', 'Copy Failed');
+        }
+      });
+    }
   }
 
   _updateMatchStrip(state) {

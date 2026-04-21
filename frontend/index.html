@@ -130,6 +130,9 @@
   .match-strip.match-strip-with-entry {
     top: 146px;
   }
+  .match-strip.match-strip-with-replay-entry {
+    top: 244px;
+  }
   .match-strip.hidden { display: none; }
   .spectator-entry {
     position: absolute;
@@ -145,6 +148,10 @@
     border-radius: 12px;
     padding: 12px 14px;
     box-shadow: 0 10px 28px rgba(0,0,0,0.35), inset 0 0 22px rgba(34,211,238,0.04);
+  }
+  .spectator-entry-card-replay {
+    border-color: rgba(255,184,0,0.16);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.38), inset 0 0 24px rgba(255,184,0,0.04);
   }
   .spectator-entry-topline {
     display: flex;
@@ -181,6 +188,73 @@
     font-size: 9px;
     color: var(--text-muted);
     margin-top: 6px;
+  }
+  .spectator-entry-hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 8px;
+  }
+  .spectator-entry-scorecard {
+    min-width: 128px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255,184,0,0.08);
+    border: 1px solid rgba(255,184,0,0.14);
+    text-align: right;
+  }
+  .spectator-entry-score {
+    font-size: 14px;
+    font-weight: 900;
+    color: var(--gold);
+  }
+  .spectator-entry-score-meta {
+    font-size: 8px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .spectator-entry-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .spectator-entry-summary-cell {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    min-width: 0;
+  }
+  .spectator-entry-cell-label {
+    font-size: 8px;
+    color: var(--text-muted);
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+  .spectator-entry-cell-value {
+    font-size: 11px;
+    color: var(--text);
+    font-weight: 800;
+    line-height: 1.45;
+    margin-top: 6px;
+  }
+  .spectator-entry-cell-wrap {
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .spectator-entry-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .spectator-entry-action {
+    flex: 1 1 120px;
   }
   .match-strip-card {
     background: linear-gradient(180deg, rgba(22,27,36,0.9) 0%, rgba(14,18,26,0.94) 100%);
@@ -1136,6 +1210,19 @@
     }
     .match-strip.match-strip-with-entry {
       top: 160px;
+    }
+    .match-strip.match-strip-with-replay-entry {
+      top: 308px;
+    }
+    .spectator-entry-hero {
+      flex-direction: column;
+    }
+    .spectator-entry-scorecard {
+      width: 100%;
+      text-align: left;
+    }
+    .spectator-entry-summary-grid {
+      grid-template-columns: 1fr;
     }
   }
 </style>
