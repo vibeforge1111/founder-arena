@@ -162,6 +162,14 @@ export class HUD {
     return this._queryUrlFromPayload(payload) || fallback;
   }
 
+  _slotEditorialStrength(card) {
+    if (!card?.item) return -1;
+    const artifactScore = Number(card.item.default_artifact?.score || card.item.artifact_focus?.score || 0);
+    const memoryBonus = Number(card.item.artifact_focus?.memory_bonus || 0);
+    const turningPointBonus = card.item.turning_point_headline ? 4 : 0;
+    return artifactScore + memoryBonus + turningPointBonus;
+  }
+
   _socialCaption(summary, fallbackHeadline, storyHook) {
     return [
       fallbackHeadline || null,
@@ -246,7 +254,7 @@ export class HUD {
         mode: 'slot',
         slot: 'benchmark_challenge',
       },
-    ];
+    ].sort((a, b) => this._slotEditorialStrength(b) - this._slotEditorialStrength(a));
 
     if (liveGames.length === 0 && featuredReplays.length === 0 && topAgents.length === 0 && !contentLoopCards.some((card) => card.item)) {
       this._discoveryShelf.classList.add('hidden');
@@ -292,10 +300,30 @@ export class HUD {
         `).join('')
       : '<div style="font-size:10px;color:var(--text-muted)">Leaderboard is still warming up.</div>';
 
-    const loopCardsHtml = contentLoopCards.map((card) => {
+    const leadSlot = contentLoopCards.find((card) => card.item) || null;
+    const leadSlotName = leadSlot?.slot || null;
+    const sectionOrder = leadSlotName === 'benchmark_challenge'
+      ? [
+          { label: 'Top Agents', html: agentsHtml },
+          { label: 'Featured Replays', html: replayHtml },
+          { label: 'Live Now', html: liveHtml },
+        ]
+      : leadSlotName === 'weekly_upset_recap'
+      ? [
+          { label: 'Featured Replays', html: replayHtml },
+          { label: 'Live Now', html: liveHtml },
+          { label: 'Top Agents', html: agentsHtml },
+        ]
+      : [
+          { label: 'Live Now', html: liveHtml },
+          { label: 'Featured Replays', html: replayHtml },
+          { label: 'Top Agents', html: agentsHtml },
+        ];
+
+    const renderLoopCard = (card, emphasis = 'secondary') => {
       if (!card.item) {
         return `
-          <div style="padding:12px 14px;border-radius:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)">
+          <div style="padding:${emphasis === 'lead' ? '16px 18px' : '12px 14px'};border-radius:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)">
             <div style="font-size:9px;color:${card.accent};font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${card.label}</div>
             <div style="font-size:10px;color:var(--text-muted);line-height:1.5;margin-top:10px">Not enough finished matches yet to publish this slot.</div>
           </div>
@@ -304,42 +332,46 @@ export class HUD {
       const promotedArtifact = card.item.default_artifact || null;
       const slotMemory = card.item.artifact_memory || null;
       const editorialPick = card.item.editorial_pick || null;
+      const cardStrength = this._slotEditorialStrength(card);
       return `
-        <button class="btn-clean discovery-link" data-mode="${card.mode}" data-slot="${card.slot}" data-game="${card.item.game_id}" data-spectator="${card.item.spectator_token || ''}" data-phase="${promotedArtifact?.phase || ''}" data-layout="${promotedArtifact?.layout || ''}" data-slot-layout="${promotedArtifact?.slot_layout || ''}" style="text-align:left;padding:12px 14px;border-color:${card.accent}2e;background:${card.accent}12">
+        <button class="btn-clean discovery-link" data-mode="${card.mode}" data-slot="${card.slot}" data-game="${card.item.game_id}" data-spectator="${card.item.spectator_token || ''}" data-phase="${promotedArtifact?.phase || ''}" data-layout="${promotedArtifact?.layout || ''}" data-slot-layout="${promotedArtifact?.slot_layout || ''}" style="text-align:left;padding:${emphasis === 'lead' ? '18px 18px' : '12px 14px'};border-color:${card.accent}2e;background:${emphasis === 'lead' ? `linear-gradient(180deg, ${card.accent}18, rgba(8,15,24,0.92))` : `${card.accent}12`};min-height:${emphasis === 'lead' ? '220px' : 'auto'}">
           <div style="font-size:9px;color:${card.accent};font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${card.label}</div>
-          <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.4;margin-top:10px">${card.item.headline || `${card.item.winner_startup} replay`}</div>
+          ${emphasis === 'lead' ? `<div style="font-size:8px;color:#F8FAFC;font-weight:800;letter-spacing:0.7px;text-transform:uppercase;margin-top:8px">Current Spotlight · ${cardStrength.toFixed(1)} editorial score</div>` : ''}
+          <div style="font-size:${emphasis === 'lead' ? '18px' : '12px'};color:var(--text);font-weight:800;line-height:1.35;margin-top:10px">${editorialPick?.shelf_cta || card.item.headline || `${card.item.winner_startup} replay`}</div>
           <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:8px">${card.item.matchup_label || card.item.game_name || 'Featured replay'}</div>
           ${editorialPick?.action_label ? `<div style="font-size:8px;color:#FCA5A5;font-weight:800;letter-spacing:0.7px;text-transform:uppercase;margin-top:8px">${editorialPick.action_label}</div>` : ''}
           ${card.item.artifact_focus?.label ? `<div style="font-size:8px;color:#FCD34D;font-weight:800;letter-spacing:0.7px;text-transform:uppercase;margin-top:8px">${card.item.artifact_focus.label}</div>` : ''}
           ${slotMemory?.leader_label ? `<div style="font-size:8px;color:#93C5FD;line-height:1.45;margin-top:5px">Slot memory: ${slotMemory.leader_label}</div>` : ''}
           <div style="font-size:8px;color:var(--text-muted);line-height:1.45;margin-top:5px">${editorialPick?.format_summary || promotedArtifact?.reason || 'Featured packaging is loading.'}</div>
-          <div style="font-size:9px;color:var(--text-muted);line-height:1.45;margin-top:6px">${editorialPick?.shelf_kicker || card.item.story_hook || card.item.winner_summary || 'Replay story is loading.'}</div>
+          <div style="font-size:${emphasis === 'lead' ? '10px' : '9px'};color:var(--text-muted);line-height:1.5;margin-top:6px">${editorialPick?.why_today || editorialPick?.shelf_kicker || card.item.story_hook || card.item.winner_summary || 'Replay story is loading.'}</div>
         </button>
       `;
-    }).join('');
+    };
+    const leadCardHtml = leadSlot ? renderLoopCard(leadSlot, 'lead') : '';
+    const secondaryCardsHtml = contentLoopCards
+      .filter((card) => card !== leadSlot)
+      .map((card) => renderLoopCard(card, 'secondary'))
+      .join('');
 
     this._discoveryShelf.classList.remove('hidden');
     this._discoveryShelf.innerHTML = `
       <div class="spectator-entry-card">
         <div class="spectator-entry-topline">
           <span class="spectator-entry-badge">Watch Founder Arena</span>
-          <span class="spectator-entry-meta">Featured live matches, replays, and the public ladder</span>
+          <span class="spectator-entry-meta">Featured live matches, replays, and the public ladder${leadSlot?.label ? ` · Spotlight: ${leadSlot.label}` : ''}</span>
         </div>
         <div class="spectator-entry-headline">Spectator mode should start with a story, not an empty shell.</div>
-        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px">${loopCardsHtml}</div>
+        <div style="display:grid;grid-template-columns:${leadCardHtml ? 'minmax(0,1.35fr) minmax(320px,0.9fr)' : 'repeat(3,minmax(0,1fr))'};gap:10px;margin-top:14px">
+          ${leadCardHtml ? `<div>${leadCardHtml}</div>` : ''}
+          ${leadCardHtml ? `<div style="display:grid;gap:10px">${secondaryCardsHtml}</div>` : secondaryCardsHtml}
+        </div>
         <div class="spectator-entry-summary-grid" style="margin-top:14px">
-          <div class="spectator-entry-summary-cell">
-            <div class="spectator-entry-cell-label">Live Now</div>
-            <div style="display:grid;gap:8px;margin-top:8px">${liveHtml}</div>
-          </div>
-          <div class="spectator-entry-summary-cell">
-            <div class="spectator-entry-cell-label">Featured Replays</div>
-            <div style="display:grid;gap:8px;margin-top:8px">${replayHtml}</div>
-          </div>
-          <div class="spectator-entry-summary-cell">
-            <div class="spectator-entry-cell-label">Top Agents</div>
-            <div style="margin-top:8px">${agentsHtml}</div>
-          </div>
+          ${sectionOrder.map((section) => `
+            <div class="spectator-entry-summary-cell">
+              <div class="spectator-entry-cell-label">${section.label}</div>
+              <div style="display:grid;gap:8px;margin-top:8px">${section.html}</div>
+            </div>
+          `).join('')}
         </div>
       </div>
     `;
