@@ -745,7 +745,7 @@ export class GameControls {
     };
   }
 
-  showPostGame() {
+  showPostGame(options = {}) {
     const gameData = this.store.state.gameData;
     if (!gameData) return;
 
@@ -754,6 +754,8 @@ export class GameControls {
     const summary = gameData.summary || {};
     const shareUrl = this.store.getShareUrl();
     const sharePackage = this._buildSharePackage(summary, sorted, competitive);
+    const entryMode = options.entryMode || null;
+    const isSharedReplay = entryMode === 'sharedReplay';
 
     const winner = sorted[0];
     const podium = sorted.slice(0, 3);
@@ -763,7 +765,18 @@ export class GameControls {
     const winnerSubhead = competitive ? `${formatMoneySimple(winner?.valuation)} valuation` : `${winner?.sector || ''}`;
 
     this._modal.innerHTML = `
-      <h2 style="text-align:center">Game Over</h2>
+      <h2 style="text-align:center">${isSharedReplay ? 'Replay Recap' : 'Game Over'}</h2>
+
+      ${isSharedReplay ? `
+        <div style="margin:0 0 16px;padding:12px 14px;border-radius:14px;background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.18)">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div style="font-size:8px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;border:1px solid rgba(34,211,238,0.22);background:rgba(34,211,238,0.1);border-radius:999px;padding:4px 8px">Shared Replay</div>
+            <div style="font-size:9px;color:var(--text-muted)">${gameData.name || 'Founder Arena'} &middot; ${gameData.queue || 'showmatch'} &middot; ${gameData.benchmark_tier || 'baseline'}</div>
+          </div>
+          <div style="font-size:11px;color:var(--text);font-weight:800;line-height:1.5;margin-top:8px">${summary?.winner_summary || 'Replay summary is loading.'}</div>
+          <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:6px">This replay link opens directly into the creator recap with winner, turning points, and copy-ready share assets.</div>
+        </div>
+      ` : ''}
 
       <div style="text-align:center;margin:20px 0;padding:20px;background:linear-gradient(180deg,rgba(255,184,0,0.08) 0%,rgba(255,184,0,0.02) 100%);border:1px solid rgba(255,184,0,0.15);border-radius:16px">
         <div style="font-size:28px;margin-bottom:6px">&#128081;</div>
@@ -834,7 +847,7 @@ export class GameControls {
       </div>
 
       <div class="modal-actions">
-        <button class="btn-secondary" id="pg-close">Close</button>
+        <button class="btn-secondary" id="pg-close">${isSharedReplay ? 'Keep Watching' : 'Close'}</button>
         <button class="btn-clean" id="pg-link" style="border-color:rgba(167,139,250,0.3);color:#A78BFA">Copy Link</button>
         <button class="btn-clean" id="pg-copy" style="border-color:rgba(34,211,238,0.3);color:#22D3EE">Copy Recap</button>
         <button class="btn-game btn-game-blue" id="pg-new" style="flex:2">&#9654; New Game</button>

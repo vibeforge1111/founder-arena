@@ -209,7 +209,17 @@ export class HUD {
     // Show post-game modal once
     if (phase === 'finished' && !this._postGameShown) {
       this._postGameShown = true;
-      setTimeout(() => this.controls.showPostGame(), 1500);
+      const isSharedReplay = Boolean(
+        state.entryContext?.viaSharedLink && state.entryContext?.requestedPhase === 'replay'
+      );
+      const openModal = () => this.controls.showPostGame({
+        entryMode: isSharedReplay ? 'sharedReplay' : 'standard',
+      });
+      if (isSharedReplay) {
+        openModal();
+      } else {
+        setTimeout(openModal, 1500);
+      }
     }
     if (phase !== 'finished') {
       this._postGameShown = false;
