@@ -21,6 +21,27 @@ export class GameStore {
     this._pollInterval = 2000;
   }
 
+  _syncUrl() {
+    if (typeof window === 'undefined' || !window.history?.replaceState) return;
+    const url = new URL(window.location.href);
+    if (this.state.gameId) {
+      url.searchParams.set('game', this.state.gameId);
+    } else {
+      url.searchParams.delete('game');
+    }
+    if (this.state.spectatorToken) {
+      url.searchParams.set('spectator', this.state.spectatorToken);
+    } else {
+      url.searchParams.delete('spectator');
+    }
+    if (this.state.view === 'finished') {
+      url.searchParams.set('phase', 'replay');
+    } else {
+      url.searchParams.delete('phase');
+    }
+    window.history.replaceState({}, '', `${url.pathname}${url.search}`);
+  }
+
   subscribe(fn) {
     this._listeners.add(fn);
     return () => this._listeners.delete(fn);
@@ -34,6 +55,7 @@ export class GameStore {
 
   update(partial) {
     Object.assign(this.state, partial);
+    this._syncUrl();
     this._notify();
   }
 
@@ -60,6 +82,21 @@ export class GameStore {
 
   get maxTurns() {
     return this.state.gameData?.max_turns || 32;
+  }
+
+  getShareUrl() {
+    if (typeof window === 'undefined') return '';
+    const url = new URL(window.location.href);
+    if (this.state.gameId) {
+      url.searchParams.set('game', this.state.gameId);
+    }
+    if (this.state.spectatorToken) {
+      url.searchParams.set('spectator', this.state.spectatorToken);
+    }
+    if (this.phase === 'finished') {
+      url.searchParams.set('phase', 'replay');
+    }
+    return url.toString();
   }
 
   async loadGames() {

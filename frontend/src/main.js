@@ -10,6 +10,10 @@ const store = new GameStore();
 const scene = new SceneManager(canvas);
 const hud = new HUD(hudRoot, store, scene);
 
+const bootParams = new URLSearchParams(window.location.search);
+const bootGameId = bootParams.get('game');
+const bootSpectator = bootParams.get('spectator');
+
 // Subscribe to state changes
 store.subscribe((state) => {
   // Update 3D scene
@@ -33,5 +37,8 @@ animate();
 
 // Load existing games on startup
 store.loadGames();
+if (bootGameId) {
+  store.watchGame(bootGameId, bootSpectator || null);
+}
 
 console.log('[Founder Arena] Three.js frontend initialized');

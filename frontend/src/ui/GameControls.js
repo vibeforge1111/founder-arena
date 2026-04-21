@@ -524,6 +524,7 @@ export class GameControls {
 
   _buildReplayRecapText(summary, sorted, competitive) {
     const winner = sorted[0];
+    const shareUrl = this.store.getShareUrl();
     const turningPoints = (summary?.turning_points || [])
       .map((point, index) => `${index + 1}. ${point.headline}`)
       .join('\n');
@@ -539,6 +540,7 @@ export class GameControls {
     return [
       `${summary?.winner_summary || `${winner?.startup_name || 'Unknown'} won the match.`}`,
       competitive && winner ? `Winner score: ${formatScore(startupScore(winner))}` : null,
+      shareUrl ? `Replay: ${shareUrl}` : null,
       summary?.practice_takeaway?.headline ? `Practice takeaway: ${summary.practice_takeaway.headline}` : null,
       turningPoints ? `Turning points:\n${turningPoints}` : null,
       loserRecaps ? `Why they lost:\n${loserRecaps}` : null,
@@ -552,6 +554,7 @@ export class GameControls {
     const competitive = isCompetitiveMode(gameData);
     const sorted = rankedStartups(gameData);
     const summary = gameData.summary || {};
+    const shareUrl = this.store.getShareUrl();
 
     const winner = sorted[0];
     const podium = sorted.slice(0, 3);
@@ -602,6 +605,12 @@ export class GameControls {
           </div>
           ${summary?.practice_takeaway?.headline ? `<div style="font-size:10px;color:#FB923C;line-height:1.5;margin-top:10px">Practice takeaway: ${summary.practice_takeaway.headline}</div>` : ''}
         </div>
+        ${shareUrl ? `
+          <div style="padding:12px 14px;border-radius:12px;background:rgba(34,211,238,0.06);border:1px solid rgba(34,211,238,0.14);margin-bottom:10px">
+            <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">Replay Link</div>
+            <div style="font-size:10px;color:var(--text-dim);line-height:1.5;word-break:break-word">${shareUrl}</div>
+          </div>
+        ` : ''}
         ${this._renderTurningPoints(summary)}
       </div>
 
@@ -612,6 +621,7 @@ export class GameControls {
 
       <div class="modal-actions">
         <button class="btn-secondary" id="pg-close">Close</button>
+        <button class="btn-clean" id="pg-link" style="border-color:rgba(167,139,250,0.3);color:#A78BFA">Copy Link</button>
         <button class="btn-clean" id="pg-copy" style="border-color:rgba(34,211,238,0.3);color:#22D3EE">Copy Recap</button>
         <button class="btn-game btn-game-blue" id="pg-new" style="flex:2">&#9654; New Game</button>
       </div>
@@ -619,6 +629,22 @@ export class GameControls {
     this.open();
 
     this._modal.querySelector('#pg-close').addEventListener('click', () => this.close());
+    this._modal.querySelector('#pg-link').addEventListener('click', async () => {
+      const btn = this._modal.querySelector('#pg-link');
+      if (!shareUrl) {
+        btn.textContent = 'No Link';
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        btn.textContent = 'Link Copied';
+        setTimeout(() => {
+          btn.textContent = 'Copy Link';
+        }, 1500);
+      } catch (e) {
+        btn.textContent = 'Copy Failed';
+      }
+    });
     this._modal.querySelector('#pg-copy').addEventListener('click', async () => {
       const btn = this._modal.querySelector('#pg-copy');
       const recapText = this._buildReplayRecapText(summary, sorted, competitive);
