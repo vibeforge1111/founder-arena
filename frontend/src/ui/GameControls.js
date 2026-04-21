@@ -547,6 +547,34 @@ export class GameControls {
     ].filter(Boolean).join('\n\n');
   }
 
+  _buildSharePackage(summary, sorted, competitive) {
+    const winner = sorted[0];
+    const runnerUp = sorted[1];
+    const topTurningPoint = (summary?.turning_points || [])[0];
+    const topLoser = sorted
+      .slice(1, 3)
+      .map((startup) => summary?.startup_outcomes?.[startup.id] ? { startup, outcome: summary.startup_outcomes[startup.id] } : null)
+      .find(Boolean);
+    const shareUrl = this.store.getShareUrl();
+
+    const headline = competitive
+      ? `${winner?.startup_name || 'Unknown'} beat ${runnerUp?.startup_name || 'the field'} by ${summary?.final_margin != null ? `${formatScore(summary.final_margin)} score` : 'a narrow margin'}`
+      : `${winner?.startup_name || 'Unknown'} won Founder Arena`;
+
+    const captionParts = [
+      summary?.winner_summary || headline,
+      topTurningPoint?.headline ? `Turning point: ${topTurningPoint.headline}` : null,
+      topLoser?.outcome?.headline ? `Why they lost: ${topLoser.outcome.headline}` : null,
+      summary?.practice_takeaway?.headline ? `Practice takeaway: ${summary.practice_takeaway.headline}` : null,
+      shareUrl || null,
+    ].filter(Boolean);
+
+    return {
+      headline,
+      caption: captionParts.join('\n'),
+    };
+  }
+
   showPostGame() {
     const gameData = this.store.state.gameData;
     if (!gameData) return;
@@ -555,6 +583,7 @@ export class GameControls {
     const sorted = rankedStartups(gameData);
     const summary = gameData.summary || {};
     const shareUrl = this.store.getShareUrl();
+    const sharePackage = this._buildSharePackage(summary, sorted, competitive);
 
     const winner = sorted[0];
     const podium = sorted.slice(0, 3);
@@ -615,6 +644,20 @@ export class GameControls {
       </div>
 
       <div style="margin:18px 0 10px">
+        <div style="font-size:10px;color:#22D3EE;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Share Package</div>
+        <div style="padding:12px 14px;border-radius:12px;background:rgba(34,211,238,0.06);border:1px solid rgba(34,211,238,0.14);margin-bottom:10px">
+          <div style="font-size:8px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Headline</div>
+          <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.45;margin-top:6px">${sharePackage.headline}</div>
+          <div style="font-size:8px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;margin-top:12px">Caption</div>
+          <div style="font-size:10px;color:var(--text-dim);line-height:1.55;white-space:pre-wrap;margin-top:6px">${sharePackage.caption}</div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn-clean" id="pg-headline" style="flex:1;border-color:rgba(34,211,238,0.24);color:#22D3EE">Copy Headline</button>
+            <button class="btn-clean" id="pg-caption" style="flex:1;border-color:rgba(34,211,238,0.24);color:#22D3EE">Copy Caption</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin:18px 0 10px">
         <div style="font-size:10px;color:#FB923C;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Why They Lost</div>
         ${this._renderOutcomeCards(summary, sorted) || '<div style="font-size:10px;color:var(--text-muted)">Outcome diagnostics are not available for this match yet.</div>'}
       </div>
@@ -629,6 +672,30 @@ export class GameControls {
     this.open();
 
     this._modal.querySelector('#pg-close').addEventListener('click', () => this.close());
+    this._modal.querySelector('#pg-headline').addEventListener('click', async () => {
+      const btn = this._modal.querySelector('#pg-headline');
+      try {
+        await navigator.clipboard.writeText(sharePackage.headline);
+        btn.textContent = 'Copied';
+        setTimeout(() => {
+          btn.textContent = 'Copy Headline';
+        }, 1500);
+      } catch (e) {
+        btn.textContent = 'Copy Failed';
+      }
+    });
+    this._modal.querySelector('#pg-caption').addEventListener('click', async () => {
+      const btn = this._modal.querySelector('#pg-caption');
+      try {
+        await navigator.clipboard.writeText(sharePackage.caption);
+        btn.textContent = 'Copied';
+        setTimeout(() => {
+          btn.textContent = 'Copy Caption';
+        }, 1500);
+      } catch (e) {
+        btn.textContent = 'Copy Failed';
+      }
+    });
     this._modal.querySelector('#pg-link').addEventListener('click', async () => {
       const btn = this._modal.querySelector('#pg-link');
       if (!shareUrl) {
