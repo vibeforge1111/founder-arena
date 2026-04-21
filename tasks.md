@@ -1,10 +1,37 @@
 # Founder Arena Upgrade Tasks
 
-Updated: 2026-04-21
+Updated: 2026-04-22
 
 This file is the execution plan for the spectator-first Founder Arena upgrade.
 
 The goal is not to add more surface area. The goal is to make the current product truthful, legible, replayable, and shareable enough to become sticky for builders and watchable for spectators.
+
+## Current Status
+
+Completed implementation through `Phase 5N`.
+
+Completed slices:
+
+- `Phase 0C`: honest local-player attach flow with attach command and non-fake browser story
+- `Phase 1A-1C`: live match strip, narrative feed, and founder diagnosis panel
+- `Phase 2A-2C`: replay recap, stronger turning points, replay links, and creator-ready share package
+- `Phase 3A-3C`: runner heartbeat, runner diagnostics, and live runner alerts
+- `Phase 4A-4C`: spectator-first shared replay entry, immediate recap modal, and persistent replay recap rail
+- `Phase 5A-5N`: featured replay storytelling, featured feed backend, replay/page/card/social slot surfaces, promoted artifact selection, slot memory, editorial slot framing, replay carry-through, and landing spotlight emphasis
+
+Latest completed commits:
+
+- `a398d98` `Phase 5N: spotlight strongest slot on landing`
+- `7e90a1f` `Phase 5M: carry slot framing into replay pages`
+- `1980b5b` `Phase 5L: explain featured slot picks editorially`
+- `5d4ca8e` `Phase 5K: add slot memory for promoted artifacts`
+- `8e74cde` `Phase 5J: promote default replay artifacts per slot`
+
+Pause checkpoint:
+
+- branch: `master`
+- remote: `origin https://github.com/vibeforge1111/founder-arena`
+- worktree is clean except for the same unrelated untracked assets and historical bundles already being left alone
 
 ## Phase 0: Truth And Trust
 
@@ -154,23 +181,25 @@ Exit criteria:
 
 - The product can generate recurring content without hand-authoring every story.
 
-## Immediate Next 15 Tasks
+## Next Queue
 
-1. Fix score-first sorting in the rankings panel.
-2. Fix score-first sorting in the postgame modal.
-3. Fix detail-panel rendering of `seven_dimension_scores.dimensions`.
-4. Audit and correct all competitive-mode copy that implies browser-launched autonomy.
-5. Decide the official short-term player participation contract and document it.
-6. Expose `latest_decision` and `current_arc` prominently in the live UI.
-7. Add live score delta and risk tags to the rankings list.
-8. Consume replay summary data in the frontend instead of leaving it backend-only.
-9. Rewrite turning-point selection so early static leads do not dominate the recap.
-10. Add a proper replay recap modal/page with turning points and loss diagnosis.
-11. Add practice-match "why you lost" output for benchmark games.
-12. Add share-ready replay permalink and summary-copy support.
-13. Update README to match the real local player flow.
-14. Run balance experiments focused on duel drama, not only bot ordering stability.
-15. Define the first creator-facing featured-match package.
+1. `Phase 5O`: add freshness / rotation controls so slot spotlighting does not get stuck on one slot or one replay.
+2. Feed recency and repeat-exposure penalties into slot artifact selection as a small editorial tiebreaker, not a full replacement for current scoring.
+3. Surface a visible "why this slot is spotlighted today" summary in the landing hero, not just inside the card body.
+4. Add a simple cooldown for replay reuse so the same game is not promoted in multiple slot surfaces too aggressively.
+5. Decide whether featured-slot memory should persist across process restarts or stay ephemeral for now.
+6. Add README / docs sync for the spectator-first replay / slot / card / social URL system.
+7. Run QA on shared-link flows:
+   - slot page
+   - replay page
+   - card layout
+   - social layout
+   - replay page with slot context carried through
+8. Add a small visual regression pass on the landing spotlight layout for mobile widths.
+9. Revisit bundle growth warnings once the content-loop product surface stabilizes.
+10. Start the next product loop after freshness:
+    - either `Phase 5P` slot rotation analytics
+    - or a `Phase 6` balance/drama pass focused on actual viral-worthy match swings
 
 ## Do Not Do Yet
 

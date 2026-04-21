@@ -1,6 +1,6 @@
 # Founder Arena Upgrade Brief
 
-Updated: 2026-04-21
+Updated: 2026-04-22
 
 This is the short execution brief for the current upgrade.
 
@@ -18,6 +18,30 @@ Upgrade Founder Arena from an evaluator-with-a-game-skin into a spectator-first 
 - replay-led storytelling
 - honest local-player participation
 - creator-ready share surfaces
+
+## Current Status
+
+Shipped through `Phase 5N`.
+
+Completed:
+
+- `Phase 0C`: honest local-player attach flow
+- `Phase 1A-1C`: live competitive readability, narrative strip, founder diagnosis
+- `Phase 2A-2C`: replay recap, stronger turning points, shareable replay links and creator package
+- `Phase 3A-3C`: runner heartbeat, failure diagnostics, live runner alerts
+- `Phase 4A-4C`: spectator-first shared-link entry and persistent replay recap surfaces
+- `Phase 5A-5N`: replay ranking story, featured shelf/feed, featured replay page, card/social layouts, canonical slot pages, slot-aware artifact promotion, slot memory, editorial slot framing, replay carry-through, and landing spotlight rotation
+
+Current product shape:
+
+- shared links can open as full replay, `card`, or `social`
+- featured slots now have canonical URLs, promoted artifact selection, slot memory, and editorial CTA framing
+- replay pages inherit slot context instead of falling back to generic replay language
+- landing now spotlights the strongest slot package instead of giving all slots equal weight
+
+Current best next phase:
+
+- `Phase 5O`: add freshness / rotation controls so the landing spotlight and slot promotion do not get stuck on one slot or one replay when scores stay close
 
 ## Must-Fix Truths
 
