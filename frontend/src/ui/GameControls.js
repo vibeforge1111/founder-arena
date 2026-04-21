@@ -64,6 +64,7 @@ export class GameControls {
       warning: '#F59E0B',
       danger: '#EF4444',
       neutral: '#94A3B8',
+      info: '#22D3EE',
     }[tone] || '#94A3B8';
   }
 
@@ -104,6 +105,47 @@ export class GameControls {
           <span style="font-size:9px;color:var(--text-muted)">${ageLabel}</span>
         </div>
         <div style="font-size:10px;color:var(--text);line-height:1.5">${runner.detail || ''}</div>
+      </div>
+    `;
+  }
+
+  _renderRunnerFailure(failure, { compact = false } = {}) {
+    if (!failure) return '';
+    const tone = {
+      error: 'danger',
+      warn: 'warning',
+      info: 'info',
+    }[failure.severity] || 'neutral';
+    const color = this._runnerToneColor(tone);
+    const label = failure.label || 'Runner issue';
+    const message = failure.message || failure.headline || '';
+    if (compact) {
+      return `
+        <div style="font-size:8px;color:${color};line-height:1.45;margin-top:4px">
+          <strong style="font-weight:800">${label}:</strong> ${message}
+        </div>
+      `;
+    }
+    return `
+      <div style="margin-top:8px;padding:10px 12px;border-radius:10px;background:${color}12;border:1px solid ${color}26">
+        <div style="font-size:8px;color:${color};font-weight:800;letter-spacing:0.6px;text-transform:uppercase">${label}</div>
+        <div style="font-size:10px;color:var(--text);line-height:1.5;margin-top:5px">${message}</div>
+      </div>
+    `;
+  }
+
+  _renderRunnerIncidents(summary) {
+    const incidents = summary?.runner_incidents || [];
+    if (!incidents.length) return '';
+    return `
+      <div style="padding:12px 14px;border-radius:12px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.14);margin-bottom:10px">
+        <div style="font-size:9px;color:#F87171;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:8px">Runner Issues</div>
+        ${incidents.map((incident) => `
+          <div style="padding:8px 0${incident !== incidents[incidents.length - 1] ? ';border-bottom:1px solid rgba(255,255,255,0.06)' : ''}">
+            <div style="font-size:10px;color:var(--text);font-weight:700">${incident.startup_name}</div>
+            <div style="font-size:9px;color:#FCA5A5;line-height:1.5;margin-top:4px">${incident.label}: ${incident.message}</div>
+          </div>
+        `).join('')}
       </div>
     `;
   }
@@ -255,6 +297,7 @@ export class GameControls {
         <div id="da-runner-wrap" style="display:${reservation ? 'block' : 'none'};margin-top:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:10px 12px">
           <div style="font-size:9px;color:var(--text-muted);letter-spacing:0.7px;font-weight:700;margin-bottom:6px">LOCAL RUNNER STATUS</div>
           <div id="da-runner-presence" style="font-size:10px;color:var(--text)">${this._renderRunnerPresence(this._fallbackRunnerPresence())}</div>
+          <div id="da-runner-failure"></div>
         </div>
 
         <div style="display:flex;gap:8px;margin-top:10px">
@@ -375,6 +418,7 @@ export class GameControls {
       const startups = state.gameData?.startups || {};
       const agentList = this._modal.querySelector('#lobby-agents');
       const runnerPresenceCard = this._modal.querySelector('#da-runner-presence');
+      const runnerFailureCard = this._modal.querySelector('#da-runner-failure');
       if (!agentList) return;
 
       const entries = Object.values(startups);
@@ -387,6 +431,9 @@ export class GameControls {
       if (runnerPresenceCard) {
         runnerPresenceCard.innerHTML = this._renderRunnerPresence(myEntry?.runner_presence || this._fallbackRunnerPresence());
       }
+      if (runnerFailureCard) {
+        runnerFailureCard.innerHTML = this._renderRunnerFailure(myEntry?.runner_failure || null);
+      }
 
       if (entries.length === 0) {
         agentList.innerHTML = '<div style="font-size:10px;color:var(--text-muted);padding:10px;text-align:center">Waiting for agents...</div>';
@@ -396,6 +443,7 @@ export class GameControls {
       agentList.innerHTML = entries.map(s => {
         const isMe = s.id === this.store.state.myStartupId || s.startup_name === myStartupName;
         const runnerPresence = s.runner_presence || this._fallbackRunnerPresence();
+        const runnerFailure = s.runner_failure || null;
         return `
           <div class="lobby-agent" style="align-items:flex-start;${isMe ? 'border-left:2px solid #A78BFA;padding-left:6px' : ''}">
             <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
@@ -405,6 +453,7 @@ export class GameControls {
                 <span style="color:#666;font-size:8px;text-transform:uppercase;letter-spacing:0.5px">${s.sector || ''}</span>
               </div>
               <div style="font-size:8px;color:var(--text-muted)">${runnerPresence.detail || ''}</div>
+              ${this._renderRunnerFailure(runnerFailure, { compact: true })}
             </div>
             <div style="margin-left:auto">
               ${this._renderRunnerPresence(runnerPresence, { compact: true })}
@@ -618,6 +667,7 @@ export class GameControls {
     }
 
     return losers.map(({ startup, outcome }) => {
+      const runnerFailure = outcome.runner_failure || null;
       const strengths = (outcome.strengths || []).map((item) => item.label).join(' · ');
       const gaps = (outcome.gaps || []).map((item) => item.label).join(' · ');
       return `
@@ -627,6 +677,7 @@ export class GameControls {
             <div style="font-size:8px;color:#FB923C;border:1px solid rgba(251,146,60,0.18);background:rgba(251,146,60,0.08);border-radius:999px;padding:3px 8px">${outcome.result.replace(/_/g, ' ')}</div>
           </div>
           <div style="font-size:10px;color:var(--text-dim);line-height:1.5;margin-top:8px">${outcome.headline}</div>
+          ${runnerFailure ? this._renderRunnerFailure(runnerFailure) : ''}
           ${strengths ? `<div style="font-size:9px;color:#22C55E;margin-top:8px">Held up on: ${strengths}</div>` : ''}
           ${gaps ? `<div style="font-size:9px;color:#EF4444;margin-top:4px">Lost on: ${gaps}</div>` : ''}
         </div>
@@ -640,11 +691,15 @@ export class GameControls {
     const turningPoints = (summary?.turning_points || [])
       .map((point, index) => `${index + 1}. ${point.headline}`)
       .join('\n');
+    const runnerIncidents = (summary?.runner_incidents || [])
+      .map((incident) => `- ${incident.startup_name}: ${incident.label} - ${incident.message}`)
+      .join('\n');
     const loserRecaps = sorted
       .slice(1, 3)
       .map((startup) => {
         const outcome = summary?.startup_outcomes?.[startup.id];
-        return outcome ? `- ${startup.startup_name}: ${outcome.headline}` : null;
+        if (!outcome) return null;
+        return `- ${startup.startup_name}: ${outcome.runner_failure?.headline || outcome.headline}`;
       })
       .filter(Boolean)
       .join('\n');
@@ -654,6 +709,7 @@ export class GameControls {
       competitive && winner ? `Winner score: ${formatScore(startupScore(winner))}` : null,
       shareUrl ? `Replay: ${shareUrl}` : null,
       summary?.practice_takeaway?.headline ? `Practice takeaway: ${summary.practice_takeaway.headline}` : null,
+      runnerIncidents ? `Runner issues:\n${runnerIncidents}` : null,
       turningPoints ? `Turning points:\n${turningPoints}` : null,
       loserRecaps ? `Why they lost:\n${loserRecaps}` : null,
     ].filter(Boolean).join('\n\n');
@@ -663,6 +719,7 @@ export class GameControls {
     const winner = sorted[0];
     const runnerUp = sorted[1];
     const topTurningPoint = (summary?.turning_points || [])[0];
+    const topRunnerIssue = (summary?.runner_incidents || [])[0];
     const topLoser = sorted
       .slice(1, 3)
       .map((startup) => summary?.startup_outcomes?.[startup.id] ? { startup, outcome: summary.startup_outcomes[startup.id] } : null)
@@ -676,7 +733,8 @@ export class GameControls {
     const captionParts = [
       summary?.winner_summary || headline,
       topTurningPoint?.headline ? `Turning point: ${topTurningPoint.headline}` : null,
-      topLoser?.outcome?.headline ? `Why they lost: ${topLoser.outcome.headline}` : null,
+      topRunnerIssue?.headline ? `Runner issue: ${topRunnerIssue.headline}` : null,
+      topLoser?.outcome ? `Why they lost: ${topLoser.outcome.runner_failure?.headline || topLoser.outcome.headline}` : null,
       summary?.practice_takeaway?.headline ? `Practice takeaway: ${summary.practice_takeaway.headline}` : null,
       shareUrl || null,
     ].filter(Boolean);
@@ -746,6 +804,7 @@ export class GameControls {
           </div>
           ${summary?.practice_takeaway?.headline ? `<div style="font-size:10px;color:#FB923C;line-height:1.5;margin-top:10px">Practice takeaway: ${summary.practice_takeaway.headline}</div>` : ''}
         </div>
+        ${this._renderRunnerIncidents(summary)}
         ${shareUrl ? `
           <div style="padding:12px 14px;border-radius:12px;background:rgba(34,211,238,0.06);border:1px solid rgba(34,211,238,0.14);margin-bottom:10px">
             <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px">Replay Link</div>

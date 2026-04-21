@@ -2144,6 +2144,7 @@ class Game:
                 if sid == my_startup_id or self.phase == GamePhase.FINISHED:
                     state["startups"][sid].update(self._director_payload_for(s))
             state["startups"][sid]["runner_presence"] = self._runner_presence_for(s)
+            state["startups"][sid]["runner_failure"] = self._runner_failure_for(s)
 
         if self.game_mode == "competitive_mode":
             if my_startup_id:
@@ -2166,6 +2167,7 @@ class Game:
             payload = startup.snapshot()
             payload.update(self._score_payload_for(startup))
             payload["runner_presence"] = self._runner_presence_for(startup)
+            payload["runner_failure"] = self._runner_failure_for(startup)
             if self.use_rich_state:
                 payload.update(self._director_payload_for(startup))
             startup_payload[sid] = payload
@@ -2287,6 +2289,75 @@ class Game:
             return f"{startup.startup_name} lost ground on {edges} versus {comparison.startup_name}."
         return f"{startup.startup_name} trailed {comparison.startup_name} on overall score balance."
 
+    def _latest_failure_diagnostic_for(self, startup) -> Optional[dict]:
+        return next(
+            (
+                item for item in reversed(getattr(startup, "diagnostics", []))
+                if str(item.get("kind") or "") in (PRACTICE_FAILURE_KINDS | {"invalid_packet"})
+            ),
+            None,
+        )
+
+    def _runner_failure_for(self, startup) -> Optional[dict]:
+        if getattr(startup, "control_type", "entrant") == "benchmark":
+            return None
+
+        diagnostic = self._latest_failure_diagnostic_for(startup)
+        if diagnostic:
+            kind = str(diagnostic.get("kind") or "submission_error")
+            label_map = {
+                "timeout": ("Turn timeout", "warn"),
+                "illegal_action": ("Illegal action", "error"),
+                "invalid_packet": ("Invalid packet", "error"),
+                "submission_error": ("Submission error", "warn"),
+                "launch_error": ("Launch error", "error"),
+                "crash": ("Runner crash", "error"),
+            }
+            label, severity = label_map.get(kind, (kind.replace("_", " ").title(), str(diagnostic.get("severity") or "warn")))
+            message = diagnostic.get("message") or "The runner failed to complete a clean turn."
+            return {
+                "kind": kind,
+                "label": label,
+                "severity": severity,
+                "headline": f"{startup.startup_name} hit {label.lower()}: {message}",
+                "message": message,
+                "turn": diagnostic.get("turn"),
+                "recorded_at": diagnostic.get("recorded_at"),
+                "status_source": "diagnostic",
+            }
+
+        presence = self._runner_presence_for(startup)
+        if presence.get("status") == "reserved":
+            return {
+                "kind": "no_attach",
+                "label": "No local attach",
+                "severity": "info",
+                "headline": f"{startup.startup_name} never attached a local runner to the reserved slot.",
+                "message": "Reserve flow completed, but no runner heartbeat ever arrived.",
+                "turn": None,
+                "recorded_at": None,
+                "status_source": "presence",
+            }
+
+        if presence.get("status") == "stalled":
+            last_turn = getattr(startup, "runner_last_action_turn", None)
+            if last_turn is not None:
+                message = f"Heartbeat stopped after Week {last_turn}, before the next clean submission."
+            else:
+                message = "Runner attached, but heartbeat stopped before it locked a clean turn."
+            return {
+                "kind": "stalled",
+                "label": "Runner stalled",
+                "severity": "warn",
+                "headline": f"{startup.startup_name} lost runner heartbeat during the match.",
+                "message": message,
+                "turn": getattr(startup, "runner_last_activity_turn", None),
+                "recorded_at": getattr(startup, "runner_last_heartbeat_at", None),
+                "status_source": "presence",
+            }
+
+        return None
+
     def _practice_takeaway_for(self, *, startup, comparison, strengths: list[dict], gaps: list[dict], is_winner: bool, score_gap: float) -> Optional[dict]:
         if self.queue != "showmatch":
             return None
@@ -2300,13 +2371,7 @@ class Game:
         benchmark_strategy = benchmark_profile.get("strategy") or comparison.strategy
         gap_labels = [item["label"] for item in gaps[:2]]
         strength_labels = [item["label"] for item in strengths[:2]]
-        failure = next(
-            (
-                item for item in reversed(getattr(startup, "diagnostics", []))
-                if str(item.get("kind") or "") in PRACTICE_FAILURE_KINDS
-            ),
-            None,
-        )
+        runner_failure = self._runner_failure_for(startup)
         absolute_gap = round(abs(score_gap), 2)
 
         if is_winner:
@@ -2331,11 +2396,11 @@ class Game:
                 "focus_items": strength_labels[:2],
             }
 
-        if failure:
+        if runner_failure:
             headline = (
                 f"{startup.startup_name} lost to {benchmark_label} after "
-                f"{str(failure.get('kind') or 'execution issue').replace('_', ' ')} pressure: "
-                f"{failure.get('message') or 'the turn failed to land cleanly.'}"
+                f"{str(runner_failure.get('label') or 'execution issue').lower()}: "
+                f"{runner_failure.get('message') or 'the turn failed to land cleanly.'}"
             )
             return {
                 "category": "execution_mistake",
@@ -2350,6 +2415,7 @@ class Game:
                 "benchmark_tier": benchmark_profile.get("tier"),
                 "score_gap": absolute_gap,
                 "focus_items": gap_labels[:2],
+                "runner_failure": runner_failure,
             }
 
         if not startup.alive and startup.death_reason:
@@ -2456,13 +2522,21 @@ class Game:
                 ),
                 "strengths": strengths,
                 "gaps": gaps,
+                "runner_failure": self._runner_failure_for(startup),
                 "practice_takeaway": practice_takeaway,
             }
         return outcomes
 
     def _build_replay_summary(self, ranked: list) -> dict:
         if not ranked:
-            return {"winner_summary": "", "final_margin": None, "turning_points": [], "startup_outcomes": {}, "practice_takeaway": None}
+            return {
+                "winner_summary": "",
+                "final_margin": None,
+                "turning_points": [],
+                "startup_outcomes": {},
+                "practice_takeaway": None,
+                "runner_incidents": [],
+            }
 
         winner = ranked[0]
         runner_up = ranked[1] if len(ranked) > 1 else None
@@ -2564,6 +2638,17 @@ class Game:
             (item.get("practice_takeaway") for item in startup_outcomes.values() if item.get("practice_takeaway")),
             None,
         )
+        runner_incidents = [
+            {
+                "startup_id": startup.id,
+                "startup_name": startup.startup_name,
+                "agent_name": startup.agent_name,
+                **outcome["runner_failure"],
+            }
+            for startup in ranked
+            for outcome in [startup_outcomes.get(startup.id) or {}]
+            if outcome.get("runner_failure")
+        ]
         return {
             "winner_summary": winner_summary,
             "final_margin": final_margin,
@@ -2572,6 +2657,7 @@ class Game:
             "turning_points": turning_points[:3],
             "startup_outcomes": startup_outcomes,
             "practice_takeaway": practice_takeaway,
+            "runner_incidents": runner_incidents[:3],
         }
 
     def get_replay(self) -> dict:
