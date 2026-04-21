@@ -6,6 +6,10 @@ export class GameStore {
     this.state = {
       view: 'landing',       // landing | lobby | playing | finished
       games: [],
+      leaderboardData: {
+        leaderboard: [],
+        agent_rankings: [],
+      },
       gameId: null,
       adminToken: null,
       spectatorToken: null,
@@ -105,10 +109,24 @@ export class GameStore {
 
   async loadGames() {
     try {
-      const games = await api.fetchGames();
-      this.update({ games });
+      const data = await api.fetchGames();
+      this.update({ games: data.games || [] });
     } catch (e) {
       console.error('Failed to load games:', e);
+    }
+  }
+
+  async loadLeaderboard() {
+    try {
+      const data = await api.fetchLeaderboard();
+      this.update({
+        leaderboardData: {
+          leaderboard: data.leaderboard || [],
+          agent_rankings: data.agent_rankings || [],
+        },
+      });
+    } catch (e) {
+      console.error('Failed to load leaderboard:', e);
     }
   }
 
@@ -188,6 +206,7 @@ export class GameStore {
   async poll() {
     if (!this.state.gameId) return;
     try {
+      const previousPhase = this.state.gameData?.phase || null;
       let data;
       if (this.state.spectatorToken) {
         data = await api.fetchSpectatorState(this.state.gameId, this.state.spectatorToken);
@@ -216,6 +235,10 @@ export class GameStore {
       }
 
       this.update({ gameData: data, view, selectedStartupId, error: null });
+      if (phase === 'finished' && previousPhase !== 'finished') {
+        this.loadGames();
+        this.loadLeaderboard();
+      }
     } catch (e) {
       console.error('[Poll] Error:', e);
     }

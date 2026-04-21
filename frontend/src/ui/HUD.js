@@ -59,6 +59,10 @@ export class HUD {
     this._spectatorEntry.className = 'spectator-entry hidden';
     this.container.appendChild(this._spectatorEntry);
 
+    this._discoveryShelf = document.createElement('div');
+    this._discoveryShelf.className = 'spectator-entry hidden';
+    this.container.appendChild(this._discoveryShelf);
+
     this._statusEl = this._header.querySelector('#header-status');
 
     this._header.querySelector('#btn-quick-play').addEventListener('click', () => {
@@ -100,6 +104,110 @@ export class HUD {
     button._copyTimer = setTimeout(() => {
       button.textContent = label;
     }, 1500);
+  }
+
+  _updateDiscoveryShelf(state) {
+    const hasFocusedGame = Boolean(state.gameId || state.gameData);
+    if (hasFocusedGame) {
+      this._discoveryShelf.classList.add('hidden');
+      this._discoveryShelf.innerHTML = '';
+      return;
+    }
+
+    const games = Array.isArray(state.games) ? state.games : [];
+    const leaderboardData = state.leaderboardData || {};
+    const liveGames = games
+      .filter((game) => game.phase === 'playing')
+      .sort((a, b) => (b.turn || 0) - (a.turn || 0))
+      .slice(0, 3);
+    const featuredReplays = [];
+    for (const entry of (leaderboardData.leaderboard || [])) {
+      if (entry.game_mode !== 'competitive_mode' || !entry.was_winner) continue;
+      if (featuredReplays.some((item) => item.game_id === entry.game_id)) continue;
+      featuredReplays.push(entry);
+      if (featuredReplays.length >= 4) break;
+    }
+    const topAgents = (leaderboardData.agent_rankings || []).slice(0, 5);
+
+    if (liveGames.length === 0 && featuredReplays.length === 0 && topAgents.length === 0) {
+      this._discoveryShelf.classList.add('hidden');
+      this._discoveryShelf.innerHTML = '';
+      return;
+    }
+
+    const liveHtml = liveGames.length > 0
+      ? liveGames.map((game) => `
+          <button class="btn-clean discovery-link" data-mode="watch" data-game="${game.id}" style="text-align:left;padding:10px 12px;border-color:rgba(34,211,238,0.18);background:rgba(34,211,238,0.06)">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div style="font-size:10px;color:#22D3EE;font-weight:800">${game.name || 'Founder Arena'}</div>
+              <div style="font-size:8px;color:var(--text-muted);border:1px solid rgba(34,211,238,0.16);border-radius:999px;padding:2px 6px">Week ${game.turn || 0}/${game.max_turns || 32}</div>
+            </div>
+            <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:6px">${game.queue || 'showmatch'} &middot; ${game.benchmark_tier || 'baseline'} &middot; ${game.players || 0} founders</div>
+          </button>
+        `).join('')
+      : '<div style="font-size:10px;color:var(--text-muted)">No live showmatches right now.</div>';
+
+    const replayHtml = featuredReplays.length > 0
+      ? featuredReplays.map((entry) => `
+          <button class="btn-clean discovery-link" data-mode="replay" data-game="${entry.game_id}" style="text-align:left;padding:10px 12px;border-color:rgba(255,184,0,0.18);background:rgba(255,184,0,0.06)">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div style="font-size:10px;color:#FFB800;font-weight:800">${entry.startup_name}</div>
+              <div style="font-size:8px;color:var(--text-muted);border:1px solid rgba(255,184,0,0.16);border-radius:999px;padding:2px 6px">${Number(entry.score || entry.official_metric || 0).toFixed(1)} score</div>
+            </div>
+            <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:6px">${entry.agent_name} &middot; ${entry.queue || 'showmatch'} &middot; replay</div>
+          </button>
+        `).join('')
+      : '<div style="font-size:10px;color:var(--text-muted)">No finished featured replays yet.</div>';
+
+    const agentsHtml = topAgents.length > 0
+      ? topAgents.map((agent, index) => `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:${index === topAgents.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)'}">
+            <div>
+              <div style="font-size:10px;color:var(--text);font-weight:800">${index + 1}. ${agent.agent_name}</div>
+              <div style="font-size:9px;color:var(--text-dim);margin-top:4px">${agent.competitive_wins || 0} comp wins &middot; ${agent.games_played || 0} games</div>
+            </div>
+            <div style="font-size:10px;color:#22D3EE;font-weight:800">${Number(agent.avg_score || 0).toFixed(1)} avg</div>
+          </div>
+        `).join('')
+      : '<div style="font-size:10px;color:var(--text-muted)">Leaderboard is still warming up.</div>';
+
+    this._discoveryShelf.classList.remove('hidden');
+    this._discoveryShelf.innerHTML = `
+      <div class="spectator-entry-card">
+        <div class="spectator-entry-topline">
+          <span class="spectator-entry-badge">Watch Founder Arena</span>
+          <span class="spectator-entry-meta">Featured live matches, replays, and the public ladder</span>
+        </div>
+        <div class="spectator-entry-headline">Spectator mode should start with a story, not an empty shell.</div>
+        <div class="spectator-entry-summary-grid" style="margin-top:14px">
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Live Now</div>
+            <div style="display:grid;gap:8px;margin-top:8px">${liveHtml}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Featured Replays</div>
+            <div style="display:grid;gap:8px;margin-top:8px">${replayHtml}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Top Agents</div>
+            <div style="margin-top:8px">${agentsHtml}</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    this._discoveryShelf.querySelectorAll('.discovery-link').forEach((button) => {
+      button.addEventListener('click', () => {
+        const gameId = button.dataset.game;
+        const mode = button.dataset.mode;
+        if (!gameId) return;
+        if (mode === 'replay') {
+          this.store.watchGame(gameId, null, { viaSharedLink: true, requestedPhase: 'replay' });
+          return;
+        }
+        this.store.watchGame(gameId, null);
+      });
+    });
   }
 
   _updateSpectatorEntry(state) {
@@ -317,6 +425,7 @@ export class HUD {
 
     this._updateMatchStrip(state);
     this._updateSpectatorEntry(state);
+    this._updateDiscoveryShelf(state);
 
     // Update panels
     this.rankings.update(state);
