@@ -10,6 +10,13 @@ export class GameStore {
         leaderboard: [],
         agent_rankings: [],
       },
+      featuredFeed: {
+        daily_featured_duel: null,
+        weekly_upset_recap: null,
+        benchmark_challenge: null,
+        featured_replays: [],
+        live_now: [],
+      },
       gameId: null,
       adminToken: null,
       spectatorToken: null,
@@ -130,6 +137,23 @@ export class GameStore {
     }
   }
 
+  async loadFeaturedFeed() {
+    try {
+      const data = await api.fetchFeaturedFeed();
+      this.update({
+        featuredFeed: {
+          daily_featured_duel: data.daily_featured_duel || null,
+          weekly_upset_recap: data.weekly_upset_recap || null,
+          benchmark_challenge: data.benchmark_challenge || null,
+          featured_replays: data.featured_replays || [],
+          live_now: data.live_now || [],
+        },
+      });
+    } catch (e) {
+      console.error('Failed to load featured feed:', e);
+    }
+  }
+
   async createGame(config = {}) {
     try {
       const data = await api.createGame(config);
@@ -238,6 +262,7 @@ export class GameStore {
       if (phase === 'finished' && previousPhase !== 'finished') {
         this.loadGames();
         this.loadLeaderboard();
+        this.loadFeaturedFeed();
       }
     } catch (e) {
       console.error('[Poll] Error:', e);

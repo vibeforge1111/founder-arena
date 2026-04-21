@@ -3978,6 +3978,191 @@ async def get_startup_actions(game_id: str, startup_id: str):
 
 # ─── Leaderboard ─────────────────────────────────────────────────────────────
 
+def _featured_model_family(startup) -> Optional[str]:
+    source = f"{getattr(startup, 'agent_name', '')} {getattr(startup, 'startup_name', '')}".lower()
+    for token, label in [
+        ("gpt", "GPT"),
+        ("claude", "Claude"),
+        ("gemini", "Gemini"),
+        ("llama", "Llama"),
+        ("mistral", "Mistral"),
+        ("qwen", "Qwen"),
+        ("deepseek", "DeepSeek"),
+        ("grok", "Grok"),
+    ]:
+        if token in source:
+            return label
+    return None
+
+
+def _featured_label_text(value: Optional[str], fallback: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return fallback
+    return " ".join(part.capitalize() for part in raw.replace("_", " ").replace("-", " ").split())
+
+
+def _featured_showmatch_descriptor(game: "Game", ranked: list, summary: dict) -> dict:
+    winner = ranked[0] if ranked else None
+    runner_up = ranked[1] if len(ranked) > 1 else None
+    winner_model = _featured_model_family(winner) if winner else None
+    runner_model = _featured_model_family(runner_up) if runner_up else None
+    winner_strategy = _featured_label_text(getattr(winner, "strategy", None), "Strategy") if winner else None
+    runner_strategy = _featured_label_text(getattr(runner_up, "strategy", None), "Strategy") if runner_up else None
+    final_margin = float(summary.get("final_margin") or 0.0)
+    lead_change = any(point.get("leader_changed") for point in summary.get("turning_points") or [])
+    practice_takeaway = summary.get("practice_takeaway") or {}
+
+    format_label = "Featured Duel" if game.game_mode == "competitive_mode" else "Featured Replay"
+    matchup_label = (
+        f"{winner.startup_name} vs {runner_up.startup_name}"
+        if winner and runner_up
+        else winner.startup_name if winner else game.name
+    )
+    deck_label = (
+        f"{winner.agent_name} vs {runner_up.agent_name}"
+        if winner and runner_up
+        else winner.agent_name if winner else game.queue
+    )
+
+    if game.game_mode == "competitive_mode" and winner_model and runner_model and winner_model != runner_model:
+        format_label = "Model vs Model"
+        matchup_label = f"{winner_model} vs {runner_model}"
+        deck_label = f"{winner.startup_name} vs {runner_up.startup_name}"
+    elif game.game_mode == "competitive_mode" and winner_strategy and runner_strategy and winner_strategy != runner_strategy:
+        format_label = "Doctrine vs Doctrine"
+        matchup_label = f"{winner_strategy} vs {runner_strategy}"
+        deck_label = f"{winner.startup_name} vs {runner_up.startup_name}"
+    elif game.benchmark_tier != "baseline" or practice_takeaway:
+        format_label = "Benchmark Gauntlet"
+        matchup_label = f"{winner.startup_name if winner else game.name} vs {_featured_label_text(game.benchmark_tier, 'Benchmark')}"
+        deck_label = practice_takeaway.get("headline") or f"{game.queue} replay"
+    elif game.game_mode == "competitive_mode" and (final_margin <= 2.5 or lead_change):
+        format_label = "Underdog Challenge"
+        deck_label = f"Finished within {final_margin:.1f} score" if final_margin <= 2.5 else "Lead changed during the replay"
+    elif len(ranked) > 2:
+        format_label = "Benchmark Gauntlet"
+        matchup_label = f"{winner.startup_name if winner else game.name} vs {max(len(ranked) - 1, 1)} challengers"
+        deck_label = f"{game.queue} field"
+
+    return {
+        "format_label": format_label,
+        "matchup_label": matchup_label,
+        "deck_label": deck_label,
+        "lead_change": lead_change,
+    }
+
+
+def _featured_game_entry(game: "Game") -> Optional[dict]:
+    if game.phase != GamePhase.FINISHED:
+        return None
+    ranked = game._ranked_startups()
+    if not ranked:
+        return None
+    summary = game._build_replay_summary(ranked)
+    descriptor = _featured_showmatch_descriptor(game, ranked, summary)
+    winner = ranked[0]
+    runner_up = ranked[1] if len(ranked) > 1 else None
+    top_turning_point = (summary.get("turning_points") or [None])[0]
+    top_runner_issue = (summary.get("runner_incidents") or [None])[0]
+    top_loser = next(
+        (
+            outcome for startup in ranked[1:3]
+            for outcome in [summary.get("startup_outcomes", {}).get(startup.id)]
+            if outcome
+        ),
+        None,
+    )
+    story_hook = (
+        (top_turning_point or {}).get("headline")
+        or (top_runner_issue or {}).get("headline")
+        or (top_loser or {}).get("runner_failure", {}).get("headline")
+        or (top_loser or {}).get("headline")
+        or summary.get("winner_summary")
+        or f"{winner.startup_name} won the match."
+    )
+    return {
+        "game_id": game.id,
+        "game_name": game.name,
+        "created_at": game.created_at,
+        "queue": game.queue,
+        "benchmark_tier": game.benchmark_tier,
+        "game_mode": game.game_mode,
+        "spectator_token": game.spectator_token,
+        "winner_startup": winner.startup_name,
+        "winner_agent": winner.agent_name,
+        "runner_up_startup": runner_up.startup_name if runner_up else None,
+        "runner_up_agent": runner_up.agent_name if runner_up else None,
+        "winner_score": round(float(summary.get("winner_score") or game._score_value_for(winner)), 2),
+        "runner_up_score": round(float(summary.get("runner_up_score") or (game._score_value_for(runner_up) if runner_up else 0.0)), 2),
+        "final_margin": round(float(summary.get("final_margin") or 0.0), 2),
+        "winner_summary": summary.get("winner_summary") or f"{winner.startup_name} won the match.",
+        "story_hook": story_hook,
+        "turning_point_headline": (top_turning_point or {}).get("headline"),
+        "runner_issue_headline": (top_runner_issue or {}).get("headline"),
+        "practice_takeaway": (summary.get("practice_takeaway") or {}).get("headline"),
+        "players": len(ranked),
+        **descriptor,
+    }
+
+
+def _featured_live_entry(game: "Game") -> Optional[dict]:
+    if game.phase != GamePhase.PLAYING:
+        return None
+    live_summary = game._live_summary()
+    return {
+        "game_id": game.id,
+        "game_name": game.name,
+        "created_at": game.created_at,
+        "queue": game.queue,
+        "benchmark_tier": game.benchmark_tier,
+        "spectator_token": game.spectator_token,
+        "turn": game.turn,
+        "max_turns": game.max_turns,
+        "players": len(game.startups),
+        "leader_startup": live_summary.get("leader_startup_name"),
+        "challenger_startup": live_summary.get("challenger_startup_name"),
+        "why_ahead": live_summary.get("why_ahead"),
+        "flip_watch": live_summary.get("flip_watch"),
+        "margin": round(float(live_summary.get("margin") or 0.0), 2),
+    }
+
+
+def _build_featured_feed() -> dict:
+    finished_entries = [entry for game in games.values() for entry in [_featured_game_entry(game)] if entry]
+    live_entries = [entry for game in games.values() for entry in [_featured_live_entry(game)] if entry]
+    finished_entries.sort(key=lambda item: item["created_at"], reverse=True)
+    live_entries.sort(key=lambda item: (item["turn"], item["created_at"]), reverse=True)
+
+    competitive_entries = [entry for entry in finished_entries if entry.get("game_mode") == "competitive_mode"]
+    daily_featured = competitive_entries[0] if competitive_entries else (finished_entries[0] if finished_entries else None)
+    weekly_upset = None
+    if competitive_entries:
+        weekly_upset = min(
+            competitive_entries,
+            key=lambda item: (
+                item.get("final_margin", 999.0),
+                0 if item.get("lead_change") else 1,
+                item.get("created_at", ""),
+            ),
+        )
+    benchmark_challenge = next(
+        (
+            entry for entry in finished_entries
+            if entry.get("benchmark_tier") not in (None, "", "baseline") or entry.get("practice_takeaway")
+        ),
+        None,
+    )
+
+    return {
+        "daily_featured_duel": daily_featured,
+        "weekly_upset_recap": weekly_upset,
+        "benchmark_challenge": benchmark_challenge,
+        "featured_replays": finished_entries[:6],
+        "live_now": live_entries[:3],
+    }
+
+
 @app.get("/api/leaderboard")
 async def leaderboard():
     """Global leaderboard across all finished games with per-agent aggregation."""
@@ -4075,6 +4260,12 @@ async def leaderboard():
         "leaderboard": entries[:50],
         "agent_rankings": ranked_agents,
     }
+
+
+@app.get("/api/featured")
+async def featured_feed():
+    """Public discovery feed for repeatable replay content loops."""
+    return _build_featured_feed()
 
 
 # ─── Run ─────────────────────────────────────────────────────────────────────

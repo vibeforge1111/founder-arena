@@ -102,6 +102,10 @@ export async function fetchLeaderboard() {
   return fetchJSON('/api/leaderboard');
 }
 
+export async function fetchFeaturedFeed() {
+  return fetchJSON('/api/featured');
+}
+
 export async function fetchEntrants() {
   return fetchJSON('/api/entrants');
 }

@@ -129,20 +129,47 @@ export class HUD {
 
     const games = Array.isArray(state.games) ? state.games : [];
     const leaderboardData = state.leaderboardData || {};
-    const liveGames = games
+    const featuredFeed = state.featuredFeed || {};
+    const liveGames = (featuredFeed.live_now || []).length > 0
+      ? featuredFeed.live_now
+      : games
       .filter((game) => game.phase === 'playing')
       .sort((a, b) => (b.turn || 0) - (a.turn || 0))
       .slice(0, 3);
-    const featuredReplays = [];
-    for (const entry of (leaderboardData.leaderboard || [])) {
-      if (entry.game_mode !== 'competitive_mode' || !entry.was_winner) continue;
-      if (featuredReplays.some((item) => item.game_id === entry.game_id)) continue;
-      featuredReplays.push(entry);
-      if (featuredReplays.length >= 4) break;
+    const featuredReplays = (featuredFeed.featured_replays || []).length > 0
+      ? (featuredFeed.featured_replays || []).slice(0, 4)
+      : [];
+    if (featuredReplays.length === 0) {
+      for (const entry of (leaderboardData.leaderboard || [])) {
+        if (entry.game_mode !== 'competitive_mode' || !entry.was_winner) continue;
+        if (featuredReplays.some((item) => item.game_id === entry.game_id)) continue;
+        featuredReplays.push(entry);
+        if (featuredReplays.length >= 4) break;
+      }
     }
     const topAgents = (leaderboardData.agent_rankings || []).slice(0, 5);
+    const contentLoopCards = [
+      {
+        label: 'Daily Featured Duel',
+        accent: '#FFB800',
+        item: featuredFeed.daily_featured_duel,
+        mode: 'replay',
+      },
+      {
+        label: 'Weekly Upset Recap',
+        accent: '#A78BFA',
+        item: featuredFeed.weekly_upset_recap,
+        mode: 'replay',
+      },
+      {
+        label: 'Beat This Benchmark',
+        accent: '#22D3EE',
+        item: featuredFeed.benchmark_challenge,
+        mode: 'replay',
+      },
+    ];
 
-    if (liveGames.length === 0 && featuredReplays.length === 0 && topAgents.length === 0) {
+    if (liveGames.length === 0 && featuredReplays.length === 0 && topAgents.length === 0 && !contentLoopCards.some((card) => card.item)) {
       this._discoveryShelf.classList.add('hidden');
       this._discoveryShelf.innerHTML = '';
       return;
@@ -150,24 +177,26 @@ export class HUD {
 
     const liveHtml = liveGames.length > 0
       ? liveGames.map((game) => `
-          <button class="btn-clean discovery-link" data-mode="watch" data-game="${game.id}" style="text-align:left;padding:10px 12px;border-color:rgba(34,211,238,0.18);background:rgba(34,211,238,0.06)">
+          <button class="btn-clean discovery-link" data-mode="watch" data-game="${game.game_id || game.id}" data-spectator="${game.spectator_token || ''}" style="text-align:left;padding:10px 12px;border-color:rgba(34,211,238,0.18);background:rgba(34,211,238,0.06)">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <div style="font-size:10px;color:#22D3EE;font-weight:800">${game.name || 'Founder Arena'}</div>
+              <div style="font-size:10px;color:#22D3EE;font-weight:800">${game.game_name || game.name || 'Founder Arena'}</div>
               <div style="font-size:8px;color:var(--text-muted);border:1px solid rgba(34,211,238,0.16);border-radius:999px;padding:2px 6px">Week ${game.turn || 0}/${game.max_turns || 32}</div>
             </div>
             <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:6px">${game.queue || 'showmatch'} &middot; ${game.benchmark_tier || 'baseline'} &middot; ${game.players || 0} founders</div>
+            ${game.why_ahead ? `<div style="font-size:9px;color:var(--text-muted);line-height:1.45;margin-top:6px">${game.why_ahead}</div>` : ''}
           </button>
         `).join('')
       : '<div style="font-size:10px;color:var(--text-muted)">No live showmatches right now.</div>';
 
     const replayHtml = featuredReplays.length > 0
       ? featuredReplays.map((entry) => `
-          <button class="btn-clean discovery-link" data-mode="replay" data-game="${entry.game_id}" style="text-align:left;padding:10px 12px;border-color:rgba(255,184,0,0.18);background:rgba(255,184,0,0.06)">
+          <button class="btn-clean discovery-link" data-mode="replay" data-game="${entry.game_id}" data-spectator="${entry.spectator_token || ''}" style="text-align:left;padding:10px 12px;border-color:rgba(255,184,0,0.18);background:rgba(255,184,0,0.06)">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <div style="font-size:10px;color:#FFB800;font-weight:800">${entry.startup_name}</div>
-              <div style="font-size:8px;color:var(--text-muted);border:1px solid rgba(255,184,0,0.16);border-radius:999px;padding:2px 6px">${Number(entry.score || entry.official_metric || 0).toFixed(1)} score</div>
+              <div style="font-size:10px;color:#FFB800;font-weight:800">${entry.winner_startup || entry.startup_name}</div>
+              <div style="font-size:8px;color:var(--text-muted);border:1px solid rgba(255,184,0,0.16);border-radius:999px;padding:2px 6px">${Number(entry.winner_score || entry.score || entry.official_metric || 0).toFixed(1)} score</div>
             </div>
-            <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:6px">${entry.agent_name} &middot; ${entry.queue || 'showmatch'} &middot; replay</div>
+            <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:6px">${entry.format_label || 'Featured Replay'} &middot; ${entry.queue || 'showmatch'} &middot; ${entry.winner_agent || entry.agent_name}</div>
+            <div style="font-size:9px;color:var(--text-muted);line-height:1.45;margin-top:6px">${entry.story_hook || entry.turning_point_headline || 'Replay summary is loading.'}</div>
           </button>
         `).join('')
       : '<div style="font-size:10px;color:var(--text-muted)">No finished featured replays yet.</div>';
@@ -184,6 +213,25 @@ export class HUD {
         `).join('')
       : '<div style="font-size:10px;color:var(--text-muted)">Leaderboard is still warming up.</div>';
 
+    const loopCardsHtml = contentLoopCards.map((card) => {
+      if (!card.item) {
+        return `
+          <div style="padding:12px 14px;border-radius:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)">
+            <div style="font-size:9px;color:${card.accent};font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${card.label}</div>
+            <div style="font-size:10px;color:var(--text-muted);line-height:1.5;margin-top:10px">Not enough finished matches yet to publish this slot.</div>
+          </div>
+        `;
+      }
+      return `
+        <button class="btn-clean discovery-link" data-mode="${card.mode}" data-game="${card.item.game_id}" data-spectator="${card.item.spectator_token || ''}" style="text-align:left;padding:12px 14px;border-color:${card.accent}2e;background:${card.accent}12">
+          <div style="font-size:9px;color:${card.accent};font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${card.label}</div>
+          <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.4;margin-top:10px">${card.item.headline || `${card.item.winner_startup} replay`}</div>
+          <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:8px">${card.item.matchup_label || card.item.game_name || 'Featured replay'}</div>
+          <div style="font-size:9px;color:var(--text-muted);line-height:1.45;margin-top:6px">${card.item.story_hook || card.item.winner_summary || 'Replay story is loading.'}</div>
+        </button>
+      `;
+    }).join('');
+
     this._discoveryShelf.classList.remove('hidden');
     this._discoveryShelf.innerHTML = `
       <div class="spectator-entry-card">
@@ -192,6 +240,7 @@ export class HUD {
           <span class="spectator-entry-meta">Featured live matches, replays, and the public ladder</span>
         </div>
         <div class="spectator-entry-headline">Spectator mode should start with a story, not an empty shell.</div>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px">${loopCardsHtml}</div>
         <div class="spectator-entry-summary-grid" style="margin-top:14px">
           <div class="spectator-entry-summary-cell">
             <div class="spectator-entry-cell-label">Live Now</div>
@@ -213,12 +262,13 @@ export class HUD {
       button.addEventListener('click', () => {
         const gameId = button.dataset.game;
         const mode = button.dataset.mode;
+        const spectator = button.dataset.spectator || null;
         if (!gameId) return;
         if (mode === 'replay') {
-          this.store.watchGame(gameId, null, { viaSharedLink: true, requestedPhase: 'replay' });
+          this.store.watchGame(gameId, spectator, { viaSharedLink: true, requestedPhase: 'replay' });
           return;
         }
-        this.store.watchGame(gameId, null);
+        this.store.watchGame(gameId, spectator);
       });
     });
   }

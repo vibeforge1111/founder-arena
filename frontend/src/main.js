@@ -80,6 +80,7 @@ animate();
 // Load existing games on startup
 store.loadGames();
 store.loadLeaderboard();
+store.loadFeaturedFeed();
 if (bootGameId) {
   store.watchGame(bootGameId, bootSpectator || null, {
     viaSharedLink: true,
