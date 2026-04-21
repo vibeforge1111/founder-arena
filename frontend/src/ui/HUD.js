@@ -55,6 +55,10 @@ export class HUD {
     this._matchStrip.className = 'match-strip hidden';
     this.container.appendChild(this._matchStrip);
 
+    this._spectatorEntry = document.createElement('div');
+    this._spectatorEntry.className = 'spectator-entry hidden';
+    this.container.appendChild(this._spectatorEntry);
+
     this._statusEl = this._header.querySelector('#header-status');
 
     this._header.querySelector('#btn-quick-play').addEventListener('click', () => {
@@ -87,6 +91,49 @@ export class HUD {
       warn: 'warning',
       info: 'neutral',
     }[alert?.severity] || 'neutral';
+  }
+
+  _updateSpectatorEntry(state) {
+    const entry = state.entryContext || {};
+    const gameData = state.gameData;
+    if (!entry.viaSharedLink) {
+      this._spectatorEntry.classList.add('hidden');
+      this._matchStrip.classList.remove('match-strip-with-entry');
+      this._spectatorEntry.innerHTML = '';
+      return;
+    }
+
+    const phase = gameData?.phase || state.view;
+    const requestedReplay = entry.requestedPhase === 'replay';
+    const modeLabel = requestedReplay || phase === 'finished'
+      ? 'Replay Link'
+      : 'Watch Link';
+    const headline = phase === 'finished'
+      ? (gameData?.summary?.winner_summary || 'Replay recap is loading.')
+      : phase === 'playing'
+        ? (gameData?.live_summary?.why_ahead || 'Live match context is loading.')
+        : phase === 'lobby'
+          ? 'Shared lobby link opened. Waiting for the match to start.'
+          : 'Connecting to shared match link.';
+    const subline = gameData
+      ? `${gameData.name || 'Founder Arena'} · ${gameData.queue || 'showmatch'} · ${gameData.benchmark_tier || 'baseline'}`
+      : `Game ${state.gameId || ''}`;
+    const meta = gameData
+      ? `${phase === 'finished' ? 'Final replay' : phase === 'playing' ? `Week ${gameData.turn || 0}/${gameData.max_turns || 32}` : 'Pre-match'}`
+      : 'Connecting';
+
+    this._spectatorEntry.classList.remove('hidden');
+    this._matchStrip.classList.add('match-strip-with-entry');
+    this._spectatorEntry.innerHTML = `
+      <div class="spectator-entry-card">
+        <div class="spectator-entry-topline">
+          <span class="spectator-entry-badge">${modeLabel}</span>
+          <span class="spectator-entry-meta">${subline}</span>
+        </div>
+        <div class="spectator-entry-headline">${headline}</div>
+        <div class="spectator-entry-subline">${meta}${state.gameId ? ` · ID ${state.gameId}` : ''}</div>
+      </div>
+    `;
   }
 
   _updateMatchStrip(state) {
@@ -152,6 +199,7 @@ export class HUD {
     }
 
     this._updateMatchStrip(state);
+    this._updateSpectatorEntry(state);
 
     // Update panels
     this.rankings.update(state);

@@ -14,6 +14,10 @@ export class GameStore {
       myStartupId: null,
       gameData: null,
       selectedStartupId: null,
+      entryContext: {
+        viaSharedLink: false,
+        requestedPhase: null,
+      },
       error: null,
     };
     this._listeners = new Set();
@@ -163,11 +167,15 @@ export class GameStore {
     }
   }
 
-  async watchGame(gameId, spectatorToken) {
+  async watchGame(gameId, spectatorToken, options = {}) {
     this.update({
       gameId,
       spectatorToken,
       view: 'playing',
+      entryContext: {
+        viaSharedLink: Boolean(options.viaSharedLink),
+        requestedPhase: options.requestedPhase || null,
+      },
       error: null,
     });
     this.startPolling();
@@ -196,13 +204,18 @@ export class GameStore {
       else if (phase === 'playing') view = 'playing';
       else if (phase === 'finished') view = 'finished';
 
-      this.update({ gameData: data, view, error: null });
-
-      // Auto-select first startup if none selected
-      if (!this.state.selectedStartupId && data.startups) {
-        const ids = Object.keys(data.startups);
-        if (ids.length > 0) this.update({ selectedStartupId: ids[0] });
+      let selectedStartupId = this.state.selectedStartupId;
+      const isReplayBoot = this.state.entryContext?.viaSharedLink && this.state.entryContext?.requestedPhase === 'replay';
+      if ((!selectedStartupId || !data.startups?.[selectedStartupId]) && data.startups) {
+        if (isReplayBoot && data.winner && data.startups[data.winner]) {
+          selectedStartupId = data.winner;
+        } else {
+          const ids = Object.keys(data.startups);
+          if (ids.length > 0) selectedStartupId = ids[0];
+        }
       }
+
+      this.update({ gameData: data, view, selectedStartupId, error: null });
     } catch (e) {
       console.error('[Poll] Error:', e);
     }

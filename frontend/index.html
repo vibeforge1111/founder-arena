@@ -127,7 +127,61 @@
     gap: 10px;
     z-index: 90;
   }
+  .match-strip.match-strip-with-entry {
+    top: 146px;
+  }
   .match-strip.hidden { display: none; }
+  .spectator-entry {
+    position: absolute;
+    top: 72px; left: 290px; right: 330px;
+    min-height: 62px;
+    z-index: 92;
+  }
+  .spectator-entry.hidden { display: none; }
+  .spectator-entry-card {
+    background: linear-gradient(180deg, rgba(18,26,36,0.94) 0%, rgba(12,18,28,0.96) 100%);
+    backdrop-filter: blur(18px) saturate(1.25);
+    border: 1px solid rgba(34,211,238,0.16);
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.35), inset 0 0 22px rgba(34,211,238,0.04);
+  }
+  .spectator-entry-topline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .spectator-entry-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: rgba(34,211,238,0.12);
+    border: 1px solid rgba(34,211,238,0.22);
+    color: var(--cyan);
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+  .spectator-entry-meta {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 0.4px;
+  }
+  .spectator-entry-headline {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.45;
+    margin-top: 8px;
+  }
+  .spectator-entry-subline {
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
   .match-strip-card {
     background: linear-gradient(180deg, rgba(22,27,36,0.9) 0%, rgba(14,18,26,0.94) 100%);
     backdrop-filter: blur(18px) saturate(1.3);
@@ -1071,10 +1125,17 @@
   ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
   @media (max-width: 1280px) {
+    .spectator-entry {
+      left: 300px;
+      right: 340px;
+    }
     .match-strip {
       grid-template-columns: 1fr;
       left: 300px;
       right: 340px;
+    }
+    .match-strip.match-strip-with-entry {
+      top: 160px;
     }
   }
 </style>
