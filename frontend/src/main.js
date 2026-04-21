@@ -46,10 +46,13 @@ function updateDocumentTitle(state) {
     phase === 'finished'
   );
   const isCardLayout = state.entryContext?.layout === 'card';
+  const isSocialLayout = state.entryContext?.layout === 'social';
 
   if (phase === 'finished') {
     const winner = gameData.startups?.[gameData.winner] || leader;
-    const replayPrefix = isCardLayout
+    const replayPrefix = isSocialLayout
+      ? 'Social Card'
+      : isCardLayout
       ? 'Replay Card'
       : isSharedReplay ? 'Featured Replay' : 'Replay';
     document.title = `${replayPrefix}: ${winner?.startup_name || gameData.name} | Founder Arena`;

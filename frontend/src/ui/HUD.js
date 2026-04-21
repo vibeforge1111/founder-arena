@@ -127,6 +127,10 @@ export class HUD {
     return this._isFeaturedReplayPage(state) && state.entryContext?.layout === 'card';
   }
 
+  _isReplaySocialLayout(state) {
+    return this._isFeaturedReplayPage(state) && state.entryContext?.layout === 'social';
+  }
+
   _isFeaturedSlotPage(state) {
     return Boolean(
       !state.gameId &&
@@ -141,6 +145,16 @@ export class HUD {
       .replace(/\b\w/g, (ch) => ch.toUpperCase());
   }
 
+  _socialCaption(summary, fallbackHeadline, storyHook) {
+    return [
+      fallbackHeadline || null,
+      summary?.winner_summary || null,
+      storyHook ? `Story hook: ${storyHook}` : null,
+      summary?.turning_points?.[0]?.headline ? `Turning point: ${summary.turning_points[0].headline}` : null,
+      summary?.practice_takeaway?.headline ? `Takeaway: ${summary.practice_takeaway.headline}` : null,
+    ].filter(Boolean).join('\n');
+  }
+
   _buildReplayEmbedSnippet(url, title = 'Founder Arena Featured Replay') {
     if (!url) return '';
     return `<iframe src="${url}" title="${title}" width="720" height="900" style="width:100%;max-width:720px;height:900px;border:0;border-radius:16px;overflow:hidden;" loading="lazy"></iframe>`;
@@ -149,6 +163,7 @@ export class HUD {
   _syncReplayLayoutChrome(state) {
     const featuredReplayPage = this._isFeaturedReplayPage(state);
     const cardLayout = this._isReplayCardLayout(state);
+    const socialLayout = this._isReplaySocialLayout(state) || state.entryContext?.layout === 'social';
     const featuredSlotPage = this._isFeaturedSlotPage(state);
     const hideMainPanels = featuredReplayPage || featuredSlotPage;
     this.rankings.el.style.display = hideMainPanels ? 'none' : '';
@@ -159,7 +174,7 @@ export class HUD {
     const newGame = this._header.querySelector('#btn-new-game');
     const watch = this._header.querySelector('#btn-watch');
     [quickPlay, newGame, watch].forEach((button) => {
-      if (button) button.style.display = cardLayout ? 'none' : '';
+      if (button) button.style.display = (cardLayout || socialLayout) ? 'none' : '';
     });
   }
 
@@ -337,38 +352,44 @@ export class HUD {
     const sorted = this.store.startupList || [];
     const competitive = gameData?.rank_basis === 'score';
     const isCardLayout = this._isReplayCardLayout(state);
+    const isSocialLayout = this._isReplaySocialLayout(state);
     const winner = sorted[0] || null;
     const runnerUp = sorted[1] || null;
     const shareUrl = this.store.getShareUrl({ layout: null });
     const cardUrl = this.store.getShareUrl({ layout: 'card' });
+    const socialUrl = this.store.getShareUrl({ layout: 'social' });
     const sharePackage = this.controls._buildSharePackage(gameData, summary, sorted, competitive);
     const recapText = this.controls._buildReplayRecapText(summary, sorted, competitive);
     const embedSnippet = this._buildReplayEmbedSnippet(cardUrl, `${sharePackage.headline || 'Founder Arena Featured Replay'}`);
+    const socialCaption = this._socialCaption(summary, sharePackage.headline, sharePackage.storyHook);
     const podium = sorted.slice(0, 3);
 
     this._featuredReplayPage.classList.remove('hidden');
     this._featuredReplayPage.innerHTML = `
-      <div class="spectator-entry-card spectator-entry-card-replay" style="padding:${isCardLayout ? '16px' : '18px 20px'};max-width:${isCardLayout ? '780px' : 'none'};margin:${isCardLayout ? '0 auto' : '0'};background:
+      <div class="spectator-entry-card spectator-entry-card-replay" style="padding:${isSocialLayout ? '22px 20px' : isCardLayout ? '16px' : '18px 20px'};max-width:${isSocialLayout ? '760px' : isCardLayout ? '780px' : 'none'};margin:${(isCardLayout || isSocialLayout) ? '0 auto' : '0'};background:
         radial-gradient(circle at top left, rgba(255,184,0,0.12), transparent 32%),
         radial-gradient(circle at top right, rgba(34,211,238,0.12), transparent 28%),
         linear-gradient(180deg, rgba(8,15,24,0.94), rgba(8,12,18,0.98));border-color:rgba(255,255,255,0.08)">
         <div class="spectator-entry-topline">
-          <span class="spectator-entry-badge">${isCardLayout ? 'Replay Card' : 'Featured Replay Page'}</span>
+          <span class="spectator-entry-badge">${isSocialLayout ? 'Social Card' : isCardLayout ? 'Replay Card' : 'Featured Replay Page'}</span>
           <span class="spectator-entry-meta">${sharePackage.formatLabel} &middot; ${gameData.queue || 'showmatch'} &middot; ${gameData.benchmark_tier || 'baseline'} &middot; ID ${state.gameId || ''}</span>
         </div>
         <div class="spectator-entry-hero" style="align-items:flex-start">
           <div style="flex:1 1 460px;min-width:0">
             <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.9px;text-transform:uppercase">${sharePackage.matchupLabel}</div>
-            <div class="spectator-entry-headline" style="font-size:${isCardLayout ? '22px' : '26px'};line-height:1.15;margin-top:8px">${sharePackage.headline}</div>
+            <div class="spectator-entry-headline" style="font-size:${isSocialLayout ? '30px' : isCardLayout ? '22px' : '26px'};line-height:1.15;margin-top:8px">${sharePackage.headline}</div>
             <div class="spectator-entry-subline" style="margin-top:10px;max-width:760px;line-height:1.6">${summary.winner_summary || sharePackage.storyHook}</div>
             ${sharePackage.deckLabel ? `<div class="spectator-entry-subline" style="margin-top:8px;color:#CBD5E1">${sharePackage.deckLabel}</div>` : ''}
+            ${isSocialLayout ? `<div style="margin-top:14px;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);font-size:11px;color:var(--text);line-height:1.65;white-space:pre-wrap">${socialCaption}</div>` : ''}
             <div class="spectator-entry-actions" style="margin-top:14px">
               <button class="btn-clean spectator-entry-action" id="featured-open-recap">Open Recap</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-link">Copy Link</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-card-link">Copy Card Link</button>
+              <button class="btn-clean spectator-entry-action" id="featured-copy-social-link">Copy Social Link</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-embed">Copy Embed</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-headline">Copy Headline</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-caption">Copy Caption</button>
+              <button class="btn-clean spectator-entry-action" id="featured-copy-social-caption">Copy Social Caption</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-package">Copy Package</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-recap">Copy Recap</button>
             </div>
@@ -381,7 +402,7 @@ export class HUD {
           </div>
         </div>
 
-        <div class="spectator-entry-summary-grid" style="margin-top:18px">
+        <div class="spectator-entry-summary-grid" style="margin-top:18px;grid-template-columns:${isSocialLayout ? 'repeat(2,minmax(0,1fr))' : ''}">
           <div class="spectator-entry-summary-cell">
             <div class="spectator-entry-cell-label">Format</div>
             <div class="spectator-entry-cell-value">${sharePackage.formatLabel}</div>
@@ -408,17 +429,17 @@ export class HUD {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:${isCardLayout ? '1fr' : 'minmax(0,1.4fr) minmax(280px,0.9fr)'};gap:16px;margin-top:18px">
+        <div style="display:grid;grid-template-columns:${(isCardLayout || isSocialLayout) ? '1fr' : 'minmax(0,1.4fr) minmax(280px,0.9fr)'};gap:16px;margin-top:18px">
           <div style="display:grid;gap:16px">
             <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
               <div style="font-size:9px;color:#A78BFA;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Replay Narrative</div>
               <div style="font-size:10px;color:var(--text-dim);line-height:1.65;margin-top:10px;white-space:pre-wrap">${recapText}</div>
             </div>
-            <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+            ${isSocialLayout ? '' : `<div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
               <div style="font-size:9px;color:#A78BFA;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Turning Points</div>
               <div style="margin-top:12px">${this.controls._renderTurningPoints(summary)}</div>
-            </div>
-            ${isCardLayout ? '' : `<div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+            </div>`}
+            ${(isCardLayout || isSocialLayout) ? '' : `<div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
               <div style="font-size:9px;color:#FB923C;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Why They Lost</div>
               <div style="margin-top:12px">${this.controls._renderOutcomeCards(summary, sorted) || '<div style="font-size:10px;color:var(--text-muted)">Outcome diagnostics are not available for this match yet.</div>'}</div>
             </div>`}
@@ -443,14 +464,14 @@ export class HUD {
               <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.45;margin-top:10px">${sharePackage.headline}</div>
               <div style="font-size:10px;color:var(--text-dim);line-height:1.6;white-space:pre-wrap;margin-top:10px">${sharePackage.caption}</div>
             </div>
-            ${isCardLayout ? '' : `<div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+            ${(isCardLayout || isSocialLayout) ? '' : `<div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
               <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Runner Issues</div>
               <div style="margin-top:12px">${this.controls._renderRunnerIncidents(summary)}</div>
             </div>`}
             <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
-              <div style="font-size:9px;color:#94A3B8;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${isCardLayout ? 'Card Link' : 'Replay Link'}</div>
-              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${isCardLayout ? cardUrl : shareUrl || 'No replay link available.'}</div>
-              ${!isCardLayout ? `<div style="font-size:9px;color:var(--text-muted);line-height:1.5;margin-top:10px">Card export: ${cardUrl}</div>` : ''}
+              <div style="font-size:9px;color:#94A3B8;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${isSocialLayout ? 'Social Link' : isCardLayout ? 'Card Link' : 'Replay Link'}</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${isSocialLayout ? socialUrl : isCardLayout ? cardUrl : shareUrl || 'No replay link available.'}</div>
+              ${(!isCardLayout && !isSocialLayout) ? `<div style="font-size:9px;color:var(--text-muted);line-height:1.5;margin-top:10px">Card export: ${cardUrl}</div><div style="font-size:9px;color:var(--text-muted);line-height:1.5;margin-top:6px">Social export: ${socialUrl}</div>` : ''}
             </div>
           </div>
         </div>
@@ -460,9 +481,11 @@ export class HUD {
     const openButton = this._featuredReplayPage.querySelector('#featured-open-recap');
     const linkButton = this._featuredReplayPage.querySelector('#featured-copy-link');
     const cardLinkButton = this._featuredReplayPage.querySelector('#featured-copy-card-link');
+    const socialLinkButton = this._featuredReplayPage.querySelector('#featured-copy-social-link');
     const embedButton = this._featuredReplayPage.querySelector('#featured-copy-embed');
     const headlineButton = this._featuredReplayPage.querySelector('#featured-copy-headline');
     const captionButton = this._featuredReplayPage.querySelector('#featured-copy-caption');
+    const socialCaptionButton = this._featuredReplayPage.querySelector('#featured-copy-social-caption');
     const packageButton = this._featuredReplayPage.querySelector('#featured-copy-package');
     const recapButton = this._featuredReplayPage.querySelector('#featured-copy-recap');
 
@@ -483,6 +506,14 @@ export class HUD {
         this._copyButtonFeedback(cardLinkButton, 'Copy Card Link', 'Card Link Copied');
       } catch (e) {
         this._copyButtonFeedback(cardLinkButton, 'Copy Card Link', 'Copy Failed');
+      }
+    });
+    socialLinkButton?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(socialUrl || '');
+        this._copyButtonFeedback(socialLinkButton, 'Copy Social Link', 'Social Link Copied');
+      } catch (e) {
+        this._copyButtonFeedback(socialLinkButton, 'Copy Social Link', 'Copy Failed');
       }
     });
     embedButton?.addEventListener('click', async () => {
@@ -507,6 +538,14 @@ export class HUD {
         this._copyButtonFeedback(captionButton, 'Copy Caption', 'Caption Copied');
       } catch (e) {
         this._copyButtonFeedback(captionButton, 'Copy Caption', 'Copy Failed');
+      }
+    });
+    socialCaptionButton?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(socialCaption || '');
+        this._copyButtonFeedback(socialCaptionButton, 'Copy Social Caption', 'Social Caption Copied');
+      } catch (e) {
+        this._copyButtonFeedback(socialCaptionButton, 'Copy Social Caption', 'Copy Failed');
       }
     });
     packageButton?.addEventListener('click', async () => {
@@ -547,6 +586,7 @@ export class HUD {
     const item = featuredFeed?.[slot] || null;
     const slotTitle = this._slotTitle(slot);
     const slotUrl = this.store.getFeaturedSlotUrl(slot);
+    const isSocialLayout = state.entryContext?.layout === 'social';
 
     this._featuredSlotPage.classList.remove('hidden');
     if (!item) {
@@ -565,29 +605,41 @@ export class HUD {
 
     const replayUrl = `${window.location.origin}${window.location.pathname}?game=${encodeURIComponent(item.game_id)}${item.spectator_token ? `&spectator=${encodeURIComponent(item.spectator_token)}` : ''}&phase=replay`;
     const cardUrl = `${replayUrl}&layout=card`;
+    const socialUrl = `${replayUrl}&layout=social`;
     const embedSnippet = this._buildReplayEmbedSnippet(cardUrl, `${slotTitle} | Founder Arena`);
+    const socialCaption = [
+      item.headline || `${item.winner_startup} won the match.`,
+      item.winner_summary || null,
+      item.story_hook ? `Story hook: ${item.story_hook}` : null,
+      item.turning_point_headline ? `Turning point: ${item.turning_point_headline}` : null,
+      item.practice_takeaway ? `Takeaway: ${item.practice_takeaway}` : null,
+    ].filter(Boolean).join('\n');
 
     this._featuredSlotPage.innerHTML = `
-      <div class="spectator-entry-card spectator-entry-card-replay" style="padding:18px 20px;max-width:960px;margin:0 auto;background:
+      <div class="spectator-entry-card spectator-entry-card-replay" style="padding:${isSocialLayout ? '22px 20px' : '18px 20px'};max-width:${isSocialLayout ? '760px' : '960px'};margin:0 auto;background:
         radial-gradient(circle at top left, rgba(255,184,0,0.12), transparent 32%),
         radial-gradient(circle at top right, rgba(34,211,238,0.12), transparent 28%),
         linear-gradient(180deg, rgba(8,15,24,0.94), rgba(8,12,18,0.98));border-color:rgba(255,255,255,0.08)">
         <div class="spectator-entry-topline">
-          <span class="spectator-entry-badge">${slotTitle}</span>
+          <span class="spectator-entry-badge">${isSocialLayout ? `${slotTitle} Social` : slotTitle}</span>
           <span class="spectator-entry-meta">Canonical slot page &middot; ${item.format_label || 'Featured Replay'} &middot; ${item.queue || 'showmatch'}</span>
         </div>
         <div class="spectator-entry-hero" style="align-items:flex-start">
           <div style="flex:1 1 520px;min-width:0">
             <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.9px;text-transform:uppercase">${item.matchup_label || item.game_name || slotTitle}</div>
-            <div class="spectator-entry-headline" style="font-size:28px;line-height:1.15;margin-top:8px">${item.headline || `${item.winner_startup} won the slot`}</div>
+            <div class="spectator-entry-headline" style="font-size:${isSocialLayout ? '30px' : '28px'};line-height:1.15;margin-top:8px">${item.headline || `${item.winner_startup} won the slot`}</div>
             <div class="spectator-entry-subline" style="margin-top:10px;max-width:760px;line-height:1.6">${item.story_hook || item.winner_summary || 'Featured story is loading.'}</div>
             ${item.deck_label ? `<div class="spectator-entry-subline" style="margin-top:8px;color:#CBD5E1">${item.deck_label}</div>` : ''}
+            ${isSocialLayout ? `<div style="margin-top:14px;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);font-size:11px;color:var(--text);line-height:1.65;white-space:pre-wrap">${socialCaption}</div>` : ''}
             <div class="spectator-entry-actions" style="margin-top:14px">
               <button class="btn-clean spectator-entry-action" id="slot-open-replay">Open Replay</button>
               <button class="btn-clean spectator-entry-action" id="slot-open-card">Open Card</button>
+              <button class="btn-clean spectator-entry-action" id="slot-open-social">Open Social</button>
               <button class="btn-clean spectator-entry-action" id="slot-copy-slot-link">Copy Slot Link</button>
               <button class="btn-clean spectator-entry-action" id="slot-copy-replay-link">Copy Replay Link</button>
               <button class="btn-clean spectator-entry-action" id="slot-copy-card-link">Copy Card Link</button>
+              <button class="btn-clean spectator-entry-action" id="slot-copy-social-link">Copy Social Link</button>
+              <button class="btn-clean spectator-entry-action" id="slot-copy-social-caption">Copy Social Caption</button>
               <button class="btn-clean spectator-entry-action" id="slot-copy-embed">Copy Embed</button>
             </div>
           </div>
@@ -599,7 +651,7 @@ export class HUD {
           </div>
         </div>
 
-        <div class="spectator-entry-summary-grid" style="margin-top:18px">
+        <div class="spectator-entry-summary-grid" style="margin-top:18px;grid-template-columns:${isSocialLayout ? 'repeat(2,minmax(0,1fr))' : ''}">
           <div class="spectator-entry-summary-cell">
             <div class="spectator-entry-cell-label">Slot</div>
             <div class="spectator-entry-cell-value">${slotTitle}</div>
@@ -626,7 +678,7 @@ export class HUD {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,0.9fr);gap:16px;margin-top:18px">
+        <div style="display:grid;grid-template-columns:${isSocialLayout ? '1fr' : 'minmax(0,1fr) minmax(280px,0.9fr)'};gap:16px;margin-top:18px">
           <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
             <div style="font-size:9px;color:#A78BFA;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Editorial Summary</div>
             <div style="font-size:10px;color:var(--text-dim);line-height:1.7;white-space:pre-wrap;margin-top:12px">${[
@@ -646,9 +698,13 @@ export class HUD {
               <div style="font-size:9px;color:#FFB800;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Card Export</div>
               <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${cardUrl}</div>
             </div>
+            ${isSocialLayout ? '' : `<div style="padding:14px 16px;border-radius:14px;background:rgba(251,146,60,0.06);border:1px solid rgba(251,146,60,0.14)">
+              <div style="font-size:9px;color:#FB923C;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Social Export</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${socialUrl}</div>
+            </div>`}
             <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
-              <div style="font-size:9px;color:#94A3B8;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Canonical Slot Link</div>
-              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${slotUrl}</div>
+              <div style="font-size:9px;color:#94A3B8;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${isSocialLayout ? 'Social Link' : 'Canonical Slot Link'}</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${isSocialLayout ? socialUrl : slotUrl}</div>
             </div>
           </div>
         </div>
@@ -657,9 +713,12 @@ export class HUD {
 
     const openReplay = this._featuredSlotPage.querySelector('#slot-open-replay');
     const openCard = this._featuredSlotPage.querySelector('#slot-open-card');
+    const openSocial = this._featuredSlotPage.querySelector('#slot-open-social');
     const copySlotLink = this._featuredSlotPage.querySelector('#slot-copy-slot-link');
     const copyReplayLink = this._featuredSlotPage.querySelector('#slot-copy-replay-link');
     const copyCardLink = this._featuredSlotPage.querySelector('#slot-copy-card-link');
+    const copySocialLink = this._featuredSlotPage.querySelector('#slot-copy-social-link');
+    const copySocialCaption = this._featuredSlotPage.querySelector('#slot-copy-social-caption');
     const copyEmbed = this._featuredSlotPage.querySelector('#slot-copy-embed');
 
     openReplay?.addEventListener('click', () => {
@@ -674,6 +733,14 @@ export class HUD {
         viaSharedLink: true,
         requestedPhase: 'replay',
         layout: 'card',
+        slot,
+      });
+    });
+    openSocial?.addEventListener('click', () => {
+      this.store.watchGame(item.game_id, item.spectator_token || null, {
+        viaSharedLink: true,
+        requestedPhase: 'replay',
+        layout: 'social',
         slot,
       });
     });
@@ -699,6 +766,22 @@ export class HUD {
         this._copyButtonFeedback(copyCardLink, 'Copy Card Link', 'Card Link Copied');
       } catch (e) {
         this._copyButtonFeedback(copyCardLink, 'Copy Card Link', 'Copy Failed');
+      }
+    });
+    copySocialLink?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(socialUrl);
+        this._copyButtonFeedback(copySocialLink, 'Copy Social Link', 'Social Link Copied');
+      } catch (e) {
+        this._copyButtonFeedback(copySocialLink, 'Copy Social Link', 'Copy Failed');
+      }
+    });
+    copySocialCaption?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(socialCaption);
+        this._copyButtonFeedback(copySocialCaption, 'Copy Social Caption', 'Social Caption Copied');
+      } catch (e) {
+        this._copyButtonFeedback(copySocialCaption, 'Copy Social Caption', 'Copy Failed');
       }
     });
     copyEmbed?.addEventListener('click', async () => {
