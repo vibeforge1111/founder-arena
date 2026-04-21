@@ -59,6 +59,10 @@ export class HUD {
     this._spectatorEntry.className = 'spectator-entry hidden';
     this.container.appendChild(this._spectatorEntry);
 
+    this._featuredReplayPage = document.createElement('div');
+    this._featuredReplayPage.className = 'spectator-entry hidden';
+    this.container.appendChild(this._featuredReplayPage);
+
     this._discoveryShelf = document.createElement('div');
     this._discoveryShelf.className = 'spectator-entry hidden';
     this.container.appendChild(this._discoveryShelf);
@@ -104,6 +108,15 @@ export class HUD {
     button._copyTimer = setTimeout(() => {
       button.textContent = label;
     }, 1500);
+  }
+
+  _isFeaturedReplayPage(state) {
+    return Boolean(
+      state.entryContext?.viaSharedLink &&
+      state.entryContext?.requestedPhase === 'replay' &&
+      state.gameData?.phase === 'finished' &&
+      state.gameData?.summary
+    );
   }
 
   _updateDiscoveryShelf(state) {
@@ -210,10 +223,204 @@ export class HUD {
     });
   }
 
+  _updateFeaturedReplayPage(state) {
+    if (!this._isFeaturedReplayPage(state)) {
+      this._featuredReplayPage.classList.add('hidden');
+      this._featuredReplayPage.innerHTML = '';
+      return;
+    }
+
+    const gameData = state.gameData || {};
+    const summary = gameData.summary || {};
+    const sorted = this.store.startupList || [];
+    const competitive = gameData?.rank_basis === 'score';
+    const winner = sorted[0] || null;
+    const runnerUp = sorted[1] || null;
+    const shareUrl = this.store.getShareUrl();
+    const sharePackage = this.controls._buildSharePackage(gameData, summary, sorted, competitive);
+    const recapText = this.controls._buildReplayRecapText(summary, sorted, competitive);
+    const podium = sorted.slice(0, 3);
+
+    this._featuredReplayPage.classList.remove('hidden');
+    this._featuredReplayPage.innerHTML = `
+      <div class="spectator-entry-card spectator-entry-card-replay" style="padding:18px 20px;background:
+        radial-gradient(circle at top left, rgba(255,184,0,0.12), transparent 32%),
+        radial-gradient(circle at top right, rgba(34,211,238,0.12), transparent 28%),
+        linear-gradient(180deg, rgba(8,15,24,0.94), rgba(8,12,18,0.98));border-color:rgba(255,255,255,0.08)">
+        <div class="spectator-entry-topline">
+          <span class="spectator-entry-badge">Featured Replay Page</span>
+          <span class="spectator-entry-meta">${sharePackage.formatLabel} &middot; ${gameData.queue || 'showmatch'} &middot; ${gameData.benchmark_tier || 'baseline'} &middot; ID ${state.gameId || ''}</span>
+        </div>
+        <div class="spectator-entry-hero" style="align-items:flex-start">
+          <div style="flex:1 1 460px;min-width:0">
+            <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.9px;text-transform:uppercase">${sharePackage.matchupLabel}</div>
+            <div class="spectator-entry-headline" style="font-size:26px;line-height:1.15;margin-top:8px">${sharePackage.headline}</div>
+            <div class="spectator-entry-subline" style="margin-top:10px;max-width:760px;line-height:1.6">${summary.winner_summary || sharePackage.storyHook}</div>
+            ${sharePackage.deckLabel ? `<div class="spectator-entry-subline" style="margin-top:8px;color:#CBD5E1">${sharePackage.deckLabel}</div>` : ''}
+            <div class="spectator-entry-actions" style="margin-top:14px">
+              <button class="btn-clean spectator-entry-action" id="featured-open-recap">Open Recap</button>
+              <button class="btn-clean spectator-entry-action" id="featured-copy-link">Copy Link</button>
+              <button class="btn-clean spectator-entry-action" id="featured-copy-headline">Copy Headline</button>
+              <button class="btn-clean spectator-entry-action" id="featured-copy-caption">Copy Caption</button>
+              <button class="btn-clean spectator-entry-action" id="featured-copy-package">Copy Package</button>
+              <button class="btn-clean spectator-entry-action" id="featured-copy-recap">Copy Recap</button>
+            </div>
+          </div>
+          <div class="spectator-entry-scorecard" style="min-width:220px">
+            <div style="font-size:8px;color:#FFB800;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Champion</div>
+            <div class="spectator-entry-score" style="margin-top:8px">${winner?.startup_name || 'Unknown'}</div>
+            <div class="spectator-entry-score-meta">${winner?.agent_name || 'Unknown founder'}</div>
+            <div class="spectator-entry-score-meta" style="margin-top:10px">${summary.final_margin != null ? `${summary.final_margin.toFixed(1)} score margin` : 'Final replay'}</div>
+          </div>
+        </div>
+
+        <div class="spectator-entry-summary-grid" style="margin-top:18px">
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Format</div>
+            <div class="spectator-entry-cell-value">${sharePackage.formatLabel}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Winner</div>
+            <div class="spectator-entry-cell-value">${winner?.startup_name || 'Unknown'}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Runner-up</div>
+            <div class="spectator-entry-cell-value">${runnerUp?.startup_name || 'Unknown'}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Margin</div>
+            <div class="spectator-entry-cell-value">${summary.final_margin != null ? `${summary.final_margin.toFixed(1)} score` : 'N/A'}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Story Hook</div>
+            <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${sharePackage.storyHook || 'Replay story is loading.'}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Top Turning Point</div>
+            <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${sharePackage.topTurningPoint?.headline || 'Turning points are loading.'}</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,0.9fr);gap:16px;margin-top:18px">
+          <div style="display:grid;gap:16px">
+            <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+              <div style="font-size:9px;color:#A78BFA;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Replay Narrative</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.65;margin-top:10px;white-space:pre-wrap">${recapText}</div>
+            </div>
+            <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+              <div style="font-size:9px;color:#A78BFA;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Turning Points</div>
+              <div style="margin-top:12px">${this.controls._renderTurningPoints(summary)}</div>
+            </div>
+            <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+              <div style="font-size:9px;color:#FB923C;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Why They Lost</div>
+              <div style="margin-top:12px">${this.controls._renderOutcomeCards(summary, sorted) || '<div style="font-size:10px;color:var(--text-muted)">Outcome diagnostics are not available for this match yet.</div>'}</div>
+            </div>
+          </div>
+          <div style="display:grid;gap:16px">
+            <div style="padding:14px 16px;border-radius:14px;background:rgba(255,184,0,0.06);border:1px solid rgba(255,184,0,0.14)">
+              <div style="font-size:9px;color:#FFB800;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Podium Path</div>
+              <div style="display:grid;gap:8px;margin-top:12px">
+                ${podium.map((startup, index) => `
+                  <button class="btn-clean featured-replay-select" data-id="${startup.id}" style="text-align:left;padding:10px 12px;border-color:${index === 0 ? 'rgba(255,184,0,0.22)' : 'rgba(255,255,255,0.08)'};background:${index === 0 ? 'rgba(255,184,0,0.08)' : 'rgba(255,255,255,0.03)'}">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                      <div style="font-size:10px;color:var(--text);font-weight:800">${index + 1}. ${startup.startup_name}</div>
+                      <div style="font-size:8px;color:${index === 0 ? '#FFB800' : '#94A3B8'};font-weight:800">${index === 0 ? 'Winner' : index === 1 ? 'Runner-up' : 'Podium'}</div>
+                    </div>
+                    <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:6px">${startup.agent_name || ''} &middot; ${startup.strategy || startup.sector || 'competitive'}</div>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+            <div style="padding:14px 16px;border-radius:14px;background:rgba(34,211,238,0.06);border:1px solid rgba(34,211,238,0.14)">
+              <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Share Package</div>
+              <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.45;margin-top:10px">${sharePackage.headline}</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;white-space:pre-wrap;margin-top:10px">${sharePackage.caption}</div>
+            </div>
+            <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+              <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Runner Issues</div>
+              <div style="margin-top:12px">${this.controls._renderRunnerIncidents(summary)}</div>
+            </div>
+            <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+              <div style="font-size:9px;color:#94A3B8;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Replay Link</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${shareUrl || 'No replay link available.'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const openButton = this._featuredReplayPage.querySelector('#featured-open-recap');
+    const linkButton = this._featuredReplayPage.querySelector('#featured-copy-link');
+    const headlineButton = this._featuredReplayPage.querySelector('#featured-copy-headline');
+    const captionButton = this._featuredReplayPage.querySelector('#featured-copy-caption');
+    const packageButton = this._featuredReplayPage.querySelector('#featured-copy-package');
+    const recapButton = this._featuredReplayPage.querySelector('#featured-copy-recap');
+
+    openButton?.addEventListener('click', () => {
+      this.controls.showPostGame({ entryMode: 'sharedReplay' });
+    });
+    linkButton?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(shareUrl || '');
+        this._copyButtonFeedback(linkButton, 'Copy Link', 'Link Copied');
+      } catch (e) {
+        this._copyButtonFeedback(linkButton, 'Copy Link', 'Copy Failed');
+      }
+    });
+    headlineButton?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(sharePackage.headline || '');
+        this._copyButtonFeedback(headlineButton, 'Copy Headline', 'Headline Copied');
+      } catch (e) {
+        this._copyButtonFeedback(headlineButton, 'Copy Headline', 'Copy Failed');
+      }
+    });
+    captionButton?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(sharePackage.caption || '');
+        this._copyButtonFeedback(captionButton, 'Copy Caption', 'Caption Copied');
+      } catch (e) {
+        this._copyButtonFeedback(captionButton, 'Copy Caption', 'Copy Failed');
+      }
+    });
+    packageButton?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(sharePackage.featuredCard || '');
+        this._copyButtonFeedback(packageButton, 'Copy Package', 'Package Copied');
+      } catch (e) {
+        this._copyButtonFeedback(packageButton, 'Copy Package', 'Copy Failed');
+      }
+    });
+    recapButton?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(recapText || '');
+        this._copyButtonFeedback(recapButton, 'Copy Recap', 'Recap Copied');
+      } catch (e) {
+        this._copyButtonFeedback(recapButton, 'Copy Recap', 'Copy Failed');
+      }
+    });
+    this._featuredReplayPage.querySelectorAll('.featured-replay-select').forEach((button) => {
+      button.addEventListener('click', () => {
+        const startupId = button.dataset.id;
+        if (!startupId) return;
+        this.store.selectStartup(startupId);
+        this.scene?.focusOnPod?.(startupId);
+      });
+    });
+  }
+
   _updateSpectatorEntry(state) {
     const entry = state.entryContext || {};
     const gameData = state.gameData;
     if (!entry.viaSharedLink) {
+      this._spectatorEntry.classList.add('hidden');
+      this._matchStrip.classList.remove('match-strip-with-entry');
+      this._matchStrip.classList.remove('match-strip-with-replay-entry');
+      this._spectatorEntry.innerHTML = '';
+      return;
+    }
+
+    if (this._isFeaturedReplayPage(state)) {
       this._spectatorEntry.classList.add('hidden');
       this._matchStrip.classList.remove('match-strip-with-entry');
       this._matchStrip.classList.remove('match-strip-with-replay-entry');
@@ -362,6 +569,11 @@ export class HUD {
   }
 
   _updateMatchStrip(state) {
+    if (this._isFeaturedReplayPage(state)) {
+      this._matchStrip.classList.add('hidden');
+      this._matchStrip.innerHTML = '';
+      return;
+    }
     const summary = state.gameData?.live_summary;
     const phase = state.gameData?.phase;
     if (!summary || (phase !== 'playing' && phase !== 'finished')) {
@@ -425,6 +637,7 @@ export class HUD {
 
     this._updateMatchStrip(state);
     this._updateSpectatorEntry(state);
+    this._updateFeaturedReplayPage(state);
     this._updateDiscoveryShelf(state);
 
     // Update panels
@@ -438,10 +651,13 @@ export class HUD {
       const isSharedReplay = Boolean(
         state.entryContext?.viaSharedLink && state.entryContext?.requestedPhase === 'replay'
       );
+      const isFeaturedReplayPage = this._isFeaturedReplayPage(state);
       const openModal = () => this.controls.showPostGame({
         entryMode: isSharedReplay ? 'sharedReplay' : 'standard',
       });
-      if (isSharedReplay) {
+      if (isFeaturedReplayPage) {
+        // The dedicated replay page is now the primary landing state.
+      } else if (isSharedReplay) {
         openModal();
       } else {
         setTimeout(openModal, 1500);

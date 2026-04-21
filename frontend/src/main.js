@@ -30,10 +30,15 @@ function updateDocumentTitle(state) {
   });
   const leader = ranked[0];
   const challenger = ranked[1];
+  const isSharedReplay = Boolean(
+    state.entryContext?.viaSharedLink &&
+    state.entryContext?.requestedPhase === 'replay' &&
+    phase === 'finished'
+  );
 
   if (phase === 'finished') {
     const winner = gameData.startups?.[gameData.winner] || leader;
-    document.title = `Replay: ${winner?.startup_name || gameData.name} | Founder Arena`;
+    document.title = `${isSharedReplay ? 'Featured Replay' : 'Replay'}: ${winner?.startup_name || gameData.name} | Founder Arena`;
     return;
   }
   if (phase === 'playing') {
