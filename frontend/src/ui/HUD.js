@@ -302,12 +302,14 @@ export class HUD {
         `;
       }
       const promotedArtifact = card.item.default_artifact || null;
+      const slotMemory = card.item.artifact_memory || null;
       return `
         <button class="btn-clean discovery-link" data-mode="${card.mode}" data-slot="${card.slot}" data-game="${card.item.game_id}" data-spectator="${card.item.spectator_token || ''}" data-phase="${promotedArtifact?.phase || ''}" data-layout="${promotedArtifact?.layout || ''}" data-slot-layout="${promotedArtifact?.slot_layout || ''}" style="text-align:left;padding:12px 14px;border-color:${card.accent}2e;background:${card.accent}12">
           <div style="font-size:9px;color:${card.accent};font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${card.label}</div>
           <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.4;margin-top:10px">${card.item.headline || `${card.item.winner_startup} replay`}</div>
           <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:8px">${card.item.matchup_label || card.item.game_name || 'Featured replay'}</div>
           ${card.item.artifact_focus?.label ? `<div style="font-size:8px;color:#FCD34D;font-weight:800;letter-spacing:0.7px;text-transform:uppercase;margin-top:8px">${card.item.artifact_focus.label}</div>` : ''}
+          ${slotMemory?.leader_label ? `<div style="font-size:8px;color:#93C5FD;line-height:1.45;margin-top:5px">Slot memory: ${slotMemory.leader_label}</div>` : ''}
           ${promotedArtifact?.reason ? `<div style="font-size:8px;color:var(--text-muted);line-height:1.45;margin-top:5px">${promotedArtifact.reason}</div>` : ''}
           <div style="font-size:9px;color:var(--text-muted);line-height:1.45;margin-top:6px">${card.item.story_hook || card.item.winner_summary || 'Replay story is loading.'}</div>
         </button>
@@ -636,8 +638,10 @@ export class HUD {
 
     const replayUrl = `${window.location.origin}${window.location.pathname}?game=${encodeURIComponent(item.game_id)}${item.spectator_token ? `&spectator=${encodeURIComponent(item.spectator_token)}` : ''}&phase=replay`;
     const defaultArtifact = item.default_artifact || null;
+    const slotMemory = item.artifact_memory || null;
     const defaultArtifactLabel = defaultArtifact?.label || 'Featured Pick';
     const defaultArtifactReason = defaultArtifact?.reason || item.artifact_focus?.reason || '';
+    const slotMemoryReason = slotMemory?.reason || item.artifact_focus?.memory_reason || '';
     const isSocialLayout = state.entryContext?.layout === 'social' || (!state.entryContext?.layout && defaultArtifact?.slot_layout === 'social');
     const cardUrl = this._artifactUrl(item, 'card', `${replayUrl}&layout=card`);
     const socialUrl = this._artifactUrl(item, 'social', `${replayUrl}&layout=social`);
@@ -667,6 +671,7 @@ export class HUD {
             <div class="spectator-entry-subline" style="margin-top:10px;max-width:760px;line-height:1.6">${item.story_hook || item.winner_summary || 'Featured story is loading.'}</div>
             ${item.deck_label ? `<div class="spectator-entry-subline" style="margin-top:8px;color:#CBD5E1">${item.deck_label}</div>` : ''}
             ${defaultArtifactReason ? `<div class="spectator-entry-subline" style="margin-top:8px;color:#FCD34D">Promoted surface: ${defaultArtifactLabel}. ${defaultArtifactReason}.</div>` : ''}
+            ${slotMemoryReason ? `<div class="spectator-entry-subline" style="margin-top:8px;color:#93C5FD">Slot memory: ${slotMemoryReason}</div>` : ''}
             ${isSocialLayout ? `<div style="margin-top:14px;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);font-size:11px;color:var(--text);line-height:1.65;white-space:pre-wrap">${socialCaption}</div>` : ''}
             <div class="spectator-entry-actions" style="margin-top:14px">
               <button class="btn-clean spectator-entry-action" id="slot-open-featured-pick">Open ${defaultArtifactLabel}</button>
@@ -710,6 +715,10 @@ export class HUD {
           <div class="spectator-entry-summary-cell">
             <div class="spectator-entry-cell-label">Promoted Surface</div>
             <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${defaultArtifactLabel}${defaultArtifactReason ? ` · ${defaultArtifactReason}` : ''}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Slot Memory</div>
+            <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${slotMemoryReason || 'Slot history is still warming up.'}</div>
           </div>
           <div class="spectator-entry-summary-cell">
             <div class="spectator-entry-cell-label">Turning Point</div>

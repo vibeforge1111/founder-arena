@@ -4107,7 +4107,98 @@ def _featured_share_package(game: "Game", ranked: list, summary: dict, descripto
     }
 
 
-def _apply_featured_artifact_selection(entry: Optional[dict], slot_name: Optional[str] = None) -> Optional[dict]:
+def _featured_slot_qualifies(entry: Optional[dict], slot_name: Optional[str]) -> bool:
+    if not entry or not slot_name:
+        return False
+    if slot_name == "daily_featured_duel":
+        return entry.get("game_mode") == "competitive_mode"
+    if slot_name == "weekly_upset_recap":
+        return entry.get("game_mode") == "competitive_mode"
+    if slot_name == "benchmark_challenge":
+        return entry.get("benchmark_tier") not in (None, "", "baseline") or bool(entry.get("practice_takeaway"))
+    return False
+
+
+def _build_featured_slot_memory(finished_entries: list[dict]) -> dict[str, dict]:
+    slot_memory: dict[str, dict] = {}
+    for slot_name in ("daily_featured_duel", "weekly_upset_recap", "benchmark_challenge"):
+        qualifying = [entry for entry in finished_entries if _featured_slot_qualifies(entry, slot_name)][:8]
+        if not qualifying:
+            slot_memory[slot_name] = {
+                "slot": slot_name,
+                "sample_size": 0,
+                "leader_key": None,
+                "leader_label": None,
+                "reason": "No slot history yet.",
+                "bonuses": {"replay": 0.0, "card": 0.0, "social": 0.0},
+            }
+            continue
+
+        weighted_wins = {"replay": 0.0, "card": 0.0, "social": 0.0}
+        raw_wins = {"replay": 0, "card": 0, "social": 0}
+        weighted_margins = {"replay": 0.0, "card": 0.0, "social": 0.0}
+        total_weight = 0.0
+
+        for index, entry in enumerate(qualifying):
+            selected = _apply_featured_artifact_selection(entry, slot_name=slot_name, slot_memory=None)
+            candidates = selected.get("artifact_candidates") or []
+            if not candidates:
+                continue
+            winner = candidates[0]
+            runner_up = candidates[1] if len(candidates) > 1 else None
+            weight = max(1.0, float(len(qualifying) - index))
+            margin = max(0.0, float(winner.get("score") or 0.0) - float((runner_up or {}).get("score") or 0.0))
+            key = winner.get("key") or "social"
+            weighted_wins[key] += weight
+            raw_wins[key] += 1
+            weighted_margins[key] += margin * weight
+            total_weight += weight
+
+        if total_weight <= 0:
+            slot_memory[slot_name] = {
+                "slot": slot_name,
+                "sample_size": len(qualifying),
+                "leader_key": None,
+                "leader_label": None,
+                "reason": "Slot history is still warming up.",
+                "bonuses": {"replay": 0.0, "card": 0.0, "social": 0.0},
+            }
+            continue
+
+        confidence = min(1.0, len(qualifying) / 4.0)
+        bonuses = {}
+        for key in ("replay", "card", "social"):
+            share = weighted_wins[key] / total_weight
+            avg_margin = weighted_margins[key] / max(weighted_wins[key], 1.0)
+            bonuses[key] = round(((share * 10.0) + min(4.0, avg_margin * 0.2)) * confidence, 1)
+
+        leader_key = max(("replay", "card", "social"), key=lambda key: (weighted_wins[key], bonuses[key]))
+        leader_label = {
+            "replay": "Full Replay",
+            "card": "Replay Card",
+            "social": "Social Card",
+        }.get(leader_key, "Featured Artifact")
+        slot_memory[slot_name] = {
+            "slot": slot_name,
+            "sample_size": len(qualifying),
+            "leader_key": leader_key,
+            "leader_label": leader_label,
+            "reason": f"Recent {slot_name.replace('_', ' ')} picks favored {leader_label} in {raw_wins[leader_key]} of {len(qualifying)} qualifying matches.",
+            "bonuses": bonuses,
+            "distribution": {
+                key: {
+                    "wins": raw_wins[key],
+                    "weighted_share": round(weighted_wins[key] / total_weight, 3),
+                    "bonus": bonuses[key],
+                }
+                for key in ("replay", "card", "social")
+            },
+        }
+
+    return slot_memory
+
+
+def _apply_featured_artifact_selection(entry: Optional[dict], slot_name: Optional[str] = None, slot_memory: Optional[dict] = None) -> Optional[dict]:
     if not entry:
         return None
     artifacts = entry.get("artifacts") or {}
@@ -4195,6 +4286,14 @@ def _apply_featured_artifact_selection(entry: Optional[dict], slot_name: Optiona
         reasons["card"].append("benchmark slot favors compact lessons")
         reasons["replay"].append("benchmark run still worth studying")
 
+    memory_bonuses = ((slot_memory or {}).get("bonuses") or {}) if slot_name else {}
+    memory_leader = (slot_memory or {}).get("leader_key") if slot_name else None
+    memory_reason = (slot_memory or {}).get("reason") if slot_name else None
+    for key in ("replay", "card", "social"):
+        scores[key] += float(memory_bonuses.get(key) or 0.0)
+    if memory_leader and memory_reason:
+        reasons[memory_leader].append(memory_reason)
+
     candidates = [
         {
             "key": "replay",
@@ -4203,6 +4302,7 @@ def _apply_featured_artifact_selection(entry: Optional[dict], slot_name: Optiona
             "phase": "replay",
             "query": replay_query,
             "score": round(scores["replay"], 1),
+            "memory_bonus": round(float(memory_bonuses.get("replay") or 0.0), 1),
             "reason": ", ".join(reasons["replay"][:2]) or "best for full match context",
             "slot_layout": None,
         },
@@ -4213,6 +4313,7 @@ def _apply_featured_artifact_selection(entry: Optional[dict], slot_name: Optiona
             "phase": "replay",
             "query": card_query or replay_query,
             "score": round(scores["card"], 1),
+            "memory_bonus": round(float(memory_bonuses.get("card") or 0.0), 1),
             "reason": ", ".join(reasons["card"][:2]) or "best for compact recap",
             "slot_layout": None,
         },
@@ -4223,6 +4324,7 @@ def _apply_featured_artifact_selection(entry: Optional[dict], slot_name: Optiona
             "phase": "replay",
             "query": social_query or replay_query,
             "score": round(scores["social"], 1),
+            "memory_bonus": round(float(memory_bonuses.get("social") or 0.0), 1),
             "reason": ", ".join(reasons["social"][:2]) or "best for shareable story packaging",
             "slot_layout": "social",
         },
@@ -4241,7 +4343,10 @@ def _apply_featured_artifact_selection(entry: Optional[dict], slot_name: Optiona
             "phase": default_artifact.get("phase"),
             "reason": default_artifact.get("reason"),
             "score": default_artifact.get("score"),
+            "memory_reason": memory_reason,
+            "memory_bonus": default_artifact.get("memory_bonus"),
         },
+        "artifact_memory": slot_memory if slot_name else None,
     }
 
 
@@ -4341,6 +4446,7 @@ def _build_featured_feed() -> dict:
     live_entries = [entry for game in games.values() for entry in [_featured_live_entry(game)] if entry]
     finished_entries.sort(key=lambda item: item["created_at"], reverse=True)
     live_entries.sort(key=lambda item: (item["turn"], item["created_at"]), reverse=True)
+    slot_memory = _build_featured_slot_memory(finished_entries)
 
     competitive_entries = [entry for entry in finished_entries if entry.get("game_mode") == "competitive_mode"]
     daily_featured = competitive_entries[0] if competitive_entries else (finished_entries[0] if finished_entries else None)
@@ -4361,9 +4467,9 @@ def _build_featured_feed() -> dict:
         ),
         None,
     )
-    daily_featured = _apply_featured_artifact_selection(daily_featured, "daily_featured_duel")
-    weekly_upset = _apply_featured_artifact_selection(weekly_upset, "weekly_upset_recap")
-    benchmark_challenge = _apply_featured_artifact_selection(benchmark_challenge, "benchmark_challenge")
+    daily_featured = _apply_featured_artifact_selection(daily_featured, "daily_featured_duel", slot_memory.get("daily_featured_duel"))
+    weekly_upset = _apply_featured_artifact_selection(weekly_upset, "weekly_upset_recap", slot_memory.get("weekly_upset_recap"))
+    benchmark_challenge = _apply_featured_artifact_selection(benchmark_challenge, "benchmark_challenge", slot_memory.get("benchmark_challenge"))
 
     return {
         "daily_featured_duel": daily_featured,
@@ -4371,6 +4477,7 @@ def _build_featured_feed() -> dict:
         "benchmark_challenge": benchmark_challenge,
         "featured_replays": finished_entries[:6],
         "live_now": live_entries[:3],
+        "slot_memory": slot_memory,
     }
 
 
