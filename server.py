@@ -2215,6 +2215,7 @@ class Game:
         turning_points: list[dict] = []
         previous_gap: float | None = None
         previous_leader_id: str | None = None
+        max_recorded_turn = max(history_by_turn) if history_by_turn else max(1, self.max_turns)
         for turn in sorted(history_by_turn):
             standings = history_by_turn[turn]
             if len(standings) < 2:
@@ -2227,7 +2228,25 @@ class Game:
             gap = round(leader_meta["score"] - challenger_meta["score"], 2)
             gap_change = round(gap if previous_gap is None else gap - previous_gap, 2)
             leader_changed = previous_leader_id is not None and previous_leader_id != leader.id
-            swing_score = round(abs(gap_change) + (3.0 if leader_changed else 0.0), 2)
+            leader_actions = self._action_labels_for_turn(leader.id, turn)
+            challenger_actions = self._action_labels_for_turn(challenger.id, turn)
+            leader_decision = self._public_decision_summary(self._decision_for_turn(leader.id, turn))
+            challenger_decision = self._public_decision_summary(self._decision_for_turn(challenger.id, turn))
+            turn_progress = turn / max(1, max_recorded_turn)
+            closeness_bonus = max(0.0, 2.5 - min(2.5, gap))
+            decision_bonus = (0.75 if leader_decision else 0.0) + (0.75 if challenger_decision else 0.0)
+            action_bonus = min(1.0, 0.2 * (len(leader_actions) + len(challenger_actions)))
+            opening_penalty = 1.5 if turn <= 2 else (0.75 if turn <= 4 else 0.0)
+            stage_multiplier = 0.7 if turn <= 2 else (0.9 if turn <= 4 else 1.0 + (turn_progress * 0.35))
+            swing_score = round(
+                (abs(gap_change) * 1.35 * stage_multiplier)
+                + (4.0 if leader_changed else 0.0)
+                + closeness_bonus
+                + decision_bonus
+                + action_bonus
+                - opening_penalty,
+                2,
+            )
             turning_points.append(
                 {
                     "turn": turn,
@@ -2249,10 +2268,10 @@ class Game:
                         leader_changed=leader_changed,
                         turn=turn,
                     ),
-                    "leader_actions": self._action_labels_for_turn(leader.id, turn),
-                    "challenger_actions": self._action_labels_for_turn(challenger.id, turn),
-                    "leader_decision": self._public_decision_summary(self._decision_for_turn(leader.id, turn)),
-                    "challenger_decision": self._public_decision_summary(self._decision_for_turn(challenger.id, turn)),
+                    "leader_actions": leader_actions,
+                    "challenger_actions": challenger_actions,
+                    "leader_decision": leader_decision,
+                    "challenger_decision": challenger_decision,
                 }
             )
             previous_gap = gap
@@ -2262,7 +2281,7 @@ class Game:
             key=lambda item: (
                 item["leader_changed"],
                 item["swing_score"],
-                abs(item["score_gap"]),
+                item["turn"],
             ),
             reverse=True,
         )

@@ -459,12 +459,99 @@ export class GameControls {
     });
   }
 
+  _renderTurningPoints(summary) {
+    const turningPoints = summary?.turning_points || [];
+    if (turningPoints.length === 0) {
+      return '<div style="font-size:10px;color:var(--text-muted)">No replay turning points were recorded for this match.</div>';
+    }
+
+    return turningPoints.map((point, index) => {
+      const leaderPlan = point.leader_decision?.intent || point.leader_actions?.join(', ') || 'No public plan recorded.';
+      const challengerPlan = point.challenger_decision?.intent || point.challenger_actions?.join(', ') || 'No challenger plan recorded.';
+      const swingLabel = point.leader_changed ? 'Lead Change' : `${point.gap_change >= 0 ? '+' : ''}${formatScore(point.gap_change)} gap swing`;
+      return `
+        <div style="padding:12px 14px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div style="font-size:9px;color:#A78BFA;font-weight:800;text-transform:uppercase;letter-spacing:0.8px">Turning Point ${index + 1}</div>
+            <div style="font-size:8px;color:#22D3EE;border:1px solid rgba(34,211,238,0.2);background:rgba(34,211,238,0.08);border-radius:999px;padding:3px 8px">${swingLabel}</div>
+            <div style="margin-left:auto;font-size:9px;color:var(--text-muted)">Week ${point.turn}</div>
+          </div>
+          <div style="font-size:12px;font-weight:800;color:var(--text);margin-top:8px">${point.headline}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+            <div style="background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.14);border-radius:10px;padding:10px">
+              <div style="font-size:8px;color:#A78BFA;font-weight:700;letter-spacing:0.7px;text-transform:uppercase">${point.leader_startup}</div>
+              <div style="font-size:10px;color:var(--text);line-height:1.45;margin-top:6px">${leaderPlan}</div>
+              <div style="font-size:9px;color:var(--text-muted);margin-top:8px">${formatScore(point.leader_score)} score</div>
+            </div>
+            <div style="background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.14);border-radius:10px;padding:10px">
+              <div style="font-size:8px;color:#22D3EE;font-weight:700;letter-spacing:0.7px;text-transform:uppercase">${point.challenger_startup}</div>
+              <div style="font-size:10px;color:var(--text);line-height:1.45;margin-top:6px">${challengerPlan}</div>
+              <div style="font-size:9px;color:var(--text-muted);margin-top:8px">${formatScore(point.challenger_score)} score</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  _renderOutcomeCards(summary, sorted) {
+    const outcomes = summary?.startup_outcomes || {};
+    const losers = sorted
+      .slice(1, 3)
+      .map((startup) => ({ startup, outcome: outcomes[startup.id] }))
+      .filter(({ outcome }) => outcome);
+
+    if (losers.length === 0) {
+      return '';
+    }
+
+    return losers.map(({ startup, outcome }) => {
+      const strengths = (outcome.strengths || []).map((item) => item.label).join(' · ');
+      const gaps = (outcome.gaps || []).map((item) => item.label).join(' · ');
+      return `
+        <div style="padding:12px 14px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div style="font-size:10px;font-weight:800;color:var(--text)">${startup.startup_name}</div>
+            <div style="font-size:8px;color:#FB923C;border:1px solid rgba(251,146,60,0.18);background:rgba(251,146,60,0.08);border-radius:999px;padding:3px 8px">${outcome.result.replace(/_/g, ' ')}</div>
+          </div>
+          <div style="font-size:10px;color:var(--text-dim);line-height:1.5;margin-top:8px">${outcome.headline}</div>
+          ${strengths ? `<div style="font-size:9px;color:#22C55E;margin-top:8px">Held up on: ${strengths}</div>` : ''}
+          ${gaps ? `<div style="font-size:9px;color:#EF4444;margin-top:4px">Lost on: ${gaps}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  _buildReplayRecapText(summary, sorted, competitive) {
+    const winner = sorted[0];
+    const turningPoints = (summary?.turning_points || [])
+      .map((point, index) => `${index + 1}. ${point.headline}`)
+      .join('\n');
+    const loserRecaps = sorted
+      .slice(1, 3)
+      .map((startup) => {
+        const outcome = summary?.startup_outcomes?.[startup.id];
+        return outcome ? `- ${startup.startup_name}: ${outcome.headline}` : null;
+      })
+      .filter(Boolean)
+      .join('\n');
+
+    return [
+      `${summary?.winner_summary || `${winner?.startup_name || 'Unknown'} won the match.`}`,
+      competitive && winner ? `Winner score: ${formatScore(startupScore(winner))}` : null,
+      summary?.practice_takeaway?.headline ? `Practice takeaway: ${summary.practice_takeaway.headline}` : null,
+      turningPoints ? `Turning points:\n${turningPoints}` : null,
+      loserRecaps ? `Why they lost:\n${loserRecaps}` : null,
+    ].filter(Boolean).join('\n\n');
+  }
+
   showPostGame() {
     const gameData = this.store.state.gameData;
     if (!gameData) return;
 
     const competitive = isCompetitiveMode(gameData);
     const sorted = rankedStartups(gameData);
+    const summary = gameData.summary || {};
 
     const winner = sorted[0];
     const podium = sorted.slice(0, 3);
@@ -482,6 +569,7 @@ export class GameControls {
         <div style="font-size:11px;color:var(--text-muted);margin-top:6px;font-weight:500">Champion &middot; ${winner?.agent_name || ''}</div>
         <div style="font-size:20px;font-weight:900;color:#FFB800;margin-top:8px">${winnerHeadline}</div>
         <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${winnerSubhead}</div>
+        ${summary?.winner_summary ? `<div style="font-size:10px;color:var(--text-dim);line-height:1.5;max-width:520px;margin:10px auto 0">${summary.winner_summary}</div>` : ''}
       </div>
 
       <div style="margin:16px 0">
@@ -504,14 +592,46 @@ export class GameControls {
         }).join('')}
       </div>
 
+      <div style="margin:18px 0 10px">
+        <div style="font-size:10px;color:#A78BFA;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Replay Recap</div>
+        <div style="padding:12px 14px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);margin-bottom:10px">
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            ${summary?.winner_score != null ? `<div style="font-size:10px;color:var(--text-muted)">Winner: <span style="color:#FFB800;font-weight:800">${formatScore(summary.winner_score)}</span></div>` : ''}
+            ${summary?.runner_up_score != null ? `<div style="font-size:10px;color:var(--text-muted)">Runner-up: <span style="color:#22D3EE;font-weight:800">${formatScore(summary.runner_up_score)}</span></div>` : ''}
+            ${summary?.final_margin != null ? `<div style="font-size:10px;color:var(--text-muted)">Final margin: <span style="color:#A78BFA;font-weight:800">${formatScore(summary.final_margin)}</span></div>` : ''}
+          </div>
+          ${summary?.practice_takeaway?.headline ? `<div style="font-size:10px;color:#FB923C;line-height:1.5;margin-top:10px">Practice takeaway: ${summary.practice_takeaway.headline}</div>` : ''}
+        </div>
+        ${this._renderTurningPoints(summary)}
+      </div>
+
+      <div style="margin:18px 0 10px">
+        <div style="font-size:10px;color:#FB923C;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Why They Lost</div>
+        ${this._renderOutcomeCards(summary, sorted) || '<div style="font-size:10px;color:var(--text-muted)">Outcome diagnostics are not available for this match yet.</div>'}
+      </div>
+
       <div class="modal-actions">
         <button class="btn-secondary" id="pg-close">Close</button>
+        <button class="btn-clean" id="pg-copy" style="border-color:rgba(34,211,238,0.3);color:#22D3EE">Copy Recap</button>
         <button class="btn-game btn-game-blue" id="pg-new" style="flex:2">&#9654; New Game</button>
       </div>
     `;
     this.open();
 
     this._modal.querySelector('#pg-close').addEventListener('click', () => this.close());
+    this._modal.querySelector('#pg-copy').addEventListener('click', async () => {
+      const btn = this._modal.querySelector('#pg-copy');
+      const recapText = this._buildReplayRecapText(summary, sorted, competitive);
+      try {
+        await navigator.clipboard.writeText(recapText);
+        btn.textContent = 'Copied';
+        setTimeout(() => {
+          btn.textContent = 'Copy Recap';
+        }, 1500);
+      } catch (e) {
+        btn.textContent = 'Copy Failed';
+      }
+    });
     this._modal.querySelector('#pg-new').addEventListener('click', () => {
       this.close();
       this.showCreateGame();
