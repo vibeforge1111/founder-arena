@@ -119,6 +119,31 @@ export class HUD {
     );
   }
 
+  _isReplayCardLayout(state) {
+    return this._isFeaturedReplayPage(state) && state.entryContext?.layout === 'card';
+  }
+
+  _buildReplayEmbedSnippet(url, title = 'Founder Arena Featured Replay') {
+    if (!url) return '';
+    return `<iframe src="${url}" title="${title}" width="720" height="900" style="width:100%;max-width:720px;height:900px;border:0;border-radius:16px;overflow:hidden;" loading="lazy"></iframe>`;
+  }
+
+  _syncReplayLayoutChrome(state) {
+    const featuredReplayPage = this._isFeaturedReplayPage(state);
+    const cardLayout = this._isReplayCardLayout(state);
+    const hideMainPanels = featuredReplayPage;
+    this.rankings.el.style.display = hideMainPanels ? 'none' : '';
+    this.timeline._wrapper.style.display = hideMainPanels ? 'none' : '';
+    this.detail.el.style.display = hideMainPanels ? 'none' : '';
+
+    const quickPlay = this._header.querySelector('#btn-quick-play');
+    const newGame = this._header.querySelector('#btn-new-game');
+    const watch = this._header.querySelector('#btn-watch');
+    [quickPlay, newGame, watch].forEach((button) => {
+      if (button) button.style.display = cardLayout ? 'none' : '';
+    });
+  }
+
   _updateDiscoveryShelf(state) {
     const hasFocusedGame = Boolean(state.gameId || state.gameData);
     if (hasFocusedGame) {
@@ -284,32 +309,37 @@ export class HUD {
     const summary = gameData.summary || {};
     const sorted = this.store.startupList || [];
     const competitive = gameData?.rank_basis === 'score';
+    const isCardLayout = this._isReplayCardLayout(state);
     const winner = sorted[0] || null;
     const runnerUp = sorted[1] || null;
-    const shareUrl = this.store.getShareUrl();
+    const shareUrl = this.store.getShareUrl({ layout: null });
+    const cardUrl = this.store.getShareUrl({ layout: 'card' });
     const sharePackage = this.controls._buildSharePackage(gameData, summary, sorted, competitive);
     const recapText = this.controls._buildReplayRecapText(summary, sorted, competitive);
+    const embedSnippet = this._buildReplayEmbedSnippet(cardUrl, `${sharePackage.headline || 'Founder Arena Featured Replay'}`);
     const podium = sorted.slice(0, 3);
 
     this._featuredReplayPage.classList.remove('hidden');
     this._featuredReplayPage.innerHTML = `
-      <div class="spectator-entry-card spectator-entry-card-replay" style="padding:18px 20px;background:
+      <div class="spectator-entry-card spectator-entry-card-replay" style="padding:${isCardLayout ? '16px' : '18px 20px'};max-width:${isCardLayout ? '780px' : 'none'};margin:${isCardLayout ? '0 auto' : '0'};background:
         radial-gradient(circle at top left, rgba(255,184,0,0.12), transparent 32%),
         radial-gradient(circle at top right, rgba(34,211,238,0.12), transparent 28%),
         linear-gradient(180deg, rgba(8,15,24,0.94), rgba(8,12,18,0.98));border-color:rgba(255,255,255,0.08)">
         <div class="spectator-entry-topline">
-          <span class="spectator-entry-badge">Featured Replay Page</span>
+          <span class="spectator-entry-badge">${isCardLayout ? 'Replay Card' : 'Featured Replay Page'}</span>
           <span class="spectator-entry-meta">${sharePackage.formatLabel} &middot; ${gameData.queue || 'showmatch'} &middot; ${gameData.benchmark_tier || 'baseline'} &middot; ID ${state.gameId || ''}</span>
         </div>
         <div class="spectator-entry-hero" style="align-items:flex-start">
           <div style="flex:1 1 460px;min-width:0">
             <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.9px;text-transform:uppercase">${sharePackage.matchupLabel}</div>
-            <div class="spectator-entry-headline" style="font-size:26px;line-height:1.15;margin-top:8px">${sharePackage.headline}</div>
+            <div class="spectator-entry-headline" style="font-size:${isCardLayout ? '22px' : '26px'};line-height:1.15;margin-top:8px">${sharePackage.headline}</div>
             <div class="spectator-entry-subline" style="margin-top:10px;max-width:760px;line-height:1.6">${summary.winner_summary || sharePackage.storyHook}</div>
             ${sharePackage.deckLabel ? `<div class="spectator-entry-subline" style="margin-top:8px;color:#CBD5E1">${sharePackage.deckLabel}</div>` : ''}
             <div class="spectator-entry-actions" style="margin-top:14px">
               <button class="btn-clean spectator-entry-action" id="featured-open-recap">Open Recap</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-link">Copy Link</button>
+              <button class="btn-clean spectator-entry-action" id="featured-copy-card-link">Copy Card Link</button>
+              <button class="btn-clean spectator-entry-action" id="featured-copy-embed">Copy Embed</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-headline">Copy Headline</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-caption">Copy Caption</button>
               <button class="btn-clean spectator-entry-action" id="featured-copy-package">Copy Package</button>
@@ -351,7 +381,7 @@ export class HUD {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,0.9fr);gap:16px;margin-top:18px">
+        <div style="display:grid;grid-template-columns:${isCardLayout ? '1fr' : 'minmax(0,1.4fr) minmax(280px,0.9fr)'};gap:16px;margin-top:18px">
           <div style="display:grid;gap:16px">
             <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
               <div style="font-size:9px;color:#A78BFA;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Replay Narrative</div>
@@ -361,10 +391,10 @@ export class HUD {
               <div style="font-size:9px;color:#A78BFA;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Turning Points</div>
               <div style="margin-top:12px">${this.controls._renderTurningPoints(summary)}</div>
             </div>
-            <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+            ${isCardLayout ? '' : `<div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
               <div style="font-size:9px;color:#FB923C;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Why They Lost</div>
               <div style="margin-top:12px">${this.controls._renderOutcomeCards(summary, sorted) || '<div style="font-size:10px;color:var(--text-muted)">Outcome diagnostics are not available for this match yet.</div>'}</div>
-            </div>
+            </div>`}
           </div>
           <div style="display:grid;gap:16px">
             <div style="padding:14px 16px;border-radius:14px;background:rgba(255,184,0,0.06);border:1px solid rgba(255,184,0,0.14)">
@@ -386,13 +416,14 @@ export class HUD {
               <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.45;margin-top:10px">${sharePackage.headline}</div>
               <div style="font-size:10px;color:var(--text-dim);line-height:1.6;white-space:pre-wrap;margin-top:10px">${sharePackage.caption}</div>
             </div>
-            <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
+            ${isCardLayout ? '' : `<div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
               <div style="font-size:9px;color:#22D3EE;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Runner Issues</div>
               <div style="margin-top:12px">${this.controls._renderRunnerIncidents(summary)}</div>
-            </div>
+            </div>`}
             <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
-              <div style="font-size:9px;color:#94A3B8;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Replay Link</div>
-              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${shareUrl || 'No replay link available.'}</div>
+              <div style="font-size:9px;color:#94A3B8;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${isCardLayout ? 'Card Link' : 'Replay Link'}</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${isCardLayout ? cardUrl : shareUrl || 'No replay link available.'}</div>
+              ${!isCardLayout ? `<div style="font-size:9px;color:var(--text-muted);line-height:1.5;margin-top:10px">Card export: ${cardUrl}</div>` : ''}
             </div>
           </div>
         </div>
@@ -401,6 +432,8 @@ export class HUD {
 
     const openButton = this._featuredReplayPage.querySelector('#featured-open-recap');
     const linkButton = this._featuredReplayPage.querySelector('#featured-copy-link');
+    const cardLinkButton = this._featuredReplayPage.querySelector('#featured-copy-card-link');
+    const embedButton = this._featuredReplayPage.querySelector('#featured-copy-embed');
     const headlineButton = this._featuredReplayPage.querySelector('#featured-copy-headline');
     const captionButton = this._featuredReplayPage.querySelector('#featured-copy-caption');
     const packageButton = this._featuredReplayPage.querySelector('#featured-copy-package');
@@ -415,6 +448,22 @@ export class HUD {
         this._copyButtonFeedback(linkButton, 'Copy Link', 'Link Copied');
       } catch (e) {
         this._copyButtonFeedback(linkButton, 'Copy Link', 'Copy Failed');
+      }
+    });
+    cardLinkButton?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(cardUrl || '');
+        this._copyButtonFeedback(cardLinkButton, 'Copy Card Link', 'Card Link Copied');
+      } catch (e) {
+        this._copyButtonFeedback(cardLinkButton, 'Copy Card Link', 'Copy Failed');
+      }
+    });
+    embedButton?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(embedSnippet || '');
+        this._copyButtonFeedback(embedButton, 'Copy Embed', 'Embed Copied');
+      } catch (e) {
+        this._copyButtonFeedback(embedButton, 'Copy Embed', 'Copy Failed');
       }
     });
     headlineButton?.addEventListener('click', async () => {
@@ -667,6 +716,8 @@ export class HUD {
   }
 
   update(state) {
+    this._syncReplayLayoutChrome(state);
+
     // Update header status
     const phase = state.gameData?.phase;
     const turn = state.gameData?.turn || 0;

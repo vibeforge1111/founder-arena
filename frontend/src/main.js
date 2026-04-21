@@ -14,6 +14,7 @@ const bootParams = new URLSearchParams(window.location.search);
 const bootGameId = bootParams.get('game');
 const bootSpectator = bootParams.get('spectator');
 const bootPhase = bootParams.get('phase');
+const bootLayout = bootParams.get('layout');
 
 function updateDocumentTitle(state) {
   const gameData = state.gameData;
@@ -35,10 +36,14 @@ function updateDocumentTitle(state) {
     state.entryContext?.requestedPhase === 'replay' &&
     phase === 'finished'
   );
+  const isCardLayout = state.entryContext?.layout === 'card';
 
   if (phase === 'finished') {
     const winner = gameData.startups?.[gameData.winner] || leader;
-    document.title = `${isSharedReplay ? 'Featured Replay' : 'Replay'}: ${winner?.startup_name || gameData.name} | Founder Arena`;
+    const replayPrefix = isCardLayout
+      ? 'Replay Card'
+      : isSharedReplay ? 'Featured Replay' : 'Replay';
+    document.title = `${replayPrefix}: ${winner?.startup_name || gameData.name} | Founder Arena`;
     return;
   }
   if (phase === 'playing') {
@@ -85,6 +90,7 @@ if (bootGameId) {
   store.watchGame(bootGameId, bootSpectator || null, {
     viaSharedLink: true,
     requestedPhase: bootPhase || null,
+    layout: bootLayout || null,
   });
 }
 

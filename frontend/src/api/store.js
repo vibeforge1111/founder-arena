@@ -28,6 +28,7 @@ export class GameStore {
       entryContext: {
         viaSharedLink: false,
         requestedPhase: null,
+        layout: null,
       },
       error: null,
     };
@@ -53,6 +54,11 @@ export class GameStore {
       url.searchParams.set('phase', 'replay');
     } else {
       url.searchParams.delete('phase');
+    }
+    if (this.state.entryContext?.layout) {
+      url.searchParams.set('layout', this.state.entryContext.layout);
+    } else {
+      url.searchParams.delete('layout');
     }
     window.history.replaceState({}, '', `${url.pathname}${url.search}`);
   }
@@ -99,7 +105,7 @@ export class GameStore {
     return this.state.gameData?.max_turns || 32;
   }
 
-  getShareUrl() {
+  getShareUrl(options = {}) {
     if (typeof window === 'undefined') return '';
     const url = new URL(window.location.href);
     if (this.state.gameId) {
@@ -108,8 +114,15 @@ export class GameStore {
     if (this.state.spectatorToken) {
       url.searchParams.set('spectator', this.state.spectatorToken);
     }
-    if (this.phase === 'finished') {
+    if ((options.phase || this.phase) === 'finished') {
       url.searchParams.set('phase', 'replay');
+    }
+    if (options.layout) {
+      url.searchParams.set('layout', options.layout);
+    } else if (options.layout === null) {
+      url.searchParams.delete('layout');
+    } else if (this.state.entryContext?.layout) {
+      url.searchParams.set('layout', this.state.entryContext.layout);
     }
     return url.toString();
   }
@@ -217,6 +230,7 @@ export class GameStore {
       entryContext: {
         viaSharedLink: Boolean(options.viaSharedLink),
         requestedPhase: options.requestedPhase || null,
+        layout: options.layout || null,
       },
       error: null,
     });
