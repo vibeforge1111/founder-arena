@@ -4085,11 +4085,6 @@ def _featured_share_package(game: "Game", ranked: list, summary: dict, descripto
         "headline": headline,
         "caption": "\n".join(part for part in caption_parts if part),
         "social_caption": "\n".join(part for part in social_caption_parts if part),
-        "artifact_focus": {
-            "label": "Social Ready",
-            "layout": "social",
-            "phase": "replay",
-        },
         "artifacts": {
             "replay_query": {
                 "game": game.id,
@@ -4108,6 +4103,144 @@ def _featured_share_package(game: "Game", ranked: list, summary: dict, descripto
                 "phase": "replay",
                 "layout": "social",
             },
+        },
+    }
+
+
+def _apply_featured_artifact_selection(entry: Optional[dict], slot_name: Optional[str] = None) -> Optional[dict]:
+    if not entry:
+        return None
+    artifacts = entry.get("artifacts") or {}
+    replay_query = artifacts.get("replay_query")
+    card_query = artifacts.get("card_query")
+    social_query = artifacts.get("social_query")
+    if not replay_query:
+        return entry
+
+    final_margin = float(entry.get("final_margin") or 0.0)
+    players = int(entry.get("players") or 0)
+    reasons: dict[str, list[str]] = {
+        "replay": [],
+        "card": [],
+        "social": [],
+    }
+    scores = {
+        "replay": 34.0,
+        "card": 42.0,
+        "social": 46.0,
+    }
+
+    if entry.get("game_mode") == "competitive_mode":
+        scores["social"] += 6.0
+        scores["card"] += 4.0
+        reasons["social"].append("competitive duel framing")
+        reasons["card"].append("competitive result")
+    if entry.get("story_hook"):
+        scores["social"] += 8.0
+        reasons["social"].append("strong story hook")
+    if entry.get("turning_point_headline"):
+        scores["social"] += 8.0
+        scores["replay"] += 6.0
+        reasons["social"].append("clear turning point")
+        reasons["replay"].append("turning point worth replaying")
+    if entry.get("runner_issue_headline"):
+        scores["replay"] += 10.0
+        scores["social"] += 3.0
+        reasons["replay"].append("runner failure context")
+    if entry.get("practice_takeaway"):
+        scores["card"] += 14.0
+        scores["social"] += 5.0
+        reasons["card"].append("benchmark takeaway compresses well")
+        reasons["social"].append("clean takeaway")
+    if entry.get("benchmark_tier") not in (None, "", "baseline"):
+        scores["card"] += 14.0
+        reasons["card"].append("benchmark challenge packaging")
+    if entry.get("lead_change"):
+        scores["social"] += 9.0
+        scores["replay"] += 5.0
+        reasons["social"].append("lead changed hands")
+        reasons["replay"].append("momentum swing")
+    if players >= 4:
+        scores["replay"] += 20.0
+        scores["card"] -= 8.0
+        scores["social"] -= 10.0
+        reasons["replay"].append("multi-founder context")
+    elif players == 3:
+        scores["replay"] += 12.0
+        scores["card"] -= 4.0
+        reasons["replay"].append("three-player replay depth")
+    elif players == 2:
+        scores["social"] += 6.0
+        scores["card"] += 4.0
+        reasons["social"].append("head-to-head matchup")
+    if final_margin <= 2.0:
+        scores["social"] += 10.0
+        scores["replay"] += 4.0
+        reasons["social"].append("tight finish")
+    elif final_margin >= 5.0:
+        scores["card"] += 7.0
+        reasons["card"].append("decisive margin")
+
+    if slot_name == "daily_featured_duel":
+        scores["social"] += 12.0
+        reasons["social"].append("daily duel should land fast")
+    elif slot_name == "weekly_upset_recap":
+        scores["social"] += 14.0
+        scores["card"] += 6.0
+        reasons["social"].append("upset recap wants a social hook")
+        reasons["card"].append("upset summary is portable")
+    elif slot_name == "benchmark_challenge":
+        scores["card"] += 18.0
+        scores["replay"] += 4.0
+        reasons["card"].append("benchmark slot favors compact lessons")
+        reasons["replay"].append("benchmark run still worth studying")
+
+    candidates = [
+        {
+            "key": "replay",
+            "label": "Full Replay",
+            "layout": None,
+            "phase": "replay",
+            "query": replay_query,
+            "score": round(scores["replay"], 1),
+            "reason": ", ".join(reasons["replay"][:2]) or "best for full match context",
+            "slot_layout": None,
+        },
+        {
+            "key": "card",
+            "label": "Replay Card",
+            "layout": "card",
+            "phase": "replay",
+            "query": card_query or replay_query,
+            "score": round(scores["card"], 1),
+            "reason": ", ".join(reasons["card"][:2]) or "best for compact recap",
+            "slot_layout": None,
+        },
+        {
+            "key": "social",
+            "label": "Social Card",
+            "layout": "social",
+            "phase": "replay",
+            "query": social_query or replay_query,
+            "score": round(scores["social"], 1),
+            "reason": ", ".join(reasons["social"][:2]) or "best for shareable story packaging",
+            "slot_layout": "social",
+        },
+    ]
+    candidates.sort(key=lambda item: (item["score"], 1 if item["key"] == "social" else 0), reverse=True)
+    default_artifact = dict(candidates[0])
+    default_artifact["promoted"] = True
+
+    return {
+        **entry,
+        "artifact_candidates": candidates,
+        "default_artifact": default_artifact,
+        "artifact_focus": {
+            "label": f"Promoted {default_artifact['label']}",
+            "layout": default_artifact.get("layout"),
+            "phase": default_artifact.get("phase"),
+            "reason": default_artifact.get("reason"),
+            "score": default_artifact.get("score"),
         },
     }
 
@@ -4199,7 +4332,12 @@ def _featured_live_entry(game: "Game") -> Optional[dict]:
 
 
 def _build_featured_feed() -> dict:
-    finished_entries = [entry for game in games.values() for entry in [_featured_game_entry(game)] if entry]
+    finished_entries = [
+        _apply_featured_artifact_selection(entry)
+        for game in games.values()
+        for entry in [_featured_game_entry(game)]
+        if entry
+    ]
     live_entries = [entry for game in games.values() for entry in [_featured_live_entry(game)] if entry]
     finished_entries.sort(key=lambda item: item["created_at"], reverse=True)
     live_entries.sort(key=lambda item: (item["turn"], item["created_at"]), reverse=True)
@@ -4223,6 +4361,9 @@ def _build_featured_feed() -> dict:
         ),
         None,
     )
+    daily_featured = _apply_featured_artifact_selection(daily_featured, "daily_featured_duel")
+    weekly_upset = _apply_featured_artifact_selection(weekly_upset, "weekly_upset_recap")
+    benchmark_challenge = _apply_featured_artifact_selection(benchmark_challenge, "benchmark_challenge")
 
     return {
         "daily_featured_duel": daily_featured,

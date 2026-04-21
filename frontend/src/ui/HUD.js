@@ -157,6 +157,11 @@ export class HUD {
     return url.toString();
   }
 
+  _artifactUrl(item, key, fallback = '') {
+    const payload = item?.artifacts?.[`${key}_query`] || item?.default_artifact?.query || null;
+    return this._queryUrlFromPayload(payload) || fallback;
+  }
+
   _socialCaption(summary, fallbackHeadline, storyHook) {
     return [
       fallbackHeadline || null,
@@ -296,12 +301,14 @@ export class HUD {
           </div>
         `;
       }
+      const promotedArtifact = card.item.default_artifact || null;
       return `
-        <button class="btn-clean discovery-link" data-mode="${card.mode}" data-slot="${card.slot}" data-game="${card.item.game_id}" data-spectator="${card.item.spectator_token || ''}" style="text-align:left;padding:12px 14px;border-color:${card.accent}2e;background:${card.accent}12">
+        <button class="btn-clean discovery-link" data-mode="${card.mode}" data-slot="${card.slot}" data-game="${card.item.game_id}" data-spectator="${card.item.spectator_token || ''}" data-phase="${promotedArtifact?.phase || ''}" data-layout="${promotedArtifact?.layout || ''}" data-slot-layout="${promotedArtifact?.slot_layout || ''}" style="text-align:left;padding:12px 14px;border-color:${card.accent}2e;background:${card.accent}12">
           <div style="font-size:9px;color:${card.accent};font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${card.label}</div>
           <div style="font-size:12px;color:var(--text);font-weight:800;line-height:1.4;margin-top:10px">${card.item.headline || `${card.item.winner_startup} replay`}</div>
           <div style="font-size:9px;color:var(--text-dim);line-height:1.5;margin-top:8px">${card.item.matchup_label || card.item.game_name || 'Featured replay'}</div>
           ${card.item.artifact_focus?.label ? `<div style="font-size:8px;color:#FCD34D;font-weight:800;letter-spacing:0.7px;text-transform:uppercase;margin-top:8px">${card.item.artifact_focus.label}</div>` : ''}
+          ${promotedArtifact?.reason ? `<div style="font-size:8px;color:var(--text-muted);line-height:1.45;margin-top:5px">${promotedArtifact.reason}</div>` : ''}
           <div style="font-size:9px;color:var(--text-muted);line-height:1.45;margin-top:6px">${card.item.story_hook || card.item.winner_summary || 'Replay story is loading.'}</div>
         </button>
       `;
@@ -339,8 +346,20 @@ export class HUD {
         const mode = button.dataset.mode;
         const spectator = button.dataset.spectator || null;
         const slot = button.dataset.slot || null;
+        const promotedPhase = button.dataset.phase || null;
+        const promotedLayout = button.dataset.layout || null;
+        const slotLayout = button.dataset.slotLayout || null;
         if (mode === 'slot' && slot) {
-          this.store.openFeaturedSlot(slot, { viaSharedLink: true });
+          if (gameId && (promotedPhase || promotedLayout)) {
+            this.store.watchGame(gameId, spectator, {
+              viaSharedLink: true,
+              requestedPhase: promotedPhase || 'replay',
+              layout: promotedLayout || null,
+              slot,
+            });
+            return;
+          }
+          this.store.openFeaturedSlot(slot, { viaSharedLink: true, layout: slotLayout || null });
           return;
         }
         if (!gameId) return;
@@ -599,7 +618,6 @@ export class HUD {
     const item = featuredFeed?.[slot] || null;
     const slotTitle = this._slotTitle(slot);
     const slotUrl = this.store.getFeaturedSlotUrl(slot);
-    const isSocialLayout = state.entryContext?.layout === 'social';
 
     this._featuredSlotPage.classList.remove('hidden');
     if (!item) {
@@ -617,8 +635,13 @@ export class HUD {
     }
 
     const replayUrl = `${window.location.origin}${window.location.pathname}?game=${encodeURIComponent(item.game_id)}${item.spectator_token ? `&spectator=${encodeURIComponent(item.spectator_token)}` : ''}&phase=replay`;
-    const cardUrl = this._queryUrlFromPayload(item.artifacts?.card_query) || `${replayUrl}&layout=card`;
-    const socialUrl = this._queryUrlFromPayload(item.artifacts?.social_query) || `${replayUrl}&layout=social`;
+    const defaultArtifact = item.default_artifact || null;
+    const defaultArtifactLabel = defaultArtifact?.label || 'Featured Pick';
+    const defaultArtifactReason = defaultArtifact?.reason || item.artifact_focus?.reason || '';
+    const isSocialLayout = state.entryContext?.layout === 'social' || (!state.entryContext?.layout && defaultArtifact?.slot_layout === 'social');
+    const cardUrl = this._artifactUrl(item, 'card', `${replayUrl}&layout=card`);
+    const socialUrl = this._artifactUrl(item, 'social', `${replayUrl}&layout=social`);
+    const defaultArtifactUrl = this._queryUrlFromPayload(defaultArtifact?.query) || socialUrl;
     const embedSnippet = this._buildReplayEmbedSnippet(cardUrl, `${slotTitle} | Founder Arena`);
     const socialCaption = item.social_caption || [
       item.headline || `${item.winner_startup} won the match.`,
@@ -643,12 +666,15 @@ export class HUD {
             <div class="spectator-entry-headline" style="font-size:${isSocialLayout ? '30px' : '28px'};line-height:1.15;margin-top:8px">${item.headline || `${item.winner_startup} won the slot`}</div>
             <div class="spectator-entry-subline" style="margin-top:10px;max-width:760px;line-height:1.6">${item.story_hook || item.winner_summary || 'Featured story is loading.'}</div>
             ${item.deck_label ? `<div class="spectator-entry-subline" style="margin-top:8px;color:#CBD5E1">${item.deck_label}</div>` : ''}
+            ${defaultArtifactReason ? `<div class="spectator-entry-subline" style="margin-top:8px;color:#FCD34D">Promoted surface: ${defaultArtifactLabel}. ${defaultArtifactReason}.</div>` : ''}
             ${isSocialLayout ? `<div style="margin-top:14px;padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);font-size:11px;color:var(--text);line-height:1.65;white-space:pre-wrap">${socialCaption}</div>` : ''}
             <div class="spectator-entry-actions" style="margin-top:14px">
+              <button class="btn-clean spectator-entry-action" id="slot-open-featured-pick">Open ${defaultArtifactLabel}</button>
               <button class="btn-clean spectator-entry-action" id="slot-open-replay">Open Replay</button>
               <button class="btn-clean spectator-entry-action" id="slot-open-card">Open Card</button>
               <button class="btn-clean spectator-entry-action" id="slot-open-social">Open Social</button>
               <button class="btn-clean spectator-entry-action" id="slot-copy-slot-link">Copy Slot Link</button>
+              <button class="btn-clean spectator-entry-action" id="slot-copy-featured-link">Copy ${defaultArtifactLabel}</button>
               <button class="btn-clean spectator-entry-action" id="slot-copy-replay-link">Copy Replay Link</button>
               <button class="btn-clean spectator-entry-action" id="slot-copy-card-link">Copy Card Link</button>
               <button class="btn-clean spectator-entry-action" id="slot-copy-social-link">Copy Social Link</button>
@@ -680,6 +706,10 @@ export class HUD {
           <div class="spectator-entry-summary-cell">
             <div class="spectator-entry-cell-label">Story Hook</div>
             <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${item.story_hook || item.winner_summary || 'Featured story is loading.'}</div>
+          </div>
+          <div class="spectator-entry-summary-cell">
+            <div class="spectator-entry-cell-label">Promoted Surface</div>
+            <div class="spectator-entry-cell-value spectator-entry-cell-wrap">${defaultArtifactLabel}${defaultArtifactReason ? ` · ${defaultArtifactReason}` : ''}</div>
           </div>
           <div class="spectator-entry-summary-cell">
             <div class="spectator-entry-cell-label">Turning Point</div>
@@ -715,6 +745,10 @@ export class HUD {
               <div style="font-size:9px;color:#FB923C;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Social Export</div>
               <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${socialUrl}</div>
             </div>`}
+            <div style="padding:14px 16px;border-radius:14px;background:rgba(252,211,77,0.06);border:1px solid rgba(252,211,77,0.14)">
+              <div style="font-size:9px;color:#FCD34D;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">Promoted Artifact</div>
+              <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${defaultArtifactUrl}</div>
+            </div>
             <div style="padding:14px 16px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)">
               <div style="font-size:9px;color:#94A3B8;font-weight:800;letter-spacing:0.8px;text-transform:uppercase">${isSocialLayout ? 'Social Link' : 'Canonical Slot Link'}</div>
               <div style="font-size:10px;color:var(--text-dim);line-height:1.6;word-break:break-word;margin-top:10px">${isSocialLayout ? socialUrl : slotUrl}</div>
@@ -724,16 +758,26 @@ export class HUD {
       </div>
     `;
 
+    const openFeaturedPick = this._featuredSlotPage.querySelector('#slot-open-featured-pick');
     const openReplay = this._featuredSlotPage.querySelector('#slot-open-replay');
     const openCard = this._featuredSlotPage.querySelector('#slot-open-card');
     const openSocial = this._featuredSlotPage.querySelector('#slot-open-social');
     const copySlotLink = this._featuredSlotPage.querySelector('#slot-copy-slot-link');
+    const copyFeaturedLink = this._featuredSlotPage.querySelector('#slot-copy-featured-link');
     const copyReplayLink = this._featuredSlotPage.querySelector('#slot-copy-replay-link');
     const copyCardLink = this._featuredSlotPage.querySelector('#slot-copy-card-link');
     const copySocialLink = this._featuredSlotPage.querySelector('#slot-copy-social-link');
     const copySocialCaption = this._featuredSlotPage.querySelector('#slot-copy-social-caption');
     const copyEmbed = this._featuredSlotPage.querySelector('#slot-copy-embed');
 
+    openFeaturedPick?.addEventListener('click', () => {
+      this.store.watchGame(item.game_id, item.spectator_token || null, {
+        viaSharedLink: true,
+        requestedPhase: defaultArtifact?.phase || 'replay',
+        layout: defaultArtifact?.layout || null,
+        slot,
+      });
+    });
     openReplay?.addEventListener('click', () => {
       this.store.watchGame(item.game_id, item.spectator_token || null, {
         viaSharedLink: true,
@@ -753,7 +797,7 @@ export class HUD {
       this.store.watchGame(item.game_id, item.spectator_token || null, {
         viaSharedLink: true,
         requestedPhase: 'replay',
-        layout: item.artifact_focus?.layout || 'social',
+        layout: 'social',
         slot,
       });
     });
@@ -763,6 +807,14 @@ export class HUD {
         this._copyButtonFeedback(copySlotLink, 'Copy Slot Link', 'Slot Link Copied');
       } catch (e) {
         this._copyButtonFeedback(copySlotLink, 'Copy Slot Link', 'Copy Failed');
+      }
+    });
+    copyFeaturedLink?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(defaultArtifactUrl);
+        this._copyButtonFeedback(copyFeaturedLink, `Copy ${defaultArtifactLabel}`, 'Featured Link Copied');
+      } catch (e) {
+        this._copyButtonFeedback(copyFeaturedLink, `Copy ${defaultArtifactLabel}`, 'Copy Failed');
       }
     });
     copyReplayLink?.addEventListener('click', async () => {
