@@ -3260,12 +3260,14 @@ def _register_github_workspace(manifest: dict, workspace: Path) -> None:
         check=True,
         capture_output=True,
         text=True,
+        timeout=120,
     )
     subprocess.run(
         ["git", "-C", str(clone_target), "checkout", repo_ref],
         check=True,
         capture_output=True,
         text=True,
+        timeout=30,
     )
     subdir = repo.get("subdir")
     if subdir:
