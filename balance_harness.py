@@ -1232,6 +1232,8 @@ def main() -> int:
     parser.add_argument("--max-pressure-clear-spread", type=float, default=None)
     parser.add_argument("--max-practice-best-archetype-clear-rate", type=float, default=None)
     parser.add_argument("--max-benchmark-difficulty-inversions", type=int, default=None)
+    parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility")
+
     args = parser.parse_args()
 
     summary = run_seeded_tournament(
