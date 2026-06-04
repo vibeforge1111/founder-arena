@@ -91,6 +91,8 @@ def main():
     parser.add_argument("--turns", type=int, default=52, help="Max turns")
     parser.add_argument("--name", default="Battle Royale", help="Game name")
     parser.add_argument("--show-spectator-token", action="store_true", help="Print the spectator token for manual dashboard access")
+    parser.add_argument("--headless", action="store_true", help="Run in headless mode (no GUI)")
+
     args = parser.parse_args()
 
     num_agents = min(max(args.agents, 2), 8)
