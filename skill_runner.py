@@ -264,6 +264,8 @@ def main() -> None:
     parser.add_argument("--entrant-id", default="")
     parser.add_argument("--entrant-version-hash", default="")
     parser.add_argument("--entrant-type", default="skill_package")
+    parser.add_argument("--version", action="store_true", help="Show version and exit")
+
     args = parser.parse_args()
 
     skill_path = Path(args.skill_file).resolve()
