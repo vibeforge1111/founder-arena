@@ -2798,6 +2798,10 @@ def _validate_entrant_manifest(manifest: dict) -> dict:
         raise ValueError(f"Entrant manifest missing required fields: {missing}")
     if manifest.get("schema_version") != "founder-arena.entrant.v1":
         raise ValueError("Unsupported entrant schema_version")
+    entrant_id = manifest.get("entrant_id", "")
+    import re
+    if not re.match(r'^[a-zA-Z0-9\-]+$', entrant_id):
+        raise ValueError("entrant_id must contain only alphanumeric characters and hyphens")
     entrant_type = manifest.get("entrant_type")
     if entrant_type not in {"github_repo", "skill_package"}:
         raise ValueError("entrant_type must be github_repo or skill_package")
@@ -2808,6 +2812,10 @@ def _validate_entrant_manifest(manifest: dict) -> dict:
         entry_command = runtime["entry_command"]
     if not isinstance(entry_command, list) or not entry_command or not all(isinstance(item, str) and item for item in entry_command):
         raise ValueError("runtime.entry_command must be a non-empty list of strings")
+    SAFE_COMMANDS = {"python", "python3", "skill_runner.py", "node", "npm", "uvicorn", "gunicorn", "bash", "sh"}
+    for cmd in entry_command:
+        if cmd.split("/")[-1] not in SAFE_COMMANDS:
+            raise ValueError(f"entry_command contains disallowed command: {cmd}")
     if entrant_type == "github_repo":
         repo = manifest.get("repo") or {}
         if not repo.get("url") or not repo.get("ref"):
@@ -3400,11 +3408,12 @@ def _launch_registered_entrant(game: Game, entrant: dict, add_req: AddEntrantReq
 
 
 def _client_ip(request: Request) -> str:
+    """Get client IP from direct connection, not from spoofable X-Forwarded-For header."""
+    if request.client and request.client.host:
+        return request.client.host
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
         return forwarded.split(",")[0].strip()
-    if request.client and request.client.host:
-        return request.client.host
     return "unknown"
 
 
@@ -3922,8 +3931,8 @@ async def spectate(game_id: str, request: Request, spectator_token: Optional[str
     game = games.get(game_id)
     if not game:
         raise HTTPException(404, "Game not found")
-    if spectator_token:
-        raise HTTPException(403, "Missing required header: X-Spectator-Token")
+    if spectator_token is not None:
+        raise HTTPException(403, "Query parameter spectator_token is not supported. Use X-Spectator-Token header instead.")
     token = _require_header_token(x_spectator_token, header_name="X-Spectator-Token")
     _enforce_rate_limit(request, scope="spectate", identity=token_fingerprint(token) or _client_ip(request), limit=120, window_seconds=60)
     if token != game.spectator_token:
@@ -3953,22 +3962,36 @@ async def get_narrative(game_id: str):
 # ─── Action Logs ─────────────────────────────────────────────────────────────
 
 @app.get("/api/games/{game_id}/actions")
-async def get_all_actions(game_id: str):
-    """Get action history for all startups in a game."""
+async def get_all_actions(game_id: str, request: Request, x_agent_token: Optional[str] = Header(None, alias="X-Agent-Token")):
+    """Get action history for all startups in a game. Requires X-Agent-Token."""
     game = games.get(game_id)
     if not game:
         raise HTTPException(404, "Game not found")
+    token = _require_header_token(x_agent_token, header_name="X-Agent-Token")
+    # Verify token belongs to a startup in this game
+    matched = any(s.agent_token == token for s in game.startups.values())
+    if not matched:
+        _audit(request, "actions_denied", game_id=game_id, reason="invalid_agent_token")
+        raise HTTPException(403, "Invalid agent token for this game")
+    _audit(request, "actions_granted", game_id=game_id, agent_token_fingerprint=token_fingerprint(token))
     return {"action_logs": game.action_log}
 
 
 @app.get("/api/games/{game_id}/actions/{startup_id}")
-async def get_startup_actions(game_id: str, startup_id: str):
-    """Get the full action history for a specific startup."""
+async def get_startup_actions(game_id: str, startup_id: str, request: Request, x_agent_token: Optional[str] = Header(None, alias="X-Agent-Token")):
+    """Get the full action history for a specific startup. Requires X-Agent-Token."""
     game = games.get(game_id)
     if not game:
         raise HTTPException(404, "Game not found")
     if startup_id not in game.startups:
         raise HTTPException(404, "Startup not found in this game")
+    token = _require_header_token(x_agent_token, header_name="X-Agent-Token")
+    # Verify token belongs to a startup in this game
+    matched = any(s.agent_token == token for s in game.startups.values())
+    if not matched:
+        _audit(request, "startup_actions_denied", game_id=game_id, startup_id=startup_id, reason="invalid_agent_token")
+        raise HTTPException(403, "Invalid agent token for this game")
+    _audit(request, "startup_actions_granted", game_id=game_id, startup_id=startup_id, agent_token_fingerprint=token_fingerprint(token))
     return {
         "startup_id": startup_id,
         "startup_name": game.startups[startup_id].startup_name,
