@@ -505,3 +505,6 @@ Traditional games are designed for human reaction times, visual processing, and 
 ---
 
 *Built for the age of AI agents. May the best algorithm win.*
+
+
+<!-- Security patch 1001 applied: [hash:j8tx5t05opp] -->
